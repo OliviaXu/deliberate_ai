@@ -13,6 +13,8 @@ export class GeminiInterceptDetector implements InterceptDetector {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Enter') return;
     if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.isComposing) return;
+    if (!this.isComposerKeyEvent(event)) return;
 
     this.emit('enter_key');
   };
@@ -73,6 +75,30 @@ export class GeminiInterceptDetector implements InterceptDetector {
     return (textbox.textContent || '').trim().length > 0;
   }
 
+  private isComposerKeyEvent(event: KeyboardEvent): boolean {
+    const target = event.target;
+    if (target instanceof Element) {
+      if (target.matches('textarea')) return true;
+
+      const composer = target.closest(
+        [
+          'rich-textarea [contenteditable="true"][role="textbox"]',
+          '.ql-editor.textarea[contenteditable="true"][role="textbox"]',
+          '[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]'
+        ].join(', ')
+      );
+      if (composer) return true;
+    }
+
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return false;
+    return (
+      active.matches('textarea') ||
+      active.matches('.ql-editor.textarea[contenteditable="true"][role="textbox"]') ||
+      active.matches('[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]')
+    );
+  }
+
   private isDisabled(button: HTMLButtonElement): boolean {
     return button.disabled || button.getAttribute('aria-disabled') === 'true';
   }
@@ -88,7 +114,6 @@ export class GeminiInterceptDetector implements InterceptDetector {
     const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
     const testId = (button.getAttribute('data-test-id') || '').toLowerCase();
     const classes = button.className.toLowerCase();
-    const jslog = (button.getAttribute('jslog') || '').toLowerCase();
     const text = (button.textContent || '').toLowerCase().trim();
 
     return (
@@ -96,7 +121,6 @@ export class GeminiInterceptDetector implements InterceptDetector {
       testId.includes('send') ||
       classes.includes('send-button') ||
       classes.includes('submit') ||
-      jslog.includes('generic_click') ||
       text === 'send'
     );
   }

@@ -25,6 +25,13 @@ test('loads extension on Gemini and emits normalized submit signals', async () =
     const isGemini = new URL(page.url()).host === 'gemini.google.com';
     test.skip(!isGemini, 'Gemini redirected to auth flow. Provide a signed-in profile with GEMINI_USER_DATA_DIR.');
 
+    // Require the real Gemini send button to exist before proceeding.
+    const realSendButton = page
+      .locator('button.send-button.submit[aria-label*="Send"], button.send-button[aria-label*="Send"]')
+      .first();
+    const realSendVisible = await realSendButton.isVisible({ timeout: 10_000 }).catch(() => false);
+    test.skip(!realSendVisible, 'Could not find visible Gemini send control. Use a signed-in profile with active composer UI.');
+
     await page.waitForFunction(
       () => document.documentElement.getAttribute('data-deliberate-active') === 'true',
       { timeout: 10_000 }
@@ -41,6 +48,11 @@ test('loads extension on Gemini and emits normalized submit signals', async () =
     });
     expect(keydownDefaultPrevented).toBe(false);
 
+    const beforeCount = await page.evaluate(() => {
+      const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
+      return Number(raw || 0);
+    });
+
     await page.evaluate(() => {
       const btn = document.createElement('button');
       btn.setAttribute('aria-label', 'Send');
@@ -55,7 +67,7 @@ test('loads extension on Gemini and emits normalized submit signals', async () =
       return Number(raw || 0);
     });
 
-    expect(signalCount).toBeGreaterThanOrEqual(2);
+    expect(signalCount).toBeGreaterThanOrEqual(beforeCount + 1);
   } finally {
     await context.close();
   }

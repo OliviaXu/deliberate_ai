@@ -4,13 +4,15 @@ import { GeminiInterceptDetector } from '../../src/content/intercept-detector';
 describe('GeminiInterceptDetector', () => {
   it('emits enter_key on Enter submit intent', () => {
     document.body.innerHTML = '<textarea>hello</textarea>';
+    const composer = document.querySelector('textarea') as HTMLTextAreaElement;
+    composer.focus();
     const detector = new GeminiInterceptDetector();
     const handler = vi.fn();
 
     detector.onSignal(handler);
     detector.start();
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     expect(handler).toHaveBeenCalledTimes(1);
     const firstSignal = handler.mock.calls[0]?.[0];
@@ -18,6 +20,42 @@ describe('GeminiInterceptDetector', () => {
     if (!firstSignal) throw new Error('Expected first signal payload');
     expect(firstSignal.source).toBe('enter_key');
     expect(firstSignal.hasPromptInput).toBe(true);
+
+    detector.stop();
+  });
+
+  it('ignores Enter outside composer context', () => {
+    document.body.innerHTML = '<input value=\"hello\" /><button aria-label=\"Tools\">Tools</button>';
+    const input = document.querySelector('input') as HTMLInputElement;
+    input.focus();
+    const detector = new GeminiInterceptDetector();
+    const handler = vi.fn();
+
+    detector.onSignal(handler);
+    detector.start();
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(handler).not.toHaveBeenCalled();
+
+    detector.stop();
+  });
+
+  it('ignores Enter when IME composition is active', () => {
+    document.body.innerHTML = '<textarea>hello</textarea>';
+    const composer = document.querySelector('textarea') as HTMLTextAreaElement;
+    composer.focus();
+    const detector = new GeminiInterceptDetector();
+    const handler = vi.fn();
+
+    detector.onSignal(handler);
+    detector.start();
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(event, 'isComposing', { value: true });
+    composer.dispatchEvent(event);
+
+    expect(handler).not.toHaveBeenCalled();
 
     detector.stop();
   });
