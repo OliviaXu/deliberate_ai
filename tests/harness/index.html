@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deliberate Local Harness</title>
+  </head>
+  <body>
+    <h1>Local Submit Harness</h1>
+    <textarea id="composer" rows="4" cols="40">draft prompt</textarea>
+    <button id="send" aria-label="Send">Send</button>
+    <p id="native-send-state">idle</p>
+    <script>
+      const state = document.getElementById('native-send-state');
+      const composer = document.getElementById('composer');
+      const send = document.getElementById('send');
+
+      const markSent = () => {
+        state.textContent = 'sent';
+      };
+
+      composer.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          markSent();
+        }
+      });
+
+      send.addEventListener('click', () => {
+        markSent();
+      });
+    </script>
+  </body>
+</html>
