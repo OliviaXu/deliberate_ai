@@ -1,0 +1,17 @@
+node_modules/
+
+# Build outputs
+dist/
+.output/
+.wxt/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
