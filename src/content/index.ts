@@ -18,8 +18,13 @@ interceptor.onIntercept((intent) => {
   modalOpen = true;
   void modal.open().then((mode) => {
     logger.info('mode-selected', { mode, interceptionId: intent.interceptionId });
-    const resumed = interceptor.resume(intent);
-    logger.info('send-resumed', { resumed, source: intent.source, interceptionId: intent.interceptionId });
+    const replayAttempted = interceptor.resume(intent);
+    logger.info('send-replay-attempted', {
+      replayAttempted,
+      deliveryNotVerified: true,
+      source: intent.source,
+      interceptionId: intent.interceptionId
+    });
     modalOpen = false;
     setDomState(interceptionCount, false);
   });

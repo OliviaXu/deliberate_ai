@@ -79,4 +79,30 @@ describe('GeminiSendInterceptor', () => {
 
     interceptor.stop();
   });
+
+  it('intercepts send button click even when composer cannot be resolved', () => {
+    document.body.innerHTML = '<button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
+    const button = document.querySelector('#send') as HTMLButtonElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    button.click();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const firstIntent = handler.mock.calls[0]?.[0];
+    expect(firstIntent).toBeDefined();
+    if (!firstIntent) throw new Error('Expected interception intent');
+    expect(firstIntent.hasPromptInput).toBe(false);
+    expect(state.textContent).toBe('idle');
+
+    interceptor.stop();
+  });
 });

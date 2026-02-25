@@ -99,7 +99,9 @@ export class GeminiSendInterceptor {
     if (this.consumeBypassIfSet()) return;
 
     const intent = this.createIntent(source, composer, button);
-    if (!intent.hasPromptInput) return;
+    if (!intent.hasPromptInput) {
+      this.logger?.debug('prompt-input-missing-best-effort', { source });
+    }
 
     this.blockNativeSend(event);
     this.emitIntent(intent);
@@ -225,23 +227,13 @@ export class GeminiSendInterceptor {
       if (composer) return composer;
       this.logger?.debug('composer-resolution-active-miss');
     }
-
-    const firstComposer = this.resolveFirstComposer();
-    if (firstComposer) {
-      this.logger?.debug('composer-resolution-fallback-first-match');
-    } else {
-      this.logger?.debug('composer-resolution-no-composer-found');
-    }
-    return firstComposer;
+    this.logger?.debug('composer-resolution-no-active-composer');
+    return null;
   }
 
   private resolveComposerNear(element: HTMLElement): HTMLElement | null {
     if (element.matches(COMPOSER_MATCH_SELECTOR)) return element;
     return element.closest<HTMLElement>(COMPOSER_LOOKUP_SELECTOR);
-  }
-
-  private resolveFirstComposer(): HTMLElement | null {
-    return document.querySelector<HTMLElement>(COMPOSER_LOOKUP_SELECTOR);
   }
 
   private resolveSendButton(): HTMLButtonElement | null {
