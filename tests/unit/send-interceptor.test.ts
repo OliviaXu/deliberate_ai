@@ -1,0 +1,82 @@
+import { describe, expect, it, vi } from 'vitest';
+import { GeminiSendInterceptor } from '../../src/content/send-interceptor';
+
+describe('GeminiSendInterceptor', () => {
+  it('blocks Enter submit and emits an interception intent', () => {
+    document.body.innerHTML = '<textarea id="composer">draft</textarea><p id="state">idle</p>';
+    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    composer.focus();
+    composer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.textContent).toBe('idle');
+
+    interceptor.stop();
+  });
+
+  it('resumes blocked send once without reopening interception loop', () => {
+    document.body.innerHTML = '<textarea id="composer">draft</textarea><p id="state">idle</p>';
+    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    composer.focus();
+    composer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const intent = handler.mock.calls[0]?.[0];
+    if (!intent) throw new Error('Expected interception intent');
+
+    const resumed = interceptor.resume(intent);
+
+    expect(resumed).toBe(true);
+    expect(state.textContent).toBe('sent');
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    interceptor.stop();
+  });
+
+  it('blocks send button click and resumes after mode selection path', () => {
+    document.body.innerHTML = '<textarea id="composer">draft</textarea><button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
+    const button = document.querySelector('#send') as HTMLButtonElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    button.click();
+    const intent = handler.mock.calls[0]?.[0];
+    if (!intent) throw new Error('Expected interception intent');
+
+    expect(state.textContent).toBe('idle');
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(state.textContent).toBe('sent');
+
+    interceptor.stop();
+  });
+});

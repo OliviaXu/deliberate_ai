@@ -1,4 +1,5 @@
 export type SubmitSource = 'enter_key' | 'send_button';
+export type InteractionMode = 'delegation' | 'problem_solving' | 'learning';
 
 export interface SubmitSignal {
   source: SubmitSource;
@@ -6,6 +7,10 @@ export interface SubmitSignal {
   url: string;
   platform: 'gemini';
   hasPromptInput: boolean;
+}
+
+export interface InterceptedSubmitIntent extends SubmitSignal {
+  interceptionId: number;
 }
 
 export type LogLevel = 'off' | 'error' | 'info' | 'debug';
