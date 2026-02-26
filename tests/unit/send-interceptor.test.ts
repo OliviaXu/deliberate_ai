@@ -55,6 +55,41 @@ describe('GeminiSendInterceptor', () => {
     interceptor.stop();
   });
 
+  it('prefers click replay for enter-origin intents when send button exists', () => {
+    document.body.innerHTML = '<textarea id="composer">draft</textarea><button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
+    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
+    const button = document.querySelector('#send') as HTMLButtonElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    let clickCount = 0;
+
+    composer.focus();
+    composer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent-enter';
+    });
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      clickCount += 1;
+      state.textContent = 'sent-click';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const intent = handler.mock.calls[0]?.[0];
+    if (!intent) throw new Error('Expected interception intent');
+
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(clickCount).toBe(1);
+    expect(state.textContent).toBe('sent-click');
+
+    interceptor.stop();
+  });
+
   it('blocks send button click and resumes after mode selection path', () => {
     document.body.innerHTML = '<textarea id="composer">draft</textarea><button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
     const button = document.querySelector('#send') as HTMLButtonElement;

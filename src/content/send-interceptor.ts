@@ -81,7 +81,7 @@ export class GeminiSendInterceptor {
     const resumed =
       internalIntent.source === 'send_button'
         ? this.tryResumeByButtonThenEnter(internalIntent)
-        : this.tryResumeByEnterThenButton(internalIntent);
+        : this.tryResumeByClickThenEnter(internalIntent);
 
     if (!resumed) {
       this.bypassNextInterception = false;
@@ -161,10 +161,10 @@ export class GeminiSendInterceptor {
     return this.resumeByEnter(intent.composer);
   }
 
-  private tryResumeByEnterThenButton(intent: InternalSubmitIntent): boolean {
-    if (this.resumeByEnter(intent.composer)) return true;
-    this.logger?.info('resume-fallback-enter-to-click', { interceptionId: intent.interceptionId });
-    return this.resumeByClick(this.resolveSendButton());
+  private tryResumeByClickThenEnter(intent: InternalSubmitIntent): boolean {
+    if (this.resumeByClick(this.resolveSendButton())) return true;
+    this.logger?.info('resume-fallback-click-to-enter', { interceptionId: intent.interceptionId });
+    return this.resumeByEnter(intent.composer);
   }
 
   private resumeByClick(button: HTMLButtonElement | null): boolean {
