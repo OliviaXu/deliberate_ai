@@ -109,7 +109,7 @@ export class ModeSelectionModal {
     panel.appendChild(count);
 
     const continueButton = this.makeContinueButton();
-    continueButton.disabled = true;
+    this.setContinueButtonEnabled(continueButton, false);
     continueButton.addEventListener('click', () => {
       this.finish(root, resolve, {
         mode: 'problem_solving',
@@ -121,7 +121,7 @@ export class ModeSelectionModal {
     input.addEventListener('input', () => {
       const current = input.value.trim().length;
       count.textContent = `${current} / ${PROBLEM_SOLVING_MIN_CHARS}`;
-      continueButton.disabled = current < PROBLEM_SOLVING_MIN_CHARS;
+      this.setContinueButtonEnabled(continueButton, current >= PROBLEM_SOLVING_MIN_CHARS);
     });
   }
 
@@ -138,7 +138,7 @@ export class ModeSelectionModal {
     panel.appendChild(input);
 
     const continueButton = this.makeContinueButton();
-    continueButton.disabled = false;
+    this.setContinueButtonEnabled(continueButton, true);
     continueButton.addEventListener('click', () => {
       const priorKnowledgeNote = input.value.trim();
       this.finish(root, resolve, priorKnowledgeNote ? { mode: 'learning', priorKnowledgeNote } : { mode: 'learning' });
@@ -190,6 +190,24 @@ export class ModeSelectionModal {
     button.style.cursor = 'pointer';
     button.textContent = 'Continue';
     return button;
+  }
+
+  private setContinueButtonEnabled(button: HTMLButtonElement, enabled: boolean): void {
+    button.disabled = !enabled;
+    if (enabled) {
+      button.style.border = '1px solid #1f6feb';
+      button.style.background = '#1f6feb';
+      button.style.color = '#fff';
+      button.style.cursor = 'pointer';
+      button.style.opacity = '1';
+      return;
+    }
+
+    button.style.border = '1px solid #d1d5db';
+    button.style.background = '#e5e7eb';
+    button.style.color = '#6b7280';
+    button.style.cursor = 'not-allowed';
+    button.style.opacity = '1';
   }
 
   private finish(root: HTMLDivElement, resolve: (submission: LearningCycleSubmission) => void, submission: LearningCycleSubmission): void {
