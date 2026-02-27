@@ -1,5 +1,7 @@
 import { loadDebugConfig } from '../shared/debug-config';
 import { Logger } from '../shared/logger';
+import type { LearningCycleRuntimeMessage } from '../shared/types';
+import { handleModeSubmission } from './learning-cycle-flow';
 import { ModeSelectionModal } from './mode-modal';
 import { GeminiSendInterceptor } from './send-interceptor';
 
@@ -16,18 +18,22 @@ interceptor.onIntercept((intent) => {
   if (modalOpen) return;
 
   modalOpen = true;
-  void modal.open().then((mode) => {
-    logger.info('mode-selected', { mode, interceptionId: intent.interceptionId });
-    const replayAttempted = interceptor.resume(intent);
-    logger.info('send-replay-attempted', {
-      replayAttempted,
-      deliveryNotVerified: true,
-      source: intent.source,
-      interceptionId: intent.interceptionId
+  void modal
+    .open()
+    .then((submission) => {
+      logger.info('mode-selected', { mode: submission.mode, interceptionId: intent.interceptionId });
+      handleModeSubmission({
+        intent,
+        submission,
+        sendMessage: sendRuntimeMessage,
+        resume: (value) => interceptor.resume(value),
+        logger
+      });
+    })
+    .finally(() => {
+      modalOpen = false;
+      setDomState(interceptionCount, false);
     });
-    modalOpen = false;
-    setDomState(interceptionCount, false);
-  });
 });
 
 interceptor.start();
@@ -37,4 +43,11 @@ function setDomState(count: number, isModalOpen: boolean): void {
   document.documentElement.setAttribute('data-deliberate-active', 'true');
   document.documentElement.setAttribute('data-deliberate-signal-count', String(count));
   document.documentElement.setAttribute('data-deliberate-modal-open', String(isModalOpen));
+}
+
+function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unknown> | undefined {
+  const chromeApi = (globalThis as { chrome?: { runtime?: { sendMessage?: (payload: unknown) => Promise<unknown> | unknown } } }).chrome;
+  const send = chromeApi?.runtime?.sendMessage;
+  if (!send) return undefined;
+  return Promise.resolve(send(message));
 }

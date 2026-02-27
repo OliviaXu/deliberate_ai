@@ -44,7 +44,7 @@ export class GeminiSendInterceptor {
     if (!button) return;
     if (this.isDisabled(button)) return;
     if (!this.isSendButton(button)) return;
-    const composer = this.resolveActiveComposer();
+    const composer = this.resolveComposerForClick(button);
     if (!composer) {
       this.logger?.debug('composer-resolution-click-none');
     }
@@ -99,7 +99,7 @@ export class GeminiSendInterceptor {
     if (this.consumeBypassIfSet()) return;
 
     const intent = this.createIntent(source, composer, button);
-    if (!intent.hasPromptInput) {
+    if (!intent.prompt.trim()) {
       this.logger?.debug('prompt-input-missing-best-effort', { source });
     }
 
@@ -118,12 +118,13 @@ export class GeminiSendInterceptor {
     button: HTMLButtonElement | null
   ): InternalSubmitIntent {
     this.interceptionId += 1;
+    const prompt = composer ? this.getComposerText(composer) : '';
     return {
       source,
       timestamp: Date.now(),
       url: window.location.href,
       platform: 'gemini',
-      hasPromptInput: this.hasPromptInput(composer),
+      prompt,
       interceptionId: this.interceptionId,
       button,
       composer
@@ -137,7 +138,7 @@ export class GeminiSendInterceptor {
       timestamp: intent.timestamp,
       url: intent.url,
       platform: intent.platform,
-      hasPromptInput: intent.hasPromptInput,
+      prompt: intent.prompt,
       interceptionId: intent.interceptionId
     };
     this.handlers.forEach((handler) => handler(publicIntent));
@@ -188,11 +189,6 @@ export class GeminiSendInterceptor {
     return true;
   }
 
-  private hasPromptInput(composer: HTMLElement | null): boolean {
-    if (!composer) return false;
-    return this.getComposerText(composer).trim().length > 0;
-  }
-
   private getComposerText(composer: HTMLElement): string {
     if (composer instanceof HTMLTextAreaElement) {
       return composer.value;
@@ -228,6 +224,19 @@ export class GeminiSendInterceptor {
       this.logger?.debug('composer-resolution-active-miss');
     }
     this.logger?.debug('composer-resolution-no-active-composer');
+    return null;
+  }
+
+  private resolveComposerForClick(button: HTMLButtonElement): HTMLElement | null {
+    const activeComposer = this.resolveActiveComposer();
+    if (activeComposer) return activeComposer;
+
+    const nearbyComposer = this.resolveComposerNear(button);
+    if (nearbyComposer) return nearbyComposer;
+
+    const firstComposer = document.querySelector<HTMLElement>(COMPOSER_LOOKUP_SELECTOR);
+    if (firstComposer) return firstComposer;
+
     return null;
   }
 

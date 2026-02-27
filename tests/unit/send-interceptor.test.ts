@@ -22,6 +22,8 @@ describe('GeminiSendInterceptor', () => {
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(state.textContent).toBe('idle');
+    const intent = handler.mock.calls[0]?.[0];
+    expect(intent?.prompt).toBe('draft');
 
     interceptor.stop();
   });
@@ -135,7 +137,7 @@ describe('GeminiSendInterceptor', () => {
     const firstIntent = handler.mock.calls[0]?.[0];
     expect(firstIntent).toBeDefined();
     if (!firstIntent) throw new Error('Expected interception intent');
-    expect(firstIntent.hasPromptInput).toBe(false);
+    expect(firstIntent.prompt).toBe('');
     expect(state.textContent).toBe('idle');
 
     interceptor.stop();
