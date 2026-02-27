@@ -15,13 +15,12 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
 }
 
 describe('registerLearningCycleMessageHandlers', () => {
-  it('registers append and list handlers', async () => {
+  it('registers append handler', async () => {
     const append = vi.fn(async () => undefined);
-    const list = vi.fn(async () => [makeRecord()]);
     const onMessage = vi.fn();
 
     registerLearningCycleMessageHandlers(
-      { append, list },
+      { append },
       {
         runtime: {
           onMessage: {
@@ -37,11 +36,5 @@ describe('registerLearningCycleMessageHandlers', () => {
 
     await expect(listener({ type: 'learning-cycle:append', record: makeRecord() })).resolves.toEqual({ ok: true });
     expect(append).toHaveBeenCalledOnce();
-
-    await expect(listener({ type: 'learning-cycle:list' })).resolves.toEqual({
-      ok: true,
-      records: [makeRecord()]
-    });
-    expect(list).toHaveBeenCalledOnce();
   });
 });

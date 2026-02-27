@@ -14,24 +14,16 @@ interface ChromeApi {
 function isRuntimeMessage(message: unknown): message is LearningCycleRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
   const maybe = message as { type?: string };
-  return maybe.type === 'learning-cycle:append' || maybe.type === 'learning-cycle:list';
+  return maybe.type === 'learning-cycle:append';
 }
 
 export function registerLearningCycleMessageHandlers(
-  store: Pick<LearningCycleStore, 'append' | 'list'>,
+  store: Pick<LearningCycleStore, 'append'>,
   chromeApi: ChromeApi = (globalThis as { chrome?: ChromeApi }).chrome || {}
 ): void {
   chromeApi.runtime?.onMessage.addListener(async (message: unknown) => {
     if (!isRuntimeMessage(message)) return undefined;
-
-    if (message.type === 'learning-cycle:append') {
-      await store.append(message.record);
-      return { ok: true };
-    }
-
-    return {
-      ok: true,
-      records: await store.list()
-    };
+    await store.append(message.record);
+    return { ok: true };
   });
 }

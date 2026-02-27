@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function PopupApp(): JSX.Element {
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 12, width: 300 }}>

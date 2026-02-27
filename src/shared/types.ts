@@ -71,19 +71,6 @@ export interface LearningCycleAppendMessage {
   record: LearningCycleRecord;
 }
 
-export interface LearningCycleListMessage {
-  type: 'learning-cycle:list';
-}
-
-export type LearningCycleRuntimeMessage = LearningCycleAppendMessage | LearningCycleListMessage;
-
-export interface LearningCycleListResponse {
-  ok: true;
-  records: LearningCycleRecord[];
-}
-
-export interface LearningCycleAckResponse {
-  ok: true;
-}
+export type LearningCycleRuntimeMessage = LearningCycleAppendMessage;
 
 export type Unsubscribe = () => void;
