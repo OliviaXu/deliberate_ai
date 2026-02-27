@@ -46,6 +46,20 @@ describe('LearningCycleStore', () => {
     });
   });
 
+  it('does not lose records when append calls overlap', async () => {
+    const store = new LearningCycleStore();
+
+    await Promise.all([
+      store.append(makeRecord({ id: '1' })),
+      store.append(makeRecord({ id: '2' })),
+      store.append(makeRecord({ id: '3' }))
+    ]);
+
+    const records = await store.list();
+    expect(records).toHaveLength(3);
+    expect(records.map((record) => record.id)).toEqual(['1', '2', '3']);
+  });
+
   it('recovers to empty list when stored value is invalid', async () => {
     const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } })
       .chrome;
