@@ -16,11 +16,6 @@ export class LearningCycleStore {
     await this.writeQueue;
   }
 
-  async list(): Promise<LearningCycleRecord[]> {
-    await this.writeQueue;
-    return this.listRaw();
-  }
-
   private async listRaw(): Promise<LearningCycleRecord[]> {
     const raw = await this.storage.get<unknown>(LEARNING_CYCLES_STORAGE_KEY);
     return Array.isArray(raw) ? (raw as LearningCycleRecord[]) : [];

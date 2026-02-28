@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { LearningCycleRecord } from '../../src/shared/types';
-import { LearningCycleStore } from '../../src/shared/learning-cycle-store';
+import { LEARNING_CYCLES_STORAGE_KEY, LearningCycleStore } from '../../src/shared/learning-cycle-store';
 
 function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
@@ -15,28 +15,30 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
 }
 
 describe('LearningCycleStore', () => {
+  let storageData: Record<string, unknown>;
+
   beforeEach(() => {
-    const data: Record<string, unknown> = {};
+    storageData = {};
     (globalThis as { chrome?: unknown }).chrome = {
       storage: {
         local: {
           async set(items: Record<string, unknown>) {
-            Object.assign(data, items);
+            Object.assign(storageData, items);
           },
           async get(key: string) {
-            return { [key]: data[key] };
+            return { [key]: storageData[key] };
           }
         }
       }
     };
   });
 
-  it('appends and lists records in order', async () => {
+  it('appends records in order', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1' }));
     await store.append(makeRecord({ id: '2', mode: 'learning', priorKnowledgeNote: 'I know basics' }));
 
-    const records = await store.list();
+    const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(2);
     expect(records[0]?.id).toBe('1');
     expect(records[1]?.id).toBe('2');
@@ -55,18 +57,20 @@ describe('LearningCycleStore', () => {
       store.append(makeRecord({ id: '3' }))
     ]);
 
-    const records = await store.list();
+    const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(3);
     expect(records.map((record) => record.id)).toEqual(['1', '2', '3']);
   });
 
-  it('recovers to empty list when stored value is invalid', async () => {
+  it('recovers to empty array when stored value is invalid', async () => {
     const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } })
       .chrome;
     await chromeApi?.storage?.local?.set({ 'deliberate.learningCycles.v1': { nope: true } });
 
     const store = new LearningCycleStore();
-    const records = await store.list();
-    expect(records).toEqual([]);
+    await store.append(makeRecord({ id: 'first' }));
+    const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
+    expect(records).toHaveLength(1);
+    expect(records[0]?.id).toBe('first');
   });
 });
