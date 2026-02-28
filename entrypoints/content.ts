@@ -1,4 +1,5 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
+import '../src/content/mode-modal.css';
 import '../src/content';
 
 export default defineContentScript({

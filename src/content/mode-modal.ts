@@ -20,24 +20,11 @@ export class ModeSelectionModal {
       const root = document.createElement('div');
       root.id = MODAL_ROOT_ID;
       root.setAttribute('data-testid', 'deliberate-mode-modal');
-      root.style.position = 'fixed';
-      root.style.inset = '0';
-      root.style.zIndex = '2147483647';
-      root.style.background = 'rgba(10, 10, 10, 0.35)';
-      root.style.display = 'flex';
-      root.style.alignItems = 'center';
-      root.style.justifyContent = 'center';
 
       const panel = document.createElement('section');
       panel.setAttribute('role', 'dialog');
       panel.setAttribute('aria-modal', 'true');
-      panel.style.width = 'min(420px, calc(100vw - 24px))';
-      panel.style.background = '#fff';
-      panel.style.border = '1px solid #ddd';
-      panel.style.borderRadius = '12px';
-      panel.style.padding = '16px';
-      panel.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.18)';
-      panel.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      panel.className = 'deliberate-panel';
 
       this.renderModeSelection({
         panel,
@@ -59,8 +46,7 @@ export class ModeSelectionModal {
 
     const title = document.createElement('h2');
     title.textContent = 'What kind of thinking is this?';
-    title.style.fontSize = '16px';
-    title.style.margin = '0 0 12px';
+    title.className = 'deliberate-title';
 
     panel.appendChild(title);
     panel.appendChild(this.makeModeButton('delegation', 'Delegating a mundane task', () => this.finish(root, resolve, { mode: 'delegation' })));
@@ -74,15 +60,7 @@ export class ModeSelectionModal {
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('data-testid', `deliberate-mode-option-${mode}`);
-    button.style.width = '100%';
-    button.style.display = 'block';
-    button.style.margin = '8px 0 0';
-    button.style.padding = '10px 12px';
-    button.style.textAlign = 'left';
-    button.style.borderRadius = '8px';
-    button.style.border = '1px solid #cfd3d8';
-    button.style.background = '#f7f9fc';
-    button.style.cursor = 'pointer';
+    button.className = 'deliberate-mode-button';
     button.textContent = label;
     button.addEventListener('click', onClick);
     return button;
@@ -102,9 +80,7 @@ export class ModeSelectionModal {
 
     const count = document.createElement('p');
     count.setAttribute('data-testid', 'deliberate-mode-char-count');
-    count.style.margin = '8px 0';
-    count.style.fontSize = '12px';
-    count.style.color = '#555';
+    count.className = 'deliberate-count';
     count.textContent = `0 / ${PROBLEM_SOLVING_MIN_CHARS}`;
     panel.appendChild(count);
 
@@ -149,17 +125,14 @@ export class ModeSelectionModal {
   private makeSubheading(text: string): HTMLElement {
     const title = document.createElement('h2');
     title.textContent = text;
-    title.style.fontSize = '16px';
-    title.style.margin = '0 0 8px';
+    title.className = 'deliberate-subheading';
     return title;
   }
 
   private makeHint(text: string): HTMLElement {
     const hint = document.createElement('p');
     hint.textContent = text;
-    hint.style.margin = '0 0 8px';
-    hint.style.fontSize = '13px';
-    hint.style.color = '#444';
+    hint.className = 'deliberate-hint';
     return hint;
   }
 
@@ -168,11 +141,7 @@ export class ModeSelectionModal {
     input.setAttribute('data-testid', testId);
     input.placeholder = placeholder;
     input.rows = 5;
-    input.style.width = '100%';
-    input.style.padding = '10px';
-    input.style.boxSizing = 'border-box';
-    input.style.borderRadius = '8px';
-    input.style.border = '1px solid #cfd3d8';
+    input.className = 'deliberate-input';
     return input;
   }
 
@@ -180,34 +149,15 @@ export class ModeSelectionModal {
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('data-testid', 'deliberate-mode-continue');
-    button.style.width = '100%';
-    button.style.marginTop = '10px';
-    button.style.padding = '10px 12px';
-    button.style.borderRadius = '8px';
-    button.style.border = '1px solid #1f6feb';
-    button.style.background = '#1f6feb';
-    button.style.color = '#fff';
-    button.style.cursor = 'pointer';
+    button.className = 'deliberate-continue';
     button.textContent = 'Continue';
     return button;
   }
 
   private setContinueButtonEnabled(button: HTMLButtonElement, enabled: boolean): void {
     button.disabled = !enabled;
-    if (enabled) {
-      button.style.border = '1px solid #1f6feb';
-      button.style.background = '#1f6feb';
-      button.style.color = '#fff';
-      button.style.cursor = 'pointer';
-      button.style.opacity = '1';
-      return;
-    }
-
-    button.style.border = '1px solid #d1d5db';
-    button.style.background = '#e5e7eb';
-    button.style.color = '#6b7280';
-    button.style.cursor = 'not-allowed';
-    button.style.opacity = '1';
+    button.classList.toggle('deliberate-continue--enabled', enabled);
+    button.classList.toggle('deliberate-continue--disabled', !enabled);
   }
 
   private finish(root: HTMLDivElement, resolve: (submission: LearningCycleSubmission) => void, submission: LearningCycleSubmission): void {
