@@ -17,6 +17,8 @@ export class LearningCycleStore {
   }
 
   async hasAnyForThread(threadId: string): Promise<boolean> {
+    // We store all records under one key, so per-thread checks require loading this whole array.
+    // Consider adding an in-memory cache (with invalidation) to avoid repeated storage reads.
     const current = await this.listRaw();
     return current.some((record) => record.threadId === threadId);
   }
