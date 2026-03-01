@@ -20,6 +20,7 @@ export class ModeSelectionModal {
       const root = document.createElement('div');
       root.id = MODAL_ROOT_ID;
       root.setAttribute('data-testid', 'deliberate-mode-modal');
+      root.setAttribute('data-deliberate-theme', this.resolveTheme());
 
       const panel = document.createElement('section');
       panel.setAttribute('role', 'dialog');
@@ -45,15 +46,18 @@ export class ModeSelectionModal {
     panel.replaceChildren();
 
     const title = document.createElement('h2');
-    title.textContent = 'What kind of thinking is this?';
+    title.textContent = "I'm trying to";
     title.className = 'deliberate-title';
-
     panel.appendChild(title);
-    panel.appendChild(this.makeModeButton('delegation', 'Delegating a mundane task', () => this.finish(root, resolve, { mode: 'delegation' })));
-    panel.appendChild(
-      this.makeModeButton('problem_solving', 'Solving a core problem', () => this.renderProblemSolvingDetails(panel, root, resolve))
+
+    const stack = document.createElement('div');
+    stack.className = 'deliberate-mode-stack';
+    stack.appendChild(this.makeModeButton('delegation', 'delegate a mundane task', () => this.finish(root, resolve, { mode: 'delegation' })));
+    stack.appendChild(
+      this.makeModeButton('problem_solving', 'solve a core problem', () => this.renderProblemSolvingDetails(panel, root, resolve))
     );
-    panel.appendChild(this.makeModeButton('learning', 'Learning / exploring', () => this.renderLearningDetails(panel, root, resolve)));
+    stack.appendChild(this.makeModeButton('learning', 'learn / explore', () => this.renderLearningDetails(panel, root, resolve)));
+    panel.appendChild(stack);
   }
 
   private makeModeButton(mode: InteractionMode, label: string, onClick: () => void): HTMLButtonElement {
@@ -72,17 +76,19 @@ export class ModeSelectionModal {
     resolve: (submission: LearningCycleSubmission) => void
   ): void {
     panel.replaceChildren();
-    panel.appendChild(this.makeSubheading('State your current hypothesis'));
-    panel.appendChild(this.makeHint(`At least ${PROBLEM_SOLVING_MIN_CHARS} characters.`));
 
-    const input = this.makeTextarea('What do you currently believe is the answer?', 'deliberate-mode-detail-input');
-    panel.appendChild(input);
+    const card = document.createElement('div');
+    card.className = 'deliberate-detail-card';
+
+    const input = this.makeTextarea('My current thinking is... (at least 100 characters)', 'deliberate-mode-detail-input');
+    const inputShell = document.createElement('div');
+    inputShell.className = 'deliberate-input-shell';
+    inputShell.appendChild(input);
 
     const count = document.createElement('p');
     count.setAttribute('data-testid', 'deliberate-mode-char-count');
     count.className = 'deliberate-count';
     count.textContent = `0 / ${PROBLEM_SOLVING_MIN_CHARS}`;
-    panel.appendChild(count);
 
     const continueButton = this.makeContinueButton();
     this.setContinueButtonEnabled(continueButton, false);
@@ -92,7 +98,10 @@ export class ModeSelectionModal {
         prediction: input.value.trim()
       });
     });
-    panel.appendChild(continueButton);
+    inputShell.appendChild(continueButton);
+    card.appendChild(inputShell);
+    card.appendChild(count);
+    panel.appendChild(card);
 
     input.addEventListener('input', () => {
       const current = input.value.trim().length;
@@ -107,11 +116,14 @@ export class ModeSelectionModal {
     resolve: (submission: LearningCycleSubmission) => void
   ): void {
     panel.replaceChildren();
-    panel.appendChild(this.makeSubheading('Capture prior knowledge (optional)'));
-    panel.appendChild(this.makeHint('What do you already know about this?'));
 
-    const input = this.makeTextarea('What do you already know about this?', 'deliberate-mode-detail-input');
-    panel.appendChild(input);
+    const card = document.createElement('div');
+    card.className = 'deliberate-detail-card';
+
+    const input = this.makeTextarea('What I already know...', 'deliberate-mode-detail-input');
+    const inputShell = document.createElement('div');
+    inputShell.className = 'deliberate-input-shell';
+    inputShell.appendChild(input);
 
     const continueButton = this.makeContinueButton();
     this.setContinueButtonEnabled(continueButton, true);
@@ -119,21 +131,9 @@ export class ModeSelectionModal {
       const priorKnowledgeNote = input.value.trim();
       this.finish(root, resolve, priorKnowledgeNote ? { mode: 'learning', priorKnowledgeNote } : { mode: 'learning' });
     });
-    panel.appendChild(continueButton);
-  }
-
-  private makeSubheading(text: string): HTMLElement {
-    const title = document.createElement('h2');
-    title.textContent = text;
-    title.className = 'deliberate-subheading';
-    return title;
-  }
-
-  private makeHint(text: string): HTMLElement {
-    const hint = document.createElement('p');
-    hint.textContent = text;
-    hint.className = 'deliberate-hint';
-    return hint;
+    inputShell.appendChild(continueButton);
+    card.appendChild(inputShell);
+    panel.appendChild(card);
   }
 
   private makeTextarea(placeholder: string, testId: string): HTMLTextAreaElement {
@@ -149,8 +149,10 @@ export class ModeSelectionModal {
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('data-testid', 'deliberate-mode-continue');
+    button.setAttribute('aria-label', 'Continue');
+    button.title = 'Continue';
     button.className = 'deliberate-continue';
-    button.textContent = 'Continue';
+    button.textContent = '➤';
     return button;
   }
 
@@ -158,11 +160,41 @@ export class ModeSelectionModal {
     button.disabled = !enabled;
     button.classList.toggle('deliberate-continue--enabled', enabled);
     button.classList.toggle('deliberate-continue--disabled', !enabled);
+    button.classList.toggle('deliberate-continue--hidden', !enabled);
+    button.setAttribute('aria-hidden', String(!enabled));
   }
 
   private finish(root: HTMLDivElement, resolve: (submission: LearningCycleSubmission) => void, submission: LearningCycleSubmission): void {
     root.remove();
     this.pending = null;
     resolve(submission);
+  }
+
+  private resolveTheme(): 'light' | 'dark' {
+    const bodyLuminance = this.readLuminance(window.getComputedStyle(document.body).backgroundColor);
+    const documentLuminance = this.readLuminance(window.getComputedStyle(document.documentElement).backgroundColor);
+    const luminance = bodyLuminance ?? documentLuminance;
+
+    if (typeof luminance === 'number') {
+      return luminance < 0.42 ? 'dark' : 'light';
+    }
+
+    if (typeof window.matchMedia !== 'function') return 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  private readLuminance(color: string): number | null {
+    const normalized = color.trim().toLowerCase();
+    if (normalized === 'transparent') return null;
+
+    const match = normalized.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?/i);
+    if (!match) return null;
+    const alpha = typeof match[4] === 'string' ? Number(match[4]) : 1;
+    if (Number.isFinite(alpha) && alpha <= 0.05) return null;
+
+    const red = Number(match[1]);
+    const green = Number(match[2]);
+    const blue = Number(match[3]);
+    return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
   }
 }

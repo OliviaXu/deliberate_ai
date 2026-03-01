@@ -3,59 +3,211 @@
 
 @layer components {
   #deliberate-mode-modal-root {
-    @apply fixed inset-0 z-[2147483647] flex items-center justify-center bg-slate-950/45 p-3;
-    font-family: 'Avenir Next', 'Segoe UI', 'Inter', sans-serif;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: var(--deliberate-scrim);
+    font-family: 'Google Sans Text', 'Google Sans', 'Sohne', 'Inter', 'Segoe UI', system-ui, sans-serif;
   }
 
   #deliberate-mode-modal-root .deliberate-panel {
-    @apply w-[min(420px,calc(100vw-24px))] rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.24)] backdrop-blur;
-    @apply dark:border-slate-700/80 dark:bg-slate-900/95 dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)];
-    color-scheme: light dark;
+    width: min(var(--deliberate-modal-max-width), calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+    border-radius: var(--deliberate-radius-modal);
+    border: 1px solid var(--deliberate-panel-border);
+    background: var(--deliberate-panel-bg);
+    box-shadow: var(--deliberate-panel-shadow);
+    color: var(--deliberate-text-main);
+    padding: var(--deliberate-modal-padding);
+    backdrop-filter: blur(6px);
   }
 
-  #deliberate-mode-modal-root .deliberate-title {
-    @apply m-0 mb-3 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100;
+  .deliberate-title {
+    margin: 0;
+    margin-bottom: var(--deliberate-title-gap);
+    padding-inline: var(--deliberate-space-3);
+    font-size: var(--deliberate-font-title-size);
+    line-height: var(--deliberate-font-title-line);
+    letter-spacing: 0;
+    font-weight: var(--deliberate-font-title-weight);
+    color: var(--deliberate-text-main);
+    text-wrap: balance;
   }
 
-  #deliberate-mode-modal-root .deliberate-subheading {
-    @apply m-0 mb-2 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100;
+  .deliberate-mode-stack {
+    display: grid;
+    gap: var(--deliberate-stack-gap);
   }
 
-  #deliberate-mode-modal-root .deliberate-hint {
-    @apply m-0 mb-2 text-sm text-slate-600 dark:text-slate-300;
+  .deliberate-mode-button {
+    width: 100%;
+    min-height: var(--deliberate-option-min-height);
+    border-radius: var(--deliberate-radius-option);
+    border: 1px solid var(--deliberate-surface-border);
+    background: var(--deliberate-surface-1);
+    color: var(--deliberate-text-secondary);
+    padding: 12px var(--deliberate-space-3);
+    text-align: left;
+    font-size: var(--deliberate-font-option-size);
+    line-height: var(--deliberate-font-option-line);
+    font-weight: var(--deliberate-font-option-weight);
+    transition: background-color 130ms ease, border-color 130ms ease, color 130ms ease, transform 90ms ease;
   }
 
-  #deliberate-mode-modal-root .deliberate-mode-button {
-    @apply mt-2 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition;
-    @apply hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900;
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60;
-    @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200;
-    @apply dark:hover:border-sky-500/60 dark:hover:bg-slate-700 dark:hover:text-sky-100;
+  .deliberate-mode-button:hover {
+    background: var(--deliberate-surface-2);
+    border-color: var(--deliberate-surface-border);
+    color: var(--deliberate-text-main);
   }
 
-  #deliberate-mode-modal-root .deliberate-input {
-    @apply w-full box-border rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 transition;
-    @apply placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200;
-    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
-    @apply dark:placeholder:text-slate-500 dark:focus:border-sky-500 dark:focus:ring-sky-700/40;
+  .deliberate-mode-button:active {
+    background: var(--deliberate-surface-pressed);
+    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.45);
+    transform: translateY(1px);
   }
 
-  #deliberate-mode-modal-root .deliberate-count {
-    @apply m-0 mt-2 text-xs text-slate-500 dark:text-slate-400;
+  .deliberate-mode-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
   }
 
-  #deliberate-mode-modal-root .deliberate-continue {
-    @apply mt-3 w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition;
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60;
+  .deliberate-detail-card {
+    display: grid;
+    gap: var(--deliberate-space-2);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
   }
 
-  #deliberate-mode-modal-root .deliberate-continue--enabled {
-    @apply cursor-pointer border-sky-600 bg-sky-600 text-white hover:bg-sky-500;
-    @apply dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400;
+  .deliberate-input-shell {
+    position: relative;
+    border: 1px solid var(--deliberate-input-border);
+    border-radius: var(--deliberate-radius-input);
+    background: var(--deliberate-input-bg);
   }
 
-  #deliberate-mode-modal-root .deliberate-continue--disabled {
-    @apply cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500;
-    @apply dark:border-slate-700 dark:bg-slate-700 dark:text-slate-400;
+  .deliberate-input-shell:focus-within {
+    border-color: var(--deliberate-input-border);
+    box-shadow: none;
+  }
+
+  .deliberate-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: var(--deliberate-textarea-min-height);
+    max-height: var(--deliberate-textarea-max-height);
+    resize: vertical;
+    border-radius: var(--deliberate-radius-input);
+    border: 0;
+    background: transparent;
+    color: var(--deliberate-text-secondary);
+    padding: var(--deliberate-space-3) var(--deliberate-space-3) 72px;
+    font-size: var(--deliberate-font-input-size);
+    line-height: var(--deliberate-font-input-line);
+    font-weight: var(--deliberate-font-input-weight);
+  }
+
+  .deliberate-input::placeholder {
+    color: var(--deliberate-placeholder);
+  }
+
+  .deliberate-input:focus-visible {
+    outline: none;
+  }
+
+  .deliberate-count {
+    margin: 0;
+    padding-inline: var(--deliberate-space-3);
+    font-size: var(--deliberate-font-count-size);
+    line-height: var(--deliberate-font-count-line);
+    color: var(--deliberate-count-color);
+  }
+
+  .deliberate-continue {
+    position: absolute;
+    right: var(--deliberate-action-inset);
+    bottom: var(--deliberate-action-inset);
+    width: var(--deliberate-icon-size);
+    height: var(--deliberate-icon-size);
+    border-radius: var(--deliberate-radius-icon);
+    border: 0;
+    padding: 0;
+    font-size: 19px;
+    line-height: 1;
+    font-weight: 600;
+    transition: background-color 130ms ease, color 130ms ease, border-color 130ms ease, transform 90ms ease;
+  }
+
+  .deliberate-continue:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
+  }
+
+  .deliberate-continue--enabled {
+    cursor: pointer;
+    background: var(--deliberate-action-bg);
+    color: var(--deliberate-action-text);
+  }
+
+  .deliberate-continue--enabled:hover {
+    background: var(--deliberate-action-bg-hover);
+  }
+
+  .deliberate-continue--enabled:active {
+    background: var(--deliberate-action-bg-pressed);
+    transform: translateY(1px);
+  }
+
+  .deliberate-continue--disabled {
+    cursor: not-allowed;
+    background: rgba(148, 163, 184, 0.09);
+    color: var(--deliberate-text-muted);
+  }
+
+  .deliberate-continue--hidden {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  #deliberate-mode-modal-root {
+    padding: 8px;
+  }
+
+  #deliberate-mode-modal-root .deliberate-panel {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 20px;
+    padding: 20px;
+  }
+
+  .deliberate-title,
+  .deliberate-count {
+    padding-inline: 12px;
+  }
+
+  .deliberate-mode-button {
+    min-height: 50px;
+    padding-inline: 12px;
+  }
+
+  .deliberate-input {
+    min-height: 112px;
+    padding-inline: 12px;
+    padding-bottom: 64px;
+  }
+
+  .deliberate-continue {
+    right: 12px;
+    bottom: 12px;
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
   }
 }
