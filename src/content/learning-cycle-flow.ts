@@ -4,6 +4,7 @@ import type {
   LearningCycleRuntimeMessage,
   LearningCycleSubmission
 } from '../shared/types';
+import { resolveThreadId } from '../shared/thread-id';
 
 type ResumeFn = (intent: InterceptedSubmitIntent) => boolean;
 type SendMessageFn = (message: LearningCycleRuntimeMessage) => Promise<unknown> | unknown;
@@ -23,16 +24,8 @@ interface HandleModeSubmissionParams {
 
 interface HandleModeSubmissionResult {
   replayAttempted: boolean;
+  appendSucceeded: boolean;
   record: LearningCycleRecord;
-}
-
-function resolveThreadId(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return parsed.pathname || 'unknown';
-  } catch {
-    return 'unknown';
-  }
 }
 
 function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: LearningCycleSubmission): LearningCycleRecord {
@@ -71,23 +64,11 @@ function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: 
   };
 }
 
-export function handleModeSubmission(params: HandleModeSubmissionParams): HandleModeSubmissionResult {
+export async function handleModeSubmission(params: HandleModeSubmissionParams): Promise<HandleModeSubmissionResult> {
   const { intent, submission, sendMessage, resume, logger } = params;
   const record = createLearningCycleRecord(intent, submission);
-
-  try {
-    const maybePromise = sendMessage({
-      type: 'learning-cycle:append',
-      record
-    });
-    void Promise.resolve(maybePromise).catch((error) => {
-      logger.error('learning-cycle-append-failed', { error: String(error) });
-    });
-  } catch (error) {
-    logger.error('learning-cycle-append-dispatch-failed', { error: String(error) });
-  }
-
   const replayAttempted = resume(intent);
+
   logger.info('send-replay-attempted', {
     replayAttempted,
     deliveryNotVerified: true,
@@ -95,5 +76,31 @@ export function handleModeSubmission(params: HandleModeSubmissionParams): Handle
     interceptionId: intent.interceptionId
   });
 
-  return { replayAttempted, record };
+  if (!replayAttempted) {
+    return { replayAttempted, appendSucceeded: false, record };
+  }
+
+  try {
+    const response = await Promise.resolve(
+      sendMessage({
+        type: 'learning-cycle:append',
+        record
+      })
+    );
+
+    if (isOkResponse(response)) {
+      return { replayAttempted, appendSucceeded: true, record };
+    }
+  } catch (error) {
+    logger.error('learning-cycle-append-failed', { error: String(error) });
+    return { replayAttempted, appendSucceeded: false, record };
+  }
+
+  logger.error('learning-cycle-append-dispatch-failed', { reason: 'missing-ok-response' });
+  return { replayAttempted, appendSucceeded: false, record };
+}
+
+function isOkResponse(response: unknown): response is { ok: true } {
+  if (!response || typeof response !== 'object') return false;
+  return (response as { ok?: boolean }).ok === true;
 }

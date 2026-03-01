@@ -12,20 +12,14 @@ const baseIntent: InterceptedSubmitIntent = {
 };
 
 describe('handleModeSubmission', () => {
-  it('dispatches storage append without blocking replay', async () => {
-    let resolveMessage: (() => void) | undefined;
-    const sendMessage = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveMessage = resolve;
-        })
-    );
+  it('replays first, then appends, and reports success', async () => {
+    const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
     const resume = vi.fn(() => true);
     const info = vi.fn();
     const error = vi.fn();
     const submission: LearningCycleSubmission = { mode: 'delegation' };
 
-    const result = handleModeSubmission({
+    const result = await handleModeSubmission({
       intent: baseIntent,
       submission,
       sendMessage,
@@ -33,20 +27,42 @@ describe('handleModeSubmission', () => {
       logger: { info, error }
     });
 
-    expect(sendMessage).toHaveBeenCalledOnce();
     expect(resume).toHaveBeenCalledOnce();
-    expect(result.replayAttempted).toBe(true);
+    expect(sendMessage).toHaveBeenCalledOnce();
 
-    resolveMessage?.();
-    await Promise.resolve();
+    const resumeCall = resume.mock.invocationCallOrder[0];
+    const sendCall = sendMessage.mock.invocationCallOrder[0];
+    expect(typeof resumeCall).toBe('number');
+    expect(typeof sendCall).toBe('number');
+    expect(resumeCall!).toBeLessThan(sendCall!);
+
+    expect(result.replayAttempted).toBe(true);
+    expect(result.appendSucceeded).toBe(true);
     expect(error).not.toHaveBeenCalled();
   });
 
-  it('includes problem-solving prediction in stored record payload', () => {
-    const sendMessage = vi.fn<(message: unknown) => Promise<void>>(async () => undefined);
+  it('does not append when replay fails', async () => {
+    const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
+    const resume = vi.fn(() => false);
+
+    const result = await handleModeSubmission({
+      intent: baseIntent,
+      submission: { mode: 'delegation' },
+      sendMessage,
+      resume,
+      logger: { info: vi.fn(), error: vi.fn() }
+    });
+
+    expect(result.replayAttempted).toBe(false);
+    expect(result.appendSucceeded).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('includes problem-solving prediction in append payload', async () => {
+    const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
     const resume = vi.fn(() => true);
 
-    handleModeSubmission({
+    await handleModeSubmission({
       intent: baseIntent,
       submission: { mode: 'problem_solving', prediction: 'x'.repeat(100) },
       sendMessage,
@@ -55,6 +71,7 @@ describe('handleModeSubmission', () => {
     });
 
     const payload = sendMessage.mock.calls[0]?.[0];
+    expect(payload).toBeDefined();
     expect(payload).toMatchObject({
       type: 'learning-cycle:append',
       record: {
@@ -64,5 +81,18 @@ describe('handleModeSubmission', () => {
         threadId: '/app/threads/123'
       }
     });
+  });
+
+  it('reports append failure when runtime response is not ok', async () => {
+    const result = await handleModeSubmission({
+      intent: baseIntent,
+      submission: { mode: 'delegation' },
+      sendMessage: vi.fn<(message: unknown) => Promise<{ nope: true }>>(async () => ({ nope: true })),
+      resume: vi.fn(() => true),
+      logger: { info: vi.fn(), error: vi.fn() }
+    });
+
+    expect(result.replayAttempted).toBe(true);
+    expect(result.appendSucceeded).toBe(false);
   });
 });

@@ -71,6 +71,11 @@ export interface LearningCycleAppendMessage {
   record: LearningCycleRecord;
 }
 
-export type LearningCycleRuntimeMessage = LearningCycleAppendMessage;
+export interface LearningCycleThreadHasEntryMessage {
+  type: 'learning-cycle:thread-has-entry';
+  threadId: string;
+}
+
+export type LearningCycleRuntimeMessage = LearningCycleAppendMessage | LearningCycleThreadHasEntryMessage;
 
 export type Unsubscribe = () => void;

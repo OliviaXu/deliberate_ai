@@ -6,7 +6,8 @@ import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-sto
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const harnessPath = path.resolve(process.cwd(), 'tests/harness/index.html');
 const harnessHtml = fs.readFileSync(harnessPath, 'utf8');
-const harnessUrl = 'https://gemini.google.com/app/threads/test-thread';
+const primaryThreadUrl = 'https://gemini.google.com/app/threads/test-thread';
+const secondaryThreadUrl = 'https://gemini.google.com/app/threads/another-thread';
 
 async function launchExtensionContext(userDataDir: string): Promise<import('@playwright/test').BrowserContext> {
   return chromium.launchPersistentContext(userDataDir, {
@@ -17,7 +18,10 @@ async function launchExtensionContext(userDataDir: string): Promise<import('@pla
   });
 }
 
-async function setupHarness(context: import('@playwright/test').BrowserContext): Promise<import('@playwright/test').Page> {
+async function setupHarness(
+  context: import('@playwright/test').BrowserContext,
+  threadUrl: string = primaryThreadUrl
+): Promise<import('@playwright/test').Page> {
   await context.route('https://gemini.google.com/**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -27,7 +31,7 @@ async function setupHarness(context: import('@playwright/test').BrowserContext):
   });
 
   const page = await context.newPage();
-  await page.goto(harnessUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(threadUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.documentElement.getAttribute('data-deliberate-active') === 'true');
   return page;
 }
@@ -61,20 +65,17 @@ async function expectModal(page: import('@playwright/test').Page): Promise<void>
   await expect(page.locator('[data-testid="deliberate-mode-modal"]')).toBeVisible();
 }
 
+async function expectNoModal(page: import('@playwright/test').Page): Promise<void> {
+  await page.waitForTimeout(200);
+  await expect(page.locator('[data-testid="deliberate-mode-modal"]')).toHaveCount(0);
+}
+
 async function resetNativeSendState(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => {
     const state = document.getElementById('native-send-state');
     if (state) state.textContent = 'idle';
   });
   await expect(page.locator('#native-send-state')).toHaveText('idle');
-}
-
-async function sendDelegationPrompt(page: import('@playwright/test').Page, prompt: string): Promise<void> {
-  await page.locator('#composer').fill(prompt);
-  await page.locator('#composer').press('Enter');
-  await expectModal(page);
-  await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
-  await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
 
 async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, prompt: string, prediction: string): Promise<void> {
@@ -87,95 +88,96 @@ async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, p
   await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
 
-async function sendLearningPrompt(page: import('@playwright/test').Page, prompt: string, note: string): Promise<void> {
+async function sendDelegationPrompt(page: import('@playwright/test').Page, prompt: string): Promise<void> {
   await page.locator('#composer').fill(prompt);
   await page.locator('#send').click();
   await expectModal(page);
-  await page.locator('[data-testid="deliberate-mode-option-learning"]').click();
-  await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(note);
-  await page.locator('[data-testid="deliberate-mode-continue"]').click();
+  await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
   await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
 
-async function runThreeModePrompts(page: import('@playwright/test').Page): Promise<void> {
-  await sendDelegationPrompt(page, 'Delegate: summarize this release checklist');
-  await resetNativeSendState(page);
-  await sendProblemSolvingPrompt(
-    page,
-    'Core problem: choose a rollout strategy',
-    'I suspect staged rollout with guardrails and explicit rollback criteria is best because it limits blast radius while preserving learning velocity.'
-  );
-  await resetNativeSendState(page);
-  await sendLearningPrompt(page, 'Learning: explain CAP tradeoffs', 'I already know CAP basics but want concrete system examples.');
+async function sendPromptExpectBypass(page: import('@playwright/test').Page, prompt: string): Promise<void> {
+  await page.locator('#composer').fill(prompt);
+  await page.locator('#composer').press('Enter');
+  await expect(page.locator('#native-send-state')).toHaveText('sent');
+  await expectNoModal(page);
 }
 
 test.describe.configure({ mode: 'serial' });
 
-test('local harness stores one learning cycle per mode and survives reload', async ({}, testInfo) => {
+test('local harness shows mode modal once per thread and bypasses later sends', async ({}, testInfo) => {
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
-  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-phase2-local-${testInfo.workerIndex}-${Date.now()}`);
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-once-${testInfo.workerIndex}-${Date.now()}`);
   const context = await launchExtensionContext(userDataDir);
   try {
-    const page = await setupHarness(context);
+    const page = await setupHarness(context, primaryThreadUrl);
     await clearRecords(context);
 
-    await runThreeModePrompts(page);
+    await sendProblemSolvingPrompt(
+      page,
+      'Core problem: choose a rollout strategy',
+      'I suspect staged rollout with guardrails and explicit rollback criteria is best because it limits blast radius while preserving learning velocity.'
+    );
 
     await expect
       .poll(async () => {
         const records = await readRecords(context);
         return records.length;
       })
-      .toBe(3);
+      .toBe(1);
 
-    let records = await readRecords(context);
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'Follow-up in same thread should bypass modal');
+
+    await expect
+      .poll(async () => {
+        const records = await readRecords(context);
+        return records.length;
+      })
+      .toBe(1);
+
+    await page.goto(secondaryThreadUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-deliberate-active') === 'true');
+    await resetNativeSendState(page);
+    await sendDelegationPrompt(page, 'New thread should require one initial mode selection');
+
+    await expect
+      .poll(async () => {
+        const records = await readRecords(context);
+        return records.length;
+      })
+      .toBe(2);
+
+    const records = await readRecords(context);
     expect(records).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          mode: 'delegation',
-          threadId: '/app/threads/test-thread',
-          prompt: 'Delegate: summarize this release checklist'
-        }),
-        expect.objectContaining({
-          mode: 'problem_solving',
-          prediction: expect.stringContaining('staged rollout'),
-          prompt: 'Core problem: choose a rollout strategy'
-        }),
-        expect.objectContaining({
-          mode: 'learning',
-          priorKnowledgeNote: 'I already know CAP basics but want concrete system examples.',
-          prompt: 'Learning: explain CAP tradeoffs'
-        })
+        expect.objectContaining({ threadId: '/app/threads/test-thread', mode: 'problem_solving' }),
+        expect.objectContaining({ threadId: '/app/threads/another-thread', mode: 'delegation' })
       ])
     );
-
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => document.documentElement.getAttribute('data-deliberate-active') === 'true');
-    records = await readRecords(context);
-    expect(records).toHaveLength(3);
   } finally {
     await context.close();
   }
 });
 
-test('local harness records survive browser restart', async ({}, testInfo) => {
+test('local harness bypasses modal after browser restart when thread already has entry', async ({}, testInfo) => {
   test.skip(process.env.E2E_PERSISTENT !== '1', 'Set E2E_PERSISTENT=1 to run restart persistence check.');
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
-  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-phase2-persistent-${testInfo.workerIndex}-${Date.now()}`);
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-once-persistent-${testInfo.workerIndex}-${Date.now()}`);
   {
     const firstContext = await launchExtensionContext(userDataDir);
     try {
-      const page = await setupHarness(firstContext);
+      const page = await setupHarness(firstContext, primaryThreadUrl);
       await clearRecords(firstContext);
-      await runThreeModePrompts(page);
+      await sendDelegationPrompt(page, 'First send in thread should show modal');
       await expect
         .poll(async () => {
           const records = await readRecords(firstContext);
           return records.length;
         })
-        .toBe(3);
+        .toBe(1);
     } finally {
       await firstContext.close();
     }
@@ -184,14 +186,11 @@ test('local harness records survive browser restart', async ({}, testInfo) => {
   {
     const secondContext = await launchExtensionContext(userDataDir);
     try {
-      await setupHarness(secondContext);
+      const page = await setupHarness(secondContext, primaryThreadUrl);
+      await resetNativeSendState(page);
+      await sendPromptExpectBypass(page, 'After restart, same thread should bypass modal');
       const records = await readRecords(secondContext);
-      expect(records).toHaveLength(3);
-      expect(records.map((record) => (record as { mode?: string }).mode)).toEqual([
-        'delegation',
-        'problem_solving',
-        'learning'
-      ]);
+      expect(records).toHaveLength(1);
     } finally {
       await secondContext.close();
     }

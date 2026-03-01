@@ -51,11 +51,7 @@ describe('LearningCycleStore', () => {
   it('does not lose records when append calls overlap', async () => {
     const store = new LearningCycleStore();
 
-    await Promise.all([
-      store.append(makeRecord({ id: '1' })),
-      store.append(makeRecord({ id: '2' })),
-      store.append(makeRecord({ id: '3' }))
-    ]);
+    await Promise.all([store.append(makeRecord({ id: '1' })), store.append(makeRecord({ id: '2' })), store.append(makeRecord({ id: '3' }))]);
 
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(3);
@@ -72,5 +68,14 @@ describe('LearningCycleStore', () => {
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(1);
     expect(records[0]?.id).toBe('first');
+  });
+
+  it('reports thread-level entry presence', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({ id: '1', threadId: '/app/threads/one' }));
+    await store.append(makeRecord({ id: '2', threadId: '/app/threads/two' }));
+
+    await expect(store.hasAnyForThread('/app/threads/one')).resolves.toBe(true);
+    await expect(store.hasAnyForThread('/app/threads/missing')).resolves.toBe(false);
   });
 });
