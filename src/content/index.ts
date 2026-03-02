@@ -18,7 +18,14 @@ let handlingIntercept = false;
 interceptor.onIntercept((intent) => {
   interceptionCount += 1;
   logger.info('submit-intent-detected', intent);
-  if (handlingIntercept) return;
+  if (handlingIntercept) {
+    const replayAttempted = interceptor.resume(intent);
+    logger.info('submit-intent-bypassed-while-busy', {
+      replayAttempted,
+      interceptionId: intent.interceptionId
+    });
+    return;
+  }
 
   handlingIntercept = true;
   void handleIntercept(intent).finally(() => {
