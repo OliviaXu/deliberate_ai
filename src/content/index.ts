@@ -55,9 +55,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
       interceptionId: intent.interceptionId
     });
 
-    if (replayAttempted) {
-      threadModalDecisionCache.set(threadId, 'skip');
-    }
+    threadModalDecisionCache.set(threadId, 'skip');
     return;
   }
 
@@ -97,12 +95,7 @@ async function resolveShouldShowModal(threadId: string): Promise<boolean> {
       threadId
     })
   )
-    .then((response) => {
-      if (!isThreadHasEntryResponse(response)) return true;
-      if (!response.hasEntry) return true;
-      threadModalDecisionCache.set(threadId, 'skip');
-      return false;
-    })
+    .then((response) => !isThreadHasEntryResponse(response) || !response.hasEntry)
     .catch((error) => {
       logger.error('thread-entry-check-failed', { threadId, error: String(error) });
       return true;
