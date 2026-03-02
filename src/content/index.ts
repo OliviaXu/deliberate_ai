@@ -12,18 +12,27 @@ const modal = new ModeSelectionModal();
 const threadModalDecisionCache = new Map<string, 'skip'>();
 const pendingThreadChecks = new Map<string, Promise<boolean>>();
 let interceptionCount = 0;
+let busyDropCount = 0;
 let modalOpen = false;
+// Guard to keep modal/check/capture flow single-flight.
 let handlingIntercept = false;
 
 interceptor.onIntercept((intent) => {
   interceptionCount += 1;
   logger.info('submit-intent-detected', intent);
   if (handlingIntercept) {
-    const replayAttempted = interceptor.resume(intent);
-    logger.info('submit-intent-bypassed-while-busy', {
-      replayAttempted,
+    // Risk note:
+    // This submit was already preventDefault'd by the interceptor and is dropped here.
+    // We avoid replaying from this branch because replaying a newer intent can overwrite
+    // interceptor internal state and cause the older in-flight intent replay to fail.
+    // Keep this instrumented so we can quantify real-world frequency before redesigning.
+    busyDropCount += 1;
+    logger.info('submit-intent-dropped-while-busy', {
+      busyDropCount,
+      threadId: resolveThreadId(intent.url),
       interceptionId: intent.interceptionId
     });
+    setDomState(interceptionCount, modalOpen);
     return;
   }
 
@@ -124,6 +133,7 @@ function setDomState(count: number, isModalOpen: boolean): void {
   document.documentElement.setAttribute('data-deliberate-active', 'true');
   document.documentElement.setAttribute('data-deliberate-signal-count', String(count));
   document.documentElement.setAttribute('data-deliberate-modal-open', String(isModalOpen));
+  document.documentElement.setAttribute('data-deliberate-busy-drop-count', String(busyDropCount));
 }
 
 function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unknown> | undefined {
