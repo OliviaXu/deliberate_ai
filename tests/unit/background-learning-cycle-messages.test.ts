@@ -35,7 +35,11 @@ describe('registerLearningCycleMessageHandlers', () => {
     const listener = onMessage.mock.calls[0]?.[0];
     if (!listener) throw new Error('Expected listener');
 
-    await expect(listener({ type: 'learning-cycle:append', record: makeRecord() })).resolves.toEqual({ ok: true });
+    await expect(
+      new Promise((resolve) => {
+        listener({ type: 'learning-cycle:append', record: makeRecord() }, {}, resolve);
+      })
+    ).resolves.toEqual({ ok: true });
     expect(append).toHaveBeenCalledOnce();
     expect(hasAnyForThread).not.toHaveBeenCalled();
   });
@@ -59,9 +63,11 @@ describe('registerLearningCycleMessageHandlers', () => {
     const listener = onMessage.mock.calls[0]?.[0];
     if (!listener) throw new Error('Expected listener');
 
-    await expect(listener({ type: 'learning-cycle:thread-has-entry', threadId: '/app/thread' })).resolves.toEqual({
-      hasEntry: true
-    });
+    await expect(
+      new Promise((resolve) => {
+        listener({ type: 'learning-cycle:thread-has-entry', threadId: '/app/thread' }, {}, resolve);
+      })
+    ).resolves.toEqual({ hasEntry: true });
     expect(hasAnyForThread).toHaveBeenCalledWith('/app/thread');
     expect(append).not.toHaveBeenCalled();
   });

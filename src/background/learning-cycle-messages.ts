@@ -3,7 +3,7 @@ import type { LearningCycleRuntimeMessage } from '../shared/types';
 
 interface RuntimeApi {
   onMessage: {
-    addListener(listener: (message: unknown) => unknown): void;
+    addListener(listener: (message: unknown, sender: unknown, sendResponse: (response: unknown) => void) => boolean | void): void;
   };
 }
 
@@ -21,15 +21,21 @@ export function registerLearningCycleMessageHandlers(
   store: Pick<LearningCycleStore, 'append' | 'hasAnyForThread'>,
   chromeApi: ChromeApi = (globalThis as { chrome?: ChromeApi }).chrome || {}
 ): void {
-  chromeApi.runtime?.onMessage.addListener(async (message: unknown) => {
+  chromeApi.runtime?.onMessage.addListener((message: unknown, _sender: unknown, sendResponse: (response: unknown) => void) => {
     if (!isRuntimeMessage(message)) return undefined;
 
     if (message.type === 'learning-cycle:thread-has-entry') {
-      const hasEntry = await store.hasAnyForThread(message.threadId);
-      return { hasEntry };
+      void store
+        .hasAnyForThread(message.threadId)
+        .then((hasEntry) => sendResponse({ hasEntry }))
+        .catch((error) => sendResponse({ error: String(error) }));
+      return true;
     }
 
-    await store.append(message.record);
-    return { ok: true };
+    void store
+      .append(message.record)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ error: String(error) }));
+    return true;
   });
 }
