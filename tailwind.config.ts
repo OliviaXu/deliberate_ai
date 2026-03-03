@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 export default {
-  content: ['./src/content/**/*.{ts,tsx,css}', './entrypoints/content.ts'],
+  content: ['./src/**/*.{ts,tsx,css}', './entrypoints/**/*.{ts,tsx,html}'],
   darkMode: 'media',
   corePlugins: {
     preflight: false

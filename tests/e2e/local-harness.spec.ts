@@ -40,6 +40,11 @@ async function getServiceWorker(context: import('@playwright/test').BrowserConte
   return context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker', { timeout: 10_000 }));
 }
 
+async function getExtensionId(context: import('@playwright/test').BrowserContext): Promise<string> {
+  const sw = await getServiceWorker(context);
+  return new URL(sw.url()).host;
+}
+
 async function clearRecords(context: import('@playwright/test').BrowserContext): Promise<void> {
   const sw = await getServiceWorker(context);
   await sw.evaluate(async (storageKey) => {
@@ -59,6 +64,17 @@ async function readRecords(context: import('@playwright/test').BrowserContext): 
     return Array.isArray(value) ? value : [];
   }, LEARNING_CYCLES_STORAGE_KEY);
   return records as unknown[];
+}
+
+async function writeRecords(context: import('@playwright/test').BrowserContext, records: unknown[]): Promise<void> {
+  const sw = await getServiceWorker(context);
+  await sw.evaluate(
+    async ({ storageKey, nextRecords }) => {
+      const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } }).chrome;
+      await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+    },
+    { storageKey: LEARNING_CYCLES_STORAGE_KEY, nextRecords: records }
+  );
 }
 
 async function expectModal(page: import('@playwright/test').Page): Promise<void> {
@@ -194,5 +210,65 @@ test('local harness bypasses modal after browser restart when thread already has
     } finally {
       await secondContext.close();
     }
+  }
+});
+
+test('thinking journal renders seeded entries and supports mode filters', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thinking-journal-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    await writeRecords(context, [
+      {
+        id: 'problem-1',
+        timestamp: now - dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/test-thread',
+        mode: 'problem_solving',
+        prompt: 'Diagnose this production incident quickly'
+      },
+      {
+        id: 'learning-1',
+        timestamp: now - 2 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/test-thread',
+        mode: 'learning',
+        prompt: 'Explain OAuth PKCE simply',
+        priorKnowledgeNote: 'I already know OAuth basics'
+      },
+      {
+        id: 'old-entry',
+        timestamp: now - 10 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/old',
+        mode: 'delegation',
+        prompt: 'This should not render because it is out of range'
+      }
+    ]);
+
+    const extensionId = await getExtensionId(context);
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/thinking-journal.html`, { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('heading', { name: 'Thinking Journal' })).toBeVisible();
+    await expect(page.getByText('A quiet view of your thinking.')).toBeVisible();
+
+    await expect(page.getByText('This should not render because it is out of range')).toHaveCount(0);
+    await expect(page.getByText('Your Hypothesis')).toBeVisible();
+    await expect(page.getByText('No hypothesis recorded.')).toBeVisible();
+    await expect(page.getByText('Initial Context')).toBeVisible();
+    await expect(page.getByText('I already know OAuth basics')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Learning' }).click();
+    await expect(page.locator('[data-testid="thinking-journal-card"]')).toHaveCount(1);
+    await expect(page.getByText('🧑‍🎓 Learning')).toBeVisible();
+    await expect(page.getByText('🤔 Problem-Solving')).toHaveCount(0);
+  } finally {
+    await context.close();
   }
 });
