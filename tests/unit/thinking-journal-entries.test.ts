@@ -55,6 +55,21 @@ describe('buildThinkingJournalEntries', () => {
 
     expect(entries[0]?.initialContext).toBe('I know OAuth basics');
   });
+
+  it('uses fallback hypothesis when problem-solving prediction is missing', () => {
+    const record = makeRecord({
+      id: 'problem-missing-prediction',
+      mode: 'problem_solving',
+      timestamp: NOW_MS
+    }) as unknown as LearningCycleRecord;
+
+    delete (record as { prediction?: string }).prediction;
+
+    const entries = buildThinkingJournalEntries([record], NOW_MS);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.mode).toBe('problem_solving');
+    expect(entries[0]?.hypothesis).toBe('No hypothesis recorded.');
+  });
 });
 
 describe('filterThinkingJournalEntries', () => {

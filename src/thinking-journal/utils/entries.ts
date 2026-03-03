@@ -65,7 +65,7 @@ function toThinkingJournalEntry(record: LearningCycleRecord): ThinkingJournalEnt
   };
 
   if (record.mode === 'problem_solving') {
-    const prediction = record.prediction.trim();
+    const prediction = record.prediction?.trim();
     return {
       ...base,
       hypothesis: prediction || 'No hypothesis recorded.'
