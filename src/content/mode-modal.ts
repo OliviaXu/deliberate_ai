@@ -92,12 +92,14 @@ export class ModeSelectionModal {
 
     const continueButton = this.makeContinueButton();
     this.setContinueButtonEnabled(continueButton, false);
-    continueButton.addEventListener('click', () => {
+    const submit = (): void => {
       this.finish(root, resolve, {
         mode: 'problem_solving',
         prediction: input.value.trim()
       });
-    });
+    };
+    continueButton.addEventListener('click', submit);
+    this.bindEnterToContinue(input, continueButton, submit);
     inputShell.appendChild(continueButton);
     card.appendChild(inputShell);
     card.appendChild(count);
@@ -127,10 +129,12 @@ export class ModeSelectionModal {
 
     const continueButton = this.makeContinueButton();
     this.setContinueButtonEnabled(continueButton, true);
-    continueButton.addEventListener('click', () => {
+    const submit = (): void => {
       const priorKnowledgeNote = input.value.trim();
       this.finish(root, resolve, priorKnowledgeNote ? { mode: 'learning', priorKnowledgeNote } : { mode: 'learning' });
-    });
+    };
+    continueButton.addEventListener('click', submit);
+    this.bindEnterToContinue(input, continueButton, submit);
     inputShell.appendChild(continueButton);
     card.appendChild(inputShell);
     panel.appendChild(card);
@@ -162,6 +166,16 @@ export class ModeSelectionModal {
     button.classList.toggle('deliberate-continue--disabled', !enabled);
     button.classList.toggle('deliberate-continue--hidden', !enabled);
     button.setAttribute('aria-hidden', String(!enabled));
+  }
+
+  private bindEnterToContinue(input: HTMLTextAreaElement, button: HTMLButtonElement, submit: () => void): void {
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+      if (button.disabled) return;
+      event.preventDefault();
+      submit();
+    });
   }
 
   private finish(root: HTMLDivElement, resolve: (submission: LearningCycleSubmission) => void, submission: LearningCycleSubmission): void {

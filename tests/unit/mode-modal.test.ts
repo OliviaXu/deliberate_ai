@@ -67,6 +67,24 @@ describe('ModeSelectionModal', () => {
     });
   });
 
+  it('learning details submit on Enter', async () => {
+    document.body.innerHTML = '';
+    const modal = new ModeSelectionModal();
+    const pending = modal.open();
+
+    (document.querySelector('[data-testid="deliberate-mode-option-learning"]') as HTMLButtonElement).click();
+
+    const input = document.querySelector('[data-testid="deliberate-mode-detail-input"]') as HTMLTextAreaElement;
+    input.value = 'Existing context';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    await expect(pending).resolves.toEqual({
+      mode: 'learning',
+      priorKnowledgeNote: 'Existing context'
+    });
+  });
+
   it('reuses the same pending promise while already open', async () => {
     document.body.innerHTML = '';
     const modal = new ModeSelectionModal();

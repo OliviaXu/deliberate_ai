@@ -12,6 +12,7 @@ const COMPOSER_MATCH_SELECTOR = [
   '.ql-editor.textarea[contenteditable="true"][role="textbox"]',
   '[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]'
 ].join(', ');
+const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root';
 
 const COMPOSER_CONTEXTUAL_LOOKUP_SELECTOR = 'rich-textarea [contenteditable="true"][role="textbox"]';
 // Include a wrapper-based selector for lookup paths where the event target is nested inside Gemini's rich-textarea.
@@ -29,6 +30,7 @@ export class GeminiSendInterceptor {
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (!this.isSubmitKeyEvent(event)) return;
+    if (this.isEventWithinDeliberateModal(event.target)) return;
     const eventComposer = this.resolveComposerFromEvent(event);
     if (!eventComposer) {
       this.logger?.debug('composer-resolution-enter-fallback-to-active');
@@ -40,6 +42,7 @@ export class GeminiSendInterceptor {
   };
 
   private readonly onClick = (event: MouseEvent): void => {
+    if (this.isEventWithinDeliberateModal(event.target)) return;
     const button = this.resolveButtonFromEvent(event);
     if (!button) return;
     if (this.isDisabled(button)) return;
@@ -214,6 +217,11 @@ export class GeminiSendInterceptor {
       return this.resolveComposerNear(target);
     }
     return null;
+  }
+
+  private isEventWithinDeliberateModal(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest(DELIBERATE_MODAL_ROOT_SELECTOR));
   }
 
   private resolveActiveComposer(): HTMLElement | null {

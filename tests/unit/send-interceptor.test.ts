@@ -142,4 +142,54 @@ describe('GeminiSendInterceptor', () => {
 
     interceptor.stop();
   });
+
+  it('does not intercept Enter pressed inside the mode modal detail textarea', () => {
+    document.body.innerHTML = `
+      <textarea id="composer">draft</textarea>
+      <div id="deliberate-mode-modal-root">
+        <textarea data-testid="deliberate-mode-detail-input">detail note</textarea>
+      </div>
+    `;
+    const modalInput = document.querySelector('[data-testid="deliberate-mode-detail-input"]') as HTMLTextAreaElement;
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    modalInput.dispatchEvent(enter);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(enter.defaultPrevented).toBe(false);
+
+    interceptor.stop();
+  });
+
+  it('does not intercept send-like button clicks inside the mode modal', () => {
+    document.body.innerHTML = `
+      <textarea id="composer">draft</textarea>
+      <div id="deliberate-mode-modal-root">
+        <button id="modal-submit" class="submit">Send</button>
+      </div>
+      <p id="state">idle</p>
+    `;
+    const modalSubmit = document.querySelector('#modal-submit') as HTMLButtonElement;
+    const state = document.querySelector('#state') as HTMLParagraphElement;
+    modalSubmit.addEventListener('click', () => {
+      state.textContent = 'modal-clicked';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    modalSubmit.click();
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(state.textContent).toBe('modal-clicked');
+
+    interceptor.stop();
+  });
 });
