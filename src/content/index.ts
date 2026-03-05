@@ -5,6 +5,7 @@ import type { InterceptedSubmitIntent, LearningCycleRuntimeMessage } from '../sh
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ModeSelectionModal } from './mode-modal';
 import { GeminiSendInterceptor } from './send-interceptor';
+import { isThreadIdCacheable, shouldCheckPersistentThreadEntries } from './thread-entry-policy';
 
 const logger = new Logger(loadDebugConfig());
 const interceptor = new GeminiSendInterceptor(logger);
@@ -50,7 +51,7 @@ setDomState(interceptionCount, false);
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   const threadId = resolveThreadId(intent.url);
 
-  if (threadModalDecisionCache.get(threadId) === 'skip') {
+  if (isThreadIdCacheable(threadId) && threadModalDecisionCache.get(threadId) === 'skip') {
     const replayAttempted = interceptor.resume(intent);
     logger.info('thread-entry-modal-bypassed', {
       source: 'memory-cache',
@@ -71,7 +72,9 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
       interceptionId: intent.interceptionId
     });
 
-    threadModalDecisionCache.set(threadId, 'skip');
+    if (isThreadIdCacheable(threadId)) {
+      threadModalDecisionCache.set(threadId, 'skip');
+    }
     return;
   }
 
@@ -89,7 +92,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
     logger
   });
 
-  if (result.replayAttempted && result.appendSucceeded) {
+  if (result.replayAttempted && result.appendSucceeded && isThreadIdCacheable(threadId)) {
     threadModalDecisionCache.set(threadId, 'skip');
     logger.info('thread-entry-modal-consumed', {
       threadId,
@@ -100,6 +103,10 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
 }
 
 async function resolveShouldShowModal(threadId: string): Promise<boolean> {
+  if (!shouldCheckPersistentThreadEntries(threadId)) {
+    return true;
+  }
+
   if (threadModalDecisionCache.get(threadId) === 'skip') return false;
 
   const pending = pendingThreadChecks.get(threadId);
