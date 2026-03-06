@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/shared/thread-id';
 import type { LearningCycleRecord } from '../../src/shared/types';
 import { registerLearningCycleMessageHandlers } from '../../src/background/learning-cycle-messages';
 
@@ -16,7 +17,7 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
 
 describe('registerLearningCycleMessageHandlers', () => {
   afterEach(() => {
-    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('appends records for append messages', async () => {
@@ -80,12 +81,13 @@ describe('registerLearningCycleMessageHandlers', () => {
     expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
   });
 
-  it('resolves pending /app records from tabs.onUpdated concrete Gemini URL', async () => {
+  it('tracks placeholder records through pending tracker when sender tab is present', async () => {
     const append = vi.fn(async () => undefined);
     const hasAnyForThread = vi.fn(async () => false);
-    const resolveThreadIdForRecord = vi.fn(async () => true);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
     const onMessage = vi.fn();
-    const onTabsUpdated = vi.fn();
+    const trackPlaceholder = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
 
     registerLearningCycleMessageHandlers(
       { append, hasAnyForThread, resolveThreadIdForRecord },
@@ -93,126 +95,166 @@ describe('registerLearningCycleMessageHandlers', () => {
         runtime: {
           onMessage: {
             addListener: onMessage
-          }
-        },
-        tabs: {
-          onUpdated: {
-            addListener: onTabsUpdated
-          }
-        }
-      }
-    );
-
-    const messageListener = onMessage.mock.calls[0]?.[0];
-    const tabsUpdatedListener = onTabsUpdated.mock.calls[0]?.[0];
-    if (!messageListener || !tabsUpdatedListener) throw new Error('Expected listeners');
-
-    await expect(
-      new Promise((resolve) => {
-        messageListener({ type: 'learning-cycle:append', record: makeRecord({ threadId: '/app', id: 'record-1' }) }, { tab: { id: 101 } }, resolve);
-      })
-    ).resolves.toEqual({ ok: true });
-
-    tabsUpdatedListener(
-      101,
-      { url: 'https://gemini.google.com/app/532b342f83b8e91e', status: 'complete' },
-      { id: 101, url: 'https://gemini.google.com/app/532b342f83b8e91e' }
-    );
-
-    await vi.waitFor(() => {
-      expect(resolveThreadIdForRecord).toHaveBeenCalledWith('record-1', '/app', '/app/532b342f83b8e91e');
-    });
-  });
-
-  it('dedupes duplicate tabs.onUpdated events while resolution is in-flight', async () => {
-    let release: ((value: boolean) => void) | undefined;
-    const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
-    const resolveThreadIdForRecord = vi.fn(
-      () =>
-        new Promise<boolean>((resolve) => {
-          release = resolve;
-        })
-    );
-    const onMessage = vi.fn();
-    const onTabsUpdated = vi.fn();
-
-    registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
-      {
-        runtime: {
-          onMessage: {
-            addListener: onMessage
-          }
-        },
-        tabs: {
-          onUpdated: {
-            addListener: onTabsUpdated
-          }
-        }
-      }
-    );
-
-    const messageListener = onMessage.mock.calls[0]?.[0];
-    const tabsUpdatedListener = onTabsUpdated.mock.calls[0]?.[0];
-    if (!messageListener || !tabsUpdatedListener) throw new Error('Expected listeners');
-
-    await expect(
-      new Promise((resolve) => {
-        messageListener({ type: 'learning-cycle:append', record: makeRecord({ threadId: '/app', id: 'record-2' }) }, { tab: { id: 202 } }, resolve);
-      })
-    ).resolves.toEqual({ ok: true });
-
-    tabsUpdatedListener(202, { url: 'https://gemini.google.com/app/xyz', status: 'loading' }, { id: 202 });
-    tabsUpdatedListener(202, { url: 'https://gemini.google.com/app/xyz', status: 'complete' }, { id: 202 });
-    expect(resolveThreadIdForRecord).toHaveBeenCalledTimes(1);
-
-    release?.(true);
-    await vi.waitFor(() => {
-      expect(resolveThreadIdForRecord).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('evicts unresolved pending records after timeout', async () => {
-    vi.useFakeTimers();
-    const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
-    const resolveThreadIdForRecord = vi.fn(async () => true);
-    const onMessage = vi.fn();
-    const onTabsUpdated = vi.fn();
-
-    registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
-      {
-        runtime: {
-          onMessage: {
-            addListener: onMessage
-          }
-        },
-        tabs: {
-          onUpdated: {
-            addListener: onTabsUpdated
           }
         }
       },
-      { pendingResolutionTimeoutMs: 50 }
+      { trackerFactory }
     );
 
     const messageListener = onMessage.mock.calls[0]?.[0];
-    const tabsUpdatedListener = onTabsUpdated.mock.calls[0]?.[0];
-    if (!messageListener || !tabsUpdatedListener) throw new Error('Expected listeners');
+    if (!messageListener) throw new Error('Expected listener');
 
     await expect(
       new Promise((resolve) => {
-        messageListener({ type: 'learning-cycle:append', record: makeRecord({ threadId: '/app', id: 'record-3' }) }, { tab: { id: 303 } }, resolve);
+        messageListener(
+          { type: 'learning-cycle:append', record: makeRecord({ threadId: PLACEHOLDER_GEMINI_THREAD_ID, id: 'record-1' }) },
+          { tab: { id: 101 } },
+          resolve
+        );
       })
     ).resolves.toEqual({ ok: true });
 
-    await vi.advanceTimersByTimeAsync(51);
+    expect(trackerFactory).toHaveBeenCalledOnce();
+    expect(trackPlaceholder).toHaveBeenCalledWith('record-1', 101);
+  });
 
-    tabsUpdatedListener(303, { url: 'https://gemini.google.com/app/late-thread', status: 'complete' }, { id: 303 });
-    await vi.waitFor(() => {
-      expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
-    });
+  it('does not track placeholder records without sender tab id', async () => {
+    const append = vi.fn(async () => undefined);
+    const hasAnyForThread = vi.fn(async () => false);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const onMessage = vi.fn();
+    const trackPlaceholder = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
+
+    registerLearningCycleMessageHandlers(
+      { append, hasAnyForThread, resolveThreadIdForRecord },
+      {
+        runtime: {
+          onMessage: {
+            addListener: onMessage
+          }
+        }
+      },
+      { trackerFactory }
+    );
+
+    const messageListener = onMessage.mock.calls[0]?.[0];
+    if (!messageListener) throw new Error('Expected listener');
+
+    await expect(
+      new Promise((resolve) => {
+        messageListener(
+          { type: 'learning-cycle:append', record: makeRecord({ threadId: PLACEHOLDER_GEMINI_THREAD_ID, id: 'record-2' }) },
+          {},
+          resolve
+        );
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(trackPlaceholder).not.toHaveBeenCalled();
+  });
+
+  it('does not track placeholder records when sender tab id is not a valid integer', async () => {
+    const append = vi.fn(async () => undefined);
+    const hasAnyForThread = vi.fn(async () => false);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const onMessage = vi.fn();
+    const trackPlaceholder = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
+
+    registerLearningCycleMessageHandlers(
+      { append, hasAnyForThread, resolveThreadIdForRecord },
+      {
+        runtime: {
+          onMessage: {
+            addListener: onMessage
+          }
+        }
+      },
+      { trackerFactory }
+    );
+
+    const messageListener = onMessage.mock.calls[0]?.[0];
+    if (!messageListener) throw new Error('Expected listener');
+
+    await expect(
+      new Promise((resolve) => {
+        messageListener(
+          { type: 'learning-cycle:append', record: makeRecord({ threadId: PLACEHOLDER_GEMINI_THREAD_ID, id: 'record-2a' }) },
+          { tab: { id: Number.NaN } },
+          resolve
+        );
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(trackPlaceholder).not.toHaveBeenCalled();
+  });
+
+  it('does not track non-placeholder thread ids', async () => {
+    const append = vi.fn(async () => undefined);
+    const hasAnyForThread = vi.fn(async () => false);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const onMessage = vi.fn();
+    const trackPlaceholder = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
+
+    registerLearningCycleMessageHandlers(
+      { append, hasAnyForThread, resolveThreadIdForRecord },
+      {
+        runtime: {
+          onMessage: {
+            addListener: onMessage
+          }
+        }
+      },
+      { trackerFactory }
+    );
+
+    const messageListener = onMessage.mock.calls[0]?.[0];
+    if (!messageListener) throw new Error('Expected listener');
+
+    await expect(
+      new Promise((resolve) => {
+        messageListener(
+          { type: 'learning-cycle:append', record: makeRecord({ threadId: '/app/threads/real', id: 'record-3' }) },
+          { tab: { id: 303 } },
+          resolve
+        );
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(trackPlaceholder).not.toHaveBeenCalled();
+  });
+
+  it('returns cleanup that disposes tracker and detaches runtime listener', () => {
+    const append = vi.fn(async () => undefined);
+    const hasAnyForThread = vi.fn(async () => false);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const addListener = vi.fn();
+    const removeListener = vi.fn();
+    const dispose = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder: vi.fn(), dispose }));
+
+    const cleanup = registerLearningCycleMessageHandlers(
+      { append, hasAnyForThread, resolveThreadIdForRecord },
+      {
+        runtime: {
+          onMessage: {
+            addListener,
+            removeListener
+          }
+        }
+      },
+      { trackerFactory }
+    );
+
+    expect(addListener).toHaveBeenCalledOnce();
+    const registeredListener = addListener.mock.calls[0]?.[0];
+    expect(typeof registeredListener).toBe('function');
+
+    cleanup();
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(removeListener).toHaveBeenCalledWith(registeredListener);
   });
 });

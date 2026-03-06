@@ -1,28 +1,16 @@
 import type { LearningCycleStore } from '../shared/learning-cycle-store';
-import { isPlaceholderGeminiThreadId, PLACEHOLDER_GEMINI_THREAD_ID, resolveConcreteGeminiThreadId } from '../shared/thread-id';
+import { isPlaceholderGeminiThreadId } from '../shared/thread-id';
 import type { LearningCycleRuntimeMessage } from '../shared/types';
+import { createPendingThreadResolutionTracker, type PendingThreadResolutionTracker, type TabsApi } from './pending-thread-resolution';
 
 interface RuntimeApi {
   onMessage: {
     addListener(
       listener: (message: unknown, sender: unknown, sendResponse: (response: unknown) => void) => boolean | void
     ): void;
-  };
-}
-
-interface TabsChangeInfo {
-  url?: string;
-  status?: string;
-}
-
-interface TabLike {
-  id?: number;
-  url?: string;
-}
-
-interface TabsApi {
-  onUpdated?: {
-    addListener(listener: (tabId: number, changeInfo: TabsChangeInfo, tab: TabLike) => void): void;
+    removeListener?(
+      listener: (message: unknown, sender: unknown, sendResponse: (response: unknown) => void) => boolean | void
+    ): void;
   };
 }
 
@@ -33,14 +21,10 @@ interface ChromeApi {
 
 interface RegisterLearningCycleMessageHandlersOptions {
   pendingResolutionTimeoutMs?: number;
+  trackerFactory?: (params: PendingTrackerFactoryParams) => PendingThreadResolutionTracker;
 }
 
-interface PendingResolution {
-  recordId: string;
-  fromThreadId: string;
-  timeoutId: ReturnType<typeof setTimeout>;
-  resolving: boolean;
-}
+type PendingTrackerFactoryParams = Parameters<typeof createPendingThreadResolutionTracker>[0];
 
 function isRuntimeMessage(message: unknown): message is LearningCycleRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
@@ -54,135 +38,78 @@ export function registerLearningCycleMessageHandlers(
   store: Pick<LearningCycleStore, 'append' | 'hasAnyForThread' | 'resolveThreadIdForRecord'>,
   chromeApi: ChromeApi = (globalThis as { chrome?: ChromeApi }).chrome || {},
   options: RegisterLearningCycleMessageHandlersOptions = {}
-): void {
-  const pendingResolutionTimeoutMs = options.pendingResolutionTimeoutMs ?? DEFAULT_PENDING_RESOLUTION_TIMEOUT_MS;
-  const pendingByTab = new Map<number, Map<string, PendingResolution>>();
+): () => void {
+  const trackerParams: PendingTrackerFactoryParams = {
+    store,
+    pendingResolutionTimeoutMs: options.pendingResolutionTimeoutMs ?? DEFAULT_PENDING_RESOLUTION_TIMEOUT_MS,
+    ...(chromeApi.tabs ? { tabs: chromeApi.tabs } : {})
+  };
+  const buildPendingTracker = options.trackerFactory ?? createPendingThreadResolutionTracker;
+  const pendingTracker = buildPendingTracker(trackerParams);
 
-  const removePending = (tabId: number, recordId: string): void => {
-    const pendingForTab = pendingByTab.get(tabId);
-    if (!pendingForTab) return;
-    const pending = pendingForTab.get(recordId);
-    if (!pending) return;
-
-    clearTimeout(pending.timeoutId);
-    pendingForTab.delete(recordId);
-    if (pendingForTab.size === 0) {
-      pendingByTab.delete(tabId);
-    }
+  const handleThreadHasEntryMessage = (
+    message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:thread-has-entry' }>,
+    sendResponse: (response: unknown) => void
+  ): boolean => {
+    void store
+      .hasAnyForThread(message.threadId)
+      .then((hasEntry) => sendResponse({ hasEntry }))
+      .catch((error) => sendResponse({ error: String(error) }));
+    return true;
   };
 
-  const registerPending = (recordId: string, tabId: number): void => {
-    removePending(tabId, recordId);
-    const timeoutId = setTimeout(() => {
-      const pendingForTab = pendingByTab.get(tabId);
-      if (!pendingForTab?.has(recordId)) return;
-      removePending(tabId, recordId);
-      console.info('thread-id-resolution-timeout', {
-        tabId,
-        recordId,
-        fromThreadId: PLACEHOLDER_GEMINI_THREAD_ID,
-        timeoutMs: pendingResolutionTimeoutMs
-      });
-    }, pendingResolutionTimeoutMs);
-
-    const pendingForTab = pendingByTab.get(tabId) ?? new Map<string, PendingResolution>();
-    pendingForTab.set(recordId, {
-      recordId,
-      fromThreadId: PLACEHOLDER_GEMINI_THREAD_ID,
-      timeoutId,
-      resolving: false
-    });
-    pendingByTab.set(tabId, pendingForTab);
-  };
-
-  chromeApi.tabs?.onUpdated?.addListener((tabId: number, changeInfo: TabsChangeInfo, tab: TabLike) => {
-    const toThreadId = resolveConcreteGeminiThreadId(changeInfo.url ?? tab.url);
-    if (!toThreadId) return;
-
-    const pendingForTab = pendingByTab.get(tabId);
-    if (!pendingForTab || pendingForTab.size === 0) return;
-
-    console.info('thread-id-resolution-tabs-event', {
-      tabId,
-      toThreadId,
-      url: changeInfo.url ?? tab.url,
-      status: changeInfo.status,
-      pendingCount: pendingForTab.size
-    });
-
-    pendingForTab.forEach((pending) => {
-      if (pending.resolving) return;
-      pending.resolving = true;
-
-      console.info('thread-id-resolution-attempt', {
-        tabId,
-        recordId: pending.recordId,
-        fromThreadId: pending.fromThreadId,
-        toThreadId
-      });
-
-      void store
-        .resolveThreadIdForRecord(pending.recordId, pending.fromThreadId, toThreadId)
-        .then((updated) => {
-          if (updated) {
-            console.info('thread-id-resolution-success', {
-              tabId,
-              recordId: pending.recordId,
-              fromThreadId: pending.fromThreadId,
-              toThreadId
-            });
-          } else {
-            console.info('thread-id-resolution-noop', {
-              tabId,
-              recordId: pending.recordId,
-              fromThreadId: pending.fromThreadId,
-              toThreadId
-            });
-          }
-          removePending(tabId, pending.recordId);
-        })
-        .catch((error) => {
-          pending.resolving = false;
-          console.error('thread-id-resolution-failed', {
-            tabId,
-            recordId: pending.recordId,
-            fromThreadId: pending.fromThreadId,
-            toThreadId,
-            error: String(error)
-          });
-        });
-    });
-  });
-
-  chromeApi.runtime?.onMessage.addListener((message: unknown, sender: unknown, sendResponse: (response: unknown) => void) => {
-    if (!isRuntimeMessage(message)) return undefined;
-
-    if (message.type === 'learning-cycle:thread-has-entry') {
-      void store
-        .hasAnyForThread(message.threadId)
-        .then((hasEntry) => sendResponse({ hasEntry }))
-        .catch((error) => sendResponse({ error: String(error) }));
-      return true;
-    }
-
+  const handleAppendMessage = (
+    message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:append' }>,
+    sender: unknown,
+    sendResponse: (response: unknown) => void
+  ): boolean => {
     void store
       .append(message.record)
       .then(() => {
-        if (isPlaceholderGeminiThreadId(message.record.threadId)) {
-          const tabId = getTabId(sender);
-          if (typeof tabId === 'number') {
-            registerPending(message.record.id, tabId);
-          }
-        }
+        trackPendingPlaceholderFromSender(message, sender, pendingTracker);
         sendResponse({ ok: true });
       })
       .catch((error) => sendResponse({ error: String(error) }));
     return true;
-  });
+  };
+
+  const runtimeMessageListener = (
+    message: unknown,
+    sender: unknown,
+    sendResponse: (response: unknown) => void
+  ): boolean | void => {
+    if (!isRuntimeMessage(message)) return undefined;
+
+    switch (message.type) {
+      case 'learning-cycle:thread-has-entry':
+        return handleThreadHasEntryMessage(message, sendResponse);
+      case 'learning-cycle:append':
+        return handleAppendMessage(message, sender, sendResponse);
+      default:
+        return undefined;
+    }
+  };
+
+  chromeApi.runtime?.onMessage.addListener(runtimeMessageListener);
+
+  return () => {
+    pendingTracker.dispose();
+    chromeApi.runtime?.onMessage.removeListener?.(runtimeMessageListener);
+  };
 }
 
-function getTabId(sender: unknown): number | undefined {
-  if (!sender || typeof sender !== 'object') return undefined;
+function trackPendingPlaceholderFromSender(
+  message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:append' }>,
+  sender: unknown,
+  pendingTracker: Pick<PendingThreadResolutionTracker, 'trackPlaceholder'>
+): void {
+  if (!isPlaceholderGeminiThreadId(message.record.threadId)) return;
+  if (!sender || typeof sender !== 'object') return;
   const tabId = (sender as { tab?: { id?: unknown } }).tab?.id;
-  return typeof tabId === 'number' ? tabId : undefined;
+  if (!isInteger(tabId)) return;
+  pendingTracker.trackPlaceholder(message.record.id, tabId);
+}
+
+function isInteger(value: unknown): value is number {
+  return Number.isInteger(value);
 }
