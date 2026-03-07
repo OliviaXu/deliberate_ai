@@ -4,17 +4,20 @@ import { resolveThreadId } from '../shared/thread-id';
 import type { InterceptedSubmitIntent, LearningCycleRuntimeMessage } from '../shared/types';
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ModeSelectionModal } from './mode-modal';
+import { ReflectionHint } from './reflection-hint';
 import { GeminiSendInterceptor } from './send-interceptor';
 import { isThreadIdCacheable, shouldCheckPersistentThreadEntries } from './thread-entry-policy';
 
 const logger = new Logger(loadDebugConfig());
 const interceptor = new GeminiSendInterceptor(logger);
 const modal = new ModeSelectionModal();
+const reflectionHint = new ReflectionHint();
 const threadModalDecisionCache = new Map<string, 'skip'>();
 const pendingThreadChecks = new Map<string, Promise<boolean>>();
 let interceptionCount = 0;
 let busyDropCount = 0;
 let modalOpen = false;
+let lastObservedUrl = window.location.href;
 // Guard to keep modal/check/capture flow single-flight.
 let handlingIntercept = false;
 
@@ -42,11 +45,14 @@ interceptor.onIntercept((intent) => {
     handlingIntercept = false;
     modalOpen = false;
     setDomState(interceptionCount, false);
+    syncReflectionHintForCurrentThread();
   });
 });
 
 interceptor.start();
 setDomState(interceptionCount, false);
+syncReflectionHintForCurrentThread();
+startThreadHintScopeObserver();
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   const threadId = resolveThreadId(intent.url);
@@ -92,13 +98,20 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
     logger
   });
 
-  if (result.replayAttempted && result.appendSucceeded && isThreadIdCacheable(threadId)) {
-    threadModalDecisionCache.set(threadId, 'skip');
-    logger.info('thread-entry-modal-consumed', {
-      threadId,
-      interceptionId: intent.interceptionId,
-      mode: result.record.mode
-    });
+  if (result.replayAttempted && result.appendSucceeded) {
+    if (result.record.mode === 'problem_solving') {
+      reflectionHint.trackThread(threadId);
+      reflectionHint.sync(threadId);
+    }
+
+    if (isThreadIdCacheable(threadId)) {
+      threadModalDecisionCache.set(threadId, 'skip');
+      logger.info('thread-entry-modal-consumed', {
+        threadId,
+        interceptionId: intent.interceptionId,
+        mode: result.record.mode
+      });
+    }
   }
 }
 
@@ -148,4 +161,16 @@ function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unkno
   const send = chromeApi?.runtime?.sendMessage;
   if (!send) return undefined;
   return Promise.resolve(send(message));
+}
+
+function syncReflectionHintForCurrentThread(): void {
+  reflectionHint.sync(resolveThreadId(window.location.href));
+}
+
+function startThreadHintScopeObserver(): void {
+  window.setInterval(() => {
+    if (window.location.href === lastObservedUrl) return;
+    lastObservedUrl = window.location.href;
+    syncReflectionHintForCurrentThread();
+  }, 200);
 }

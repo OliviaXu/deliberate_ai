@@ -1,0 +1,43 @@
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .deliberate-reflection-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    margin: 0 0 8px;
+    padding: 6px 10px;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.92);
+    color: rgba(15, 23, 42, 0.86);
+    font-family: 'Google Sans Text', 'Google Sans', 'Sohne', 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1.2;
+    backdrop-filter: blur(4px);
+  }
+
+  .deliberate-reflection-hint__label {
+    white-space: nowrap;
+  }
+
+  .deliberate-reflection-hint__review {
+    border: 0;
+    background: transparent;
+    color: rgba(15, 23, 42, 0.95);
+    padding: 0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .deliberate-reflection-hint__review:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.45);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}

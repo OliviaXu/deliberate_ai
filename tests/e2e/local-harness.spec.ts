@@ -86,6 +86,21 @@ async function expectNoModal(page: import('@playwright/test').Page): Promise<voi
   await expect(page.locator('[data-testid="deliberate-mode-modal"]')).toHaveCount(0);
 }
 
+async function expectHintVisible(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.locator('[data-testid="deliberate-reflection-hint"]')).toBeVisible();
+}
+
+async function expectHintHidden(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.locator('[data-testid="deliberate-reflection-hint"]')).toHaveCount(0);
+}
+
+async function navigateThreadInPlace(page: import('@playwright/test').Page, threadUrl: string): Promise<void> {
+  await page.evaluate((nextUrl) => {
+    history.pushState({}, '', nextUrl);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, threadUrl);
+}
+
 async function resetNativeSendState(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => {
     const state = document.getElementById('native-send-state');
@@ -172,6 +187,55 @@ test('local harness shows mode modal once per thread and bypasses later sends', 
         expect.objectContaining({ threadId: '/app/threads/another-thread', mode: 'delegation' })
       ])
     );
+  } finally {
+    await context.close();
+  }
+});
+
+test('local harness scopes reflection hint per thread and keeps hint state across in-tab thread navigation', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-hint-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    const page = await setupHarness(context, primaryThreadUrl);
+    const consoleMessages: string[] = [];
+    page.on('console', (message) => {
+      consoleMessages.push(message.text());
+    });
+    await clearRecords(context);
+
+    await sendProblemSolvingPrompt(
+      page,
+      'Core problem: choose a rollout strategy',
+      'I suspect staged rollout with guardrails and explicit rollback criteria is best because it limits blast radius while preserving learning velocity.'
+    );
+    await expectHintVisible(page);
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const composer = document.getElementById('composer');
+          return composer?.previousElementSibling?.getAttribute('data-testid') || null;
+        })
+      )
+      .toBe('deliberate-reflection-hint');
+
+    await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
+    await expect
+      .poll(() => consoleMessages.some((message) => message.includes('deliberate-reflection-hint-review')))
+      .toBe(true);
+    await expectHintVisible(page);
+
+    await navigateThreadInPlace(page, secondaryThreadUrl);
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendDelegationPrompt(page, 'New thread should require one initial mode selection');
+    await expectHintHidden(page);
+
+    await navigateThreadInPlace(page, primaryThreadUrl);
+    await expectHintVisible(page);
   } finally {
     await context.close();
   }
