@@ -1,82 +1,86 @@
-#deliberate-mode-modal-root {
-  --deliberate-space-1: 8px;
-  --deliberate-space-2: 12px;
-  --deliberate-space-3: 16px;
-  --deliberate-space-4: 24px;
+@tailwind components;
 
-  --deliberate-radius-modal: 24px;
-  --deliberate-radius-option: 15px;
-  --deliberate-radius-input: 16px;
-  --deliberate-radius-icon: 9999px;
+@layer components {
+  #deliberate-mode-modal-root {
+    --deliberate-space-1: 8px;
+    --deliberate-space-2: 12px;
+    --deliberate-space-3: 16px;
+    --deliberate-space-4: 24px;
 
-  --deliberate-font-title-size: 21px;
-  --deliberate-font-title-line: 1.22;
-  --deliberate-font-title-weight: 500;
+    --deliberate-radius-modal: 24px;
+    --deliberate-radius-option: 15px;
+    --deliberate-radius-input: 16px;
+    --deliberate-radius-icon: 9999px;
 
-  --deliberate-font-option-size: 16px;
-  --deliberate-font-option-line: 1.4;
-  --deliberate-font-option-weight: 500;
+    --deliberate-font-title-size: 21px;
+    --deliberate-font-title-line: 1.22;
+    --deliberate-font-title-weight: 500;
 
-  --deliberate-font-input-size: 16px;
-  --deliberate-font-input-line: 1.4;
-  --deliberate-font-input-weight: 450;
+    --deliberate-font-option-size: 16px;
+    --deliberate-font-option-line: 1.4;
+    --deliberate-font-option-weight: 500;
 
-  --deliberate-font-count-size: 12px;
-  --deliberate-font-count-line: 1.25;
+    --deliberate-font-input-size: 16px;
+    --deliberate-font-input-line: 1.4;
+    --deliberate-font-input-weight: 450;
 
-  --deliberate-modal-max-width: clamp(500px, 64vw, 640px);
-  --deliberate-modal-padding: 24px;
-  --deliberate-stack-gap: 12px;
-  --deliberate-title-gap: 16px;
-  --deliberate-action-inset: 16px;
-  --deliberate-option-min-height: 52px;
-  --deliberate-textarea-min-height: 118px;
-  --deliberate-textarea-max-height: 220px;
-  --deliberate-icon-size: 44px;
+    --deliberate-font-count-size: 12px;
+    --deliberate-font-count-line: 1.25;
 
-  --deliberate-scrim: rgba(15, 23, 42, 0.3);
-  --deliberate-panel-bg: #f4f5f7;
-  --deliberate-panel-border: rgba(15, 23, 42, 0.16);
-  --deliberate-panel-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
-  --deliberate-surface-1: #ffffff;
-  --deliberate-surface-2: #f6f7f9;
-  --deliberate-surface-pressed: #eceff3;
-  --deliberate-surface-border: rgba(15, 23, 42, 0.14);
-  --deliberate-input-bg: #f8f9fb;
-  --deliberate-input-border: rgba(15, 23, 42, 0.08);
-  --deliberate-text-main: #202124;
-  --deliberate-text-secondary: #2c3136;
-  --deliberate-text-muted: #5f6570;
-  --deliberate-count-color: rgba(95, 101, 112, 0.56);
-  --deliberate-placeholder: rgba(95, 101, 112, 0.72);
-  --deliberate-action-bg: #e4e8ef;
-  --deliberate-action-bg-hover: #dde2ea;
-  --deliberate-action-bg-pressed: #d3d9e4;
-  --deliberate-action-border: rgba(15, 23, 42, 0.08);
-  --deliberate-action-text: #1f2328;
-  --deliberate-focus-ring: rgba(59, 130, 246, 0.38);
-}
+    --deliberate-modal-max-width: clamp(500px, 64vw, 640px);
+    --deliberate-modal-padding: 24px;
+    --deliberate-stack-gap: 12px;
+    --deliberate-title-gap: 16px;
+    --deliberate-action-inset: 16px;
+    --deliberate-option-min-height: 52px;
+    --deliberate-textarea-min-height: 118px;
+    --deliberate-textarea-max-height: 220px;
+    --deliberate-icon-size: 44px;
 
-#deliberate-mode-modal-root[data-deliberate-theme='dark'] {
-  --deliberate-scrim: rgba(2, 6, 23, 0.64);
-  --deliberate-panel-bg: #0f172a;
-  --deliberate-panel-border: rgba(148, 163, 184, 0.26);
-  --deliberate-panel-shadow: 0 10px 24px rgba(2, 6, 23, 0.26);
-  --deliberate-surface-1: #111d34;
-  --deliberate-surface-2: #17253f;
-  --deliberate-surface-pressed: #0f1a2e;
-  --deliberate-surface-border: rgba(148, 163, 184, 0.22);
-  --deliberate-input-bg: #0c172b;
-  --deliberate-input-border: rgba(148, 163, 184, 0.14);
-  --deliberate-text-main: #e5edf8;
-  --deliberate-text-secondary: #c8d4e8;
-  --deliberate-text-muted: #8ea1bf;
-  --deliberate-count-color: rgba(142, 161, 191, 0.58);
-  --deliberate-placeholder: rgba(142, 161, 191, 0.76);
-  --deliberate-action-bg: #3a4457;
-  --deliberate-action-bg-hover: #434e63;
-  --deliberate-action-bg-pressed: #323c4f;
-  --deliberate-action-border: rgba(148, 163, 184, 0.2);
-  --deliberate-action-text: #e8edf6;
-  --deliberate-focus-ring: rgba(96, 165, 250, 0.45);
+    --deliberate-scrim: rgba(15, 23, 42, 0.3);
+    --deliberate-panel-bg: #f4f5f7;
+    --deliberate-panel-border: rgba(15, 23, 42, 0.16);
+    --deliberate-panel-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+    --deliberate-surface-1: #ffffff;
+    --deliberate-surface-2: #f6f7f9;
+    --deliberate-surface-pressed: #eceff3;
+    --deliberate-surface-border: rgba(15, 23, 42, 0.14);
+    --deliberate-input-bg: #f8f9fb;
+    --deliberate-input-border: rgba(15, 23, 42, 0.08);
+    --deliberate-text-main: #202124;
+    --deliberate-text-secondary: #2c3136;
+    --deliberate-text-muted: #5f6570;
+    --deliberate-count-color: rgba(95, 101, 112, 0.56);
+    --deliberate-placeholder: rgba(95, 101, 112, 0.72);
+    --deliberate-action-bg: #e4e8ef;
+    --deliberate-action-bg-hover: #dde2ea;
+    --deliberate-action-bg-pressed: #d3d9e4;
+    --deliberate-action-border: rgba(15, 23, 42, 0.08);
+    --deliberate-action-text: #1f2328;
+    --deliberate-focus-ring: rgba(59, 130, 246, 0.38);
+  }
+
+  #deliberate-mode-modal-root[data-deliberate-theme='dark'] {
+    --deliberate-scrim: rgba(2, 6, 23, 0.64);
+    --deliberate-panel-bg: #0f172a;
+    --deliberate-panel-border: rgba(148, 163, 184, 0.26);
+    --deliberate-panel-shadow: 0 10px 24px rgba(2, 6, 23, 0.26);
+    --deliberate-surface-1: #111d34;
+    --deliberate-surface-2: #17253f;
+    --deliberate-surface-pressed: #0f1a2e;
+    --deliberate-surface-border: rgba(148, 163, 184, 0.22);
+    --deliberate-input-bg: #0c172b;
+    --deliberate-input-border: rgba(148, 163, 184, 0.14);
+    --deliberate-text-main: #e5edf8;
+    --deliberate-text-secondary: #c8d4e8;
+    --deliberate-text-muted: #8ea1bf;
+    --deliberate-count-color: rgba(142, 161, 191, 0.58);
+    --deliberate-placeholder: rgba(142, 161, 191, 0.76);
+    --deliberate-action-bg: #3a4457;
+    --deliberate-action-bg-hover: #434e63;
+    --deliberate-action-bg-pressed: #323c4f;
+    --deliberate-action-border: rgba(148, 163, 184, 0.2);
+    --deliberate-action-text: #e8edf6;
+    --deliberate-focus-ring: rgba(96, 165, 250, 0.45);
+  }
 }
