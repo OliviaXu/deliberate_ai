@@ -1,7 +1,7 @@
 import { loadDebugConfig } from '../shared/debug-config';
 import { Logger } from '../shared/logger';
 import { resolveThreadId } from '../shared/thread-id';
-import type { InterceptedSubmitIntent, LearningCycleRuntimeMessage } from '../shared/types';
+import type { InteractionMode, InterceptedSubmitIntent, LearningCycleRuntimeMessage } from '../shared/types';
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ModeSelectionModal } from './mode-modal';
 import { ReflectionHint } from './reflection-hint';
@@ -99,7 +99,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   });
 
   if (result.replayAttempted && result.appendSucceeded) {
-    if (result.record.mode === 'problem_solving') {
+    if (isModeEligibleForReflectionHint(result.record.mode)) {
       reflectionHint.markThreadEligibleForHint(threadId);
       reflectionHint.updateVisibilityForThread(threadId);
     }
@@ -165,6 +165,10 @@ function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unkno
 
 function updateReflectionHintVisibilityForCurrentThread(): void {
   reflectionHint.updateVisibilityForThread(resolveThreadId(window.location.href));
+}
+
+function isModeEligibleForReflectionHint(mode: InteractionMode): boolean {
+  return mode === 'problem_solving' || mode === 'learning';
 }
 
 function startThreadHintScopeObserver(): void {
