@@ -20,17 +20,17 @@ describe('ReflectionHint', () => {
     setupComposer();
     const hint = new ReflectionHint();
 
-    hint.trackThread('/app');
-    hint.sync('/app');
+    hint.markThreadEligibleForHint('/app');
+    hint.updateVisibilityForThread('/app');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
 
-    hint.sync('/app/threads/thread-a');
+    hint.updateVisibilityForThread('/app/threads/thread-a');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
 
-    hint.sync('/app/threads/thread-b');
+    hint.updateVisibilityForThread('/app/threads/thread-b');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeNull();
 
-    hint.sync('/app/threads/thread-a');
+    hint.updateVisibilityForThread('/app/threads/thread-a');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
   });
 
@@ -38,18 +38,18 @@ describe('ReflectionHint', () => {
     setupComposer();
     const hint = new ReflectionHint();
 
-    hint.trackThread('/app/thread-a');
-    hint.sync('/app/thread-a');
+    hint.markThreadEligibleForHint('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
 
-    hint.sync('/app/thread-b');
+    hint.updateVisibilityForThread('/app/thread-b');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeNull();
 
-    hint.trackThread('/app/thread-b');
-    hint.sync('/app/thread-b');
+    hint.markThreadEligibleForHint('/app/thread-b');
+    hint.updateVisibilityForThread('/app/thread-b');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
 
-    hint.sync('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a');
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
   });
 
@@ -58,8 +58,8 @@ describe('ReflectionHint', () => {
     const onReview = vi.fn();
     const hint = new ReflectionHint({ onReview });
 
-    hint.trackThread('/app/thread-a');
-    hint.sync('/app/thread-a');
+    hint.markThreadEligibleForHint('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a');
 
     const reviewButton = document.querySelector('[data-testid="deliberate-reflection-hint-review"]');
     if (!(reviewButton instanceof HTMLButtonElement)) throw new Error('Expected review button');

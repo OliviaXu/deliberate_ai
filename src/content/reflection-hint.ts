@@ -27,7 +27,7 @@ export class ReflectionHint {
       });
   }
 
-  trackThread(threadId: string): void {
+  markThreadEligibleForHint(threadId: string): void {
     if (!threadId || threadId === 'unknown') return;
     if (isPlaceholderGeminiThreadId(threadId)) {
       this.hasPendingPlaceholderHint = true;
@@ -38,7 +38,7 @@ export class ReflectionHint {
     }
   }
 
-  sync(threadId: string): void {
+  updateVisibilityForThread(threadId: string): void {
     this.currentThreadId = threadId;
     if (this.hasPendingPlaceholderHint && isConcreteGeminiThreadId(threadId)) {
       this.trackedConcreteThreads.add(threadId);

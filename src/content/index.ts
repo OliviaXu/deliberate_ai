@@ -45,13 +45,13 @@ interceptor.onIntercept((intent) => {
     handlingIntercept = false;
     modalOpen = false;
     setDomState(interceptionCount, false);
-    syncReflectionHintForCurrentThread();
+    updateReflectionHintVisibilityForCurrentThread();
   });
 });
 
 interceptor.start();
 setDomState(interceptionCount, false);
-syncReflectionHintForCurrentThread();
+updateReflectionHintVisibilityForCurrentThread();
 startThreadHintScopeObserver();
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
@@ -100,8 +100,8 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
 
   if (result.replayAttempted && result.appendSucceeded) {
     if (result.record.mode === 'problem_solving') {
-      reflectionHint.trackThread(threadId);
-      reflectionHint.sync(threadId);
+      reflectionHint.markThreadEligibleForHint(threadId);
+      reflectionHint.updateVisibilityForThread(threadId);
     }
 
     if (isThreadIdCacheable(threadId)) {
@@ -163,14 +163,14 @@ function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unkno
   return Promise.resolve(send(message));
 }
 
-function syncReflectionHintForCurrentThread(): void {
-  reflectionHint.sync(resolveThreadId(window.location.href));
+function updateReflectionHintVisibilityForCurrentThread(): void {
+  reflectionHint.updateVisibilityForThread(resolveThreadId(window.location.href));
 }
 
 function startThreadHintScopeObserver(): void {
   window.setInterval(() => {
     if (window.location.href === lastObservedUrl) return;
     lastObservedUrl = window.location.href;
-    syncReflectionHintForCurrentThread();
+    updateReflectionHintVisibilityForCurrentThread();
   }, 200);
 }
