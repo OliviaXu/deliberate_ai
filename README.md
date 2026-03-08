@@ -54,11 +54,17 @@ The profile lives at `.pw-profiles/gemini`, so Gemini auth state stays isolated 
    ```bash
    npm run test:e2e:gemini
    ```
+5. After rebuilding the extension code, reload the unpacked extension in that same Chrome session:
+   ```bash
+   npm run gemini:reload-extension
+   ```
 
 Notes:
 - The launcher uses the repo-local profile at `.pw-profiles/gemini`.
 - The smoke test always starts from a fresh `https://gemini.google.com/app` tab so stale modal state does not leak across runs.
 - If Playwright cannot attach, make sure Chrome is still running with remote debugging on port `9222`.
+- `gemini:reload-extension` only reloads the unpacked extension already loaded in the attached Chrome session. It does not switch that session to a different worktree.
+- To switch worktrees, quit the dedicated Chrome session from worktree A, `cd` into worktree B, run `npm run build`, then run `npm run gemini:open` from worktree B. You do not need to manually remove and re-add the extension card in Chrome; you need a fresh dedicated Chrome session tied to the new worktree.
 
 ## Debugging Logs and Storage
 

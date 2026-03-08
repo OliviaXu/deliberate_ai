@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 function main() {
   const projectRoot = process.cwd();
   const userDataDir = path.resolve(projectRoot, process.env.GEMINI_USER_DATA_DIR || '.pw-profiles/gemini');
-  const extensionPath = path.resolve(projectRoot, process.env.GEMINI_EXTENSION_PATH || '.output/chrome-mv3');
+  const extensionPath = path.resolve(projectRoot, '.output/chrome-mv3');
   const cdpPort = process.env.GEMINI_CDP_PORT || '9222';
 
   if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
