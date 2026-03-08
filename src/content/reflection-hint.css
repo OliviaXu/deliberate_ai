@@ -2,29 +2,60 @@
 @tailwind utilities;
 
 @layer components {
+  .deliberate-reflection-hint-anchor {
+    @apply relative;
+  }
+
   .deliberate-reflection-hint {
-    @apply mb-2 inline-flex self-start rounded-full border px-2.5 py-1.5 text-xs font-deliberate;
-    @apply items-center gap-2 leading-[1.2];
-    border: 1px solid rgba(15, 23, 42, 0.15);
+    @apply absolute left-0 inline-flex rounded-full border px-4 py-2 text-left font-deliberate;
+    @apply items-center justify-start gap-1;
+    z-index: 1;
+    top: -18px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 999px;
-    background: rgba(248, 250, 252, 0.92);
-    color: rgba(15, 23, 42, 0.86);
-    backdrop-filter: blur(4px);
+    background: rgba(255, 255, 255, 0.72);
+    color: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(14px) saturate(155%);
+    box-shadow:
+      0 14px 34px rgba(15, 23, 42, 0.12),
+      0 3px 10px rgba(15, 23, 42, 0.06);
+  }
+
+  .deliberate-reflection-hint--floaty {
+    transform: translateY(-1px);
   }
 
   .deliberate-reflection-hint__label {
-    @apply whitespace-nowrap;
+    @apply whitespace-nowrap text-[13px] font-medium leading-none;
+    letter-spacing: -0.01em;
   }
 
   .deliberate-reflection-hint__review {
-    @apply cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold underline;
+    @apply cursor-pointer border-0 bg-transparent p-0 text-[13px] font-medium leading-none underline;
+    text-decoration-thickness: 1px;
     text-underline-offset: 2px;
-    color: rgba(15, 23, 42, 0.95);
+    letter-spacing: -0.01em;
+    color: rgba(15, 23, 42, 0.88);
   }
 
   .deliberate-reflection-hint__review:focus-visible {
     @apply rounded-[3px];
     outline: 2px solid rgba(37, 99, 235, 0.45);
     outline-offset: 2px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .deliberate-reflection-hint {
+      border-color: rgba(148, 163, 184, 0.24);
+      background: rgba(15, 23, 42, 0.58);
+      color: rgba(226, 232, 240, 0.9);
+      box-shadow:
+        0 16px 36px rgba(2, 6, 23, 0.34),
+        0 3px 10px rgba(2, 6, 23, 0.18);
+    }
+
+    .deliberate-reflection-hint__review {
+      color: rgba(241, 245, 249, 0.94);
+    }
   }
 }

@@ -11,11 +11,20 @@ const COMPOSER_SELECTOR = [
   '[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]',
   'rich-textarea [contenteditable="true"][role="textbox"]'
 ].join(', ');
+const PREFERRED_ANCHOR_SELECTORS = [
+  '.input-area',
+  'input-area-v2',
+  'fieldset.input-area-container',
+  '#composer-shell',
+  'form',
+  'section'
+];
 
 export class ReflectionHint {
   private readonly trackedConcreteThreads = new Set<string>();
   private hasPendingPlaceholderHint = false;
   private root: HTMLDivElement | null = null;
+  private anchor: HTMLElement | null = null;
   private currentThreadId = 'unknown';
   private readonly onReview: (threadId: string) => void;
 
@@ -58,17 +67,39 @@ export class ReflectionHint {
     root.setAttribute('data-deliberate-thread-id', threadId);
 
     const composer = document.querySelector<HTMLElement>(COMPOSER_SELECTOR);
-    const parent = composer?.parentElement;
-    if (parent && composer) {
-      parent.insertBefore(root, composer);
+    const anchor = composer ? this.resolveAnchor(composer) : null;
+    if (anchor) {
+      if (this.anchor && this.anchor !== anchor) {
+        this.anchor.classList.remove('deliberate-reflection-hint-anchor');
+      }
+      anchor.classList.add('deliberate-reflection-hint-anchor');
+      anchor.appendChild(root);
+      this.anchor = anchor;
       return;
     }
 
+    if (this.anchor) {
+      this.anchor.classList.remove('deliberate-reflection-hint-anchor');
+      this.anchor = null;
+    }
     document.body.appendChild(root);
+  }
+
+  private resolveAnchor(composer: HTMLElement): HTMLElement | null {
+    for (const selector of PREFERRED_ANCHOR_SELECTORS) {
+      const anchor = composer.closest<HTMLElement>(selector);
+      if (anchor) return anchor;
+    }
+
+    return composer.parentElement;
   }
 
   private detach(): void {
     this.root?.remove();
+    if (this.anchor) {
+      this.anchor.classList.remove('deliberate-reflection-hint-anchor');
+      this.anchor = null;
+    }
   }
 
   private shouldShowForThread(threadId: string): boolean {
@@ -84,17 +115,17 @@ export class ReflectionHint {
     const root = document.createElement('div');
     root.id = 'deliberate-reflection-hint-root';
     root.setAttribute('data-testid', 'deliberate-reflection-hint');
-    root.className = 'deliberate-reflection-hint';
+    root.className = 'deliberate-reflection-hint deliberate-reflection-hint--floaty';
 
     const label = document.createElement('span');
     label.className = 'deliberate-reflection-hint__label';
-    label.textContent = 'Reflection available';
+    label.textContent = 'Time to';
 
     const reviewButton = document.createElement('button');
     reviewButton.type = 'button';
-    reviewButton.className = 'deliberate-reflection-hint__review';
+    reviewButton.className = 'deliberate-reflection-hint__review deliberate-reflection-hint__review--subtle';
     reviewButton.setAttribute('data-testid', 'deliberate-reflection-hint-review');
-    reviewButton.textContent = 'Review';
+    reviewButton.textContent = 'reflect';
     reviewButton.addEventListener('click', () => {
       this.onReview(this.currentThreadId);
     });

@@ -15,6 +15,55 @@ function setupComposer(): HTMLTextAreaElement {
   return composer;
 }
 
+function setupNestedComposer(): HTMLTextAreaElement {
+  document.body.innerHTML = `
+    <main>
+      <section id="composer-shell">
+        <div class="composer-inner">
+          <textarea id="composer"></textarea>
+        </div>
+      </section>
+    </main>
+  `;
+
+  const composer = document.getElementById('composer');
+  if (!(composer instanceof HTMLTextAreaElement)) throw new Error('Expected textarea composer');
+  return composer;
+}
+
+function setupGeminiComposer(): HTMLDivElement {
+  document.body.innerHTML = `
+    <main>
+      <input-container class="input-gradient">
+        <input-area-v2 class="ui-improvements-phase-1">
+          <div class="input-area">
+            <div class="text-input-field">
+              <div class="text-input-field_textarea-wrapper">
+                <div class="text-input-field-main-area">
+                  <div class="text-input-field_textarea-inner">
+                    <rich-textarea class="text-input-field_textarea">
+                      <div
+                        class="ql-editor textarea new-input-ui"
+                        contenteditable="true"
+                        role="textbox"
+                        aria-label="Enter a prompt for Gemini"
+                      ></div>
+                    </rich-textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </input-area-v2>
+      </input-container>
+    </main>
+  `;
+
+  const composer = document.querySelector('.ql-editor.textarea.new-input-ui');
+  if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+  return composer;
+}
+
 describe('ReflectionHint', () => {
   it('keeps placeholder hint visible and promotes it to the first concrete thread', () => {
     setupComposer();
@@ -53,6 +102,46 @@ describe('ReflectionHint', () => {
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
   });
 
+  it('anchors the hint as a floating overlay inside the composer shell', () => {
+    const composer = setupComposer();
+    const hint = new ReflectionHint();
+
+    hint.markThreadEligibleForHint('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a');
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+    if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
+    expect(root.classList.contains('deliberate-reflection-hint--floaty')).toBe(true);
+
+    const shell = composer.parentElement;
+    if (!(shell instanceof HTMLElement)) throw new Error('Expected composer shell');
+
+    expect(root.parentElement).toBe(shell);
+    expect(shell.classList.contains('deliberate-reflection-hint-anchor')).toBe(true);
+    expect(root.previousElementSibling).toBe(composer);
+  });
+
+  it('prefers the real Gemini input-area shell over inner wrappers and broader page containers', () => {
+    const composer = setupGeminiComposer();
+    const hint = new ReflectionHint();
+
+    hint.markThreadEligibleForHint('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a');
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+    if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
+
+    const shell = document.querySelector('.input-area');
+    if (!(shell instanceof HTMLElement)) throw new Error('Expected Gemini input-area shell');
+    const outerContainer = document.querySelector('input-container');
+    if (!(outerContainer instanceof HTMLElement)) throw new Error('Expected outer input-container');
+
+    expect(root.parentElement).toBe(shell);
+    expect(shell.classList.contains('deliberate-reflection-hint-anchor')).toBe(true);
+    expect(root.parentElement).not.toBe(composer.parentElement);
+    expect(root.parentElement).not.toBe(outerContainer);
+  });
+
   it('logs review interaction without hiding hint', () => {
     setupComposer();
     const onReview = vi.fn();
@@ -61,8 +150,14 @@ describe('ReflectionHint', () => {
     hint.markThreadEligibleForHint('/app/thread-a');
     hint.updateVisibilityForThread('/app/thread-a');
 
+    const label = document.querySelector('.deliberate-reflection-hint__label');
+    if (!(label instanceof HTMLSpanElement)) throw new Error('Expected hint label');
+    expect(label.textContent).toBe('Time to');
+
     const reviewButton = document.querySelector('[data-testid="deliberate-reflection-hint-review"]');
     if (!(reviewButton instanceof HTMLButtonElement)) throw new Error('Expected review button');
+    expect(reviewButton.textContent).toBe('reflect');
+    expect(reviewButton.classList.contains('deliberate-reflection-hint__review--subtle')).toBe(true);
     reviewButton.click();
 
     expect(onReview).toHaveBeenCalledWith('/app/thread-a');
