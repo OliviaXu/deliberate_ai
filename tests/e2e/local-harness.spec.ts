@@ -215,11 +215,21 @@ test('local harness scopes reflection hint per thread and keeps hint state acros
     await expect
       .poll(async () =>
         page.evaluate(() => {
+          const hint = document.querySelector('[data-testid="deliberate-reflection-hint"]');
           const composer = document.getElementById('composer');
-          return composer?.previousElementSibling?.getAttribute('data-testid') || null;
+          const anchor = hint?.parentElement;
+          return {
+            hintParentTag: anchor?.tagName || null,
+            sameParent: anchor === composer?.parentElement,
+            anchored: anchor?.classList.contains('deliberate-reflection-hint-anchor') || false
+          };
         })
       )
-      .toBe('deliberate-reflection-hint');
+      .toEqual({
+        hintParentTag: 'BODY',
+        sameParent: true,
+        anchored: true
+      });
 
     await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
     await expect
