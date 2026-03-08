@@ -24,6 +24,18 @@ After code changes, run `npm run build` again, then click **Reload** on the exte
 
 This flow uses your signed-in Chrome profile and attaches Playwright to that live browser over Chrome DevTools Protocol.
 
+### Why This Flow Exists
+
+We intentionally use real desktop Chrome plus CDP attach instead of letting Playwright launch its own browser for Gemini.
+
+Why:
+- Google sign-in and Gemini were unreliable when Chrome was launched under Playwright automation.
+- Attaching to a real signed-in Chrome session avoids that automation-auth path and works with actual Gemini auth state.
+
+Tradeoff:
+- This is more reliable for prod Gemini auth.
+- It is not truly headless or silent, because Playwright is driving a real visible Chrome window.
+
 ### One-Time Profile Setup
 
 1. Create the repo-local Chrome profile directory:
