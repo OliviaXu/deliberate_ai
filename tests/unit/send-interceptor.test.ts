@@ -1,11 +1,64 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GeminiSendInterceptor } from '../../src/content/send-interceptor';
 
+function setupGeminiHarness(options: { includeSendButton?: boolean; includeComposer?: boolean } = {}): {
+  composer: HTMLDivElement | null;
+  button: HTMLButtonElement | null;
+  state: HTMLParagraphElement;
+} {
+  const { includeSendButton = true, includeComposer = true } = options;
+  document.body.innerHTML = `
+    <input-container class="input-gradient">
+      <input-area-v2 class="ui-improvements-phase-1">
+        <div class="input-area">
+          ${
+            includeSendButton
+              ? `
+            <button class="send-button" aria-label="Send message">
+              <mat-icon fonticon="send"></mat-icon>
+            </button>
+          `
+              : ''
+          }
+          ${
+            includeComposer
+              ? `
+            <div class="text-input-field">
+              <div class="text-input-field_textarea-wrapper">
+                <div class="text-input-field-main-area">
+                  <div class="text-input-field_textarea-inner">
+                    <rich-textarea class="text-input-field_textarea">
+                      <div class="ql-editor textarea new-input-ui" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini">draft</div>
+                    </rich-textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `
+              : ''
+          }
+        </div>
+      </input-area-v2>
+    </input-container>
+    <p id="state">idle</p>
+  `;
+
+  const composer = document.querySelector('.ql-editor.textarea.new-input-ui');
+  const button = document.querySelector('button.send-button');
+  const state = document.querySelector('#state');
+  if (!(state instanceof HTMLParagraphElement)) throw new Error('Expected state element');
+
+  return {
+    composer: composer instanceof HTMLDivElement ? composer : null,
+    button: button instanceof HTMLButtonElement ? button : null,
+    state
+  };
+}
+
 describe('GeminiSendInterceptor', () => {
   it('blocks Enter submit and emits an interception intent', () => {
-    document.body.innerHTML = '<textarea id="composer">draft</textarea><p id="state">idle</p>';
-    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
-    const state = document.querySelector('#state') as HTMLParagraphElement;
+    const { composer, state } = setupGeminiHarness({ includeSendButton: false });
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
     composer.focus();
     composer.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
@@ -29,9 +82,8 @@ describe('GeminiSendInterceptor', () => {
   });
 
   it('resumes blocked send once without reopening interception loop', () => {
-    document.body.innerHTML = '<textarea id="composer">draft</textarea><p id="state">idle</p>';
-    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
-    const state = document.querySelector('#state') as HTMLParagraphElement;
+    const { composer, state } = setupGeminiHarness({ includeSendButton: false });
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
     composer.focus();
     composer.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
@@ -58,10 +110,9 @@ describe('GeminiSendInterceptor', () => {
   });
 
   it('prefers click replay for enter-origin intents when send button exists', () => {
-    document.body.innerHTML = '<textarea id="composer">draft</textarea><button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
-    const composer = document.querySelector('#composer') as HTMLTextAreaElement;
-    const button = document.querySelector('#send') as HTMLButtonElement;
-    const state = document.querySelector('#state') as HTMLParagraphElement;
+    const { composer, button, state } = setupGeminiHarness();
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
     let clickCount = 0;
 
     composer.focus();
@@ -93,9 +144,8 @@ describe('GeminiSendInterceptor', () => {
   });
 
   it('blocks send button click and resumes after mode selection path', () => {
-    document.body.innerHTML = '<textarea id="composer">draft</textarea><button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
-    const button = document.querySelector('#send') as HTMLButtonElement;
-    const state = document.querySelector('#state') as HTMLParagraphElement;
+    const { button, state } = setupGeminiHarness();
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
     button.addEventListener('click', (event) => {
       if (event.defaultPrevented) return;
       state.textContent = 'sent';
@@ -118,9 +168,8 @@ describe('GeminiSendInterceptor', () => {
   });
 
   it('intercepts send button click even when composer cannot be resolved', () => {
-    document.body.innerHTML = '<button id="send" aria-label="Send">Send</button><p id="state">idle</p>';
-    const button = document.querySelector('#send') as HTMLButtonElement;
-    const state = document.querySelector('#state') as HTMLParagraphElement;
+    const { button, state } = setupGeminiHarness({ includeComposer: false });
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
     button.addEventListener('click', (event) => {
       if (event.defaultPrevented) return;
       state.textContent = 'sent';
@@ -145,7 +194,7 @@ describe('GeminiSendInterceptor', () => {
 
   it('does not intercept Enter pressed inside the mode modal detail textarea', () => {
     document.body.innerHTML = `
-      <textarea id="composer">draft</textarea>
+      <div class="ql-editor textarea new-input-ui" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini">draft</div>
       <div id="deliberate-mode-modal-root">
         <textarea data-testid="deliberate-mode-detail-input">detail note</textarea>
       </div>
@@ -168,7 +217,7 @@ describe('GeminiSendInterceptor', () => {
 
   it('does not intercept send-like button clicks inside the mode modal', () => {
     document.body.innerHTML = `
-      <textarea id="composer">draft</textarea>
+      <div class="ql-editor textarea new-input-ui" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini">draft</div>
       <div id="deliberate-mode-modal-root">
         <button id="modal-submit" class="submit">Send</button>
       </div>

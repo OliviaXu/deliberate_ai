@@ -1,36 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReflectionHint } from '../../src/content/reflection-hint';
 
-function setupComposer(): HTMLTextAreaElement {
-  document.body.innerHTML = `
-    <main>
-      <section id="composer-shell">
-        <textarea id="composer"></textarea>
-      </section>
-    </main>
-  `;
-
-  const composer = document.getElementById('composer');
-  if (!(composer instanceof HTMLTextAreaElement)) throw new Error('Expected textarea composer');
-  return composer;
-}
-
-function setupNestedComposer(): HTMLTextAreaElement {
-  document.body.innerHTML = `
-    <main>
-      <section id="composer-shell">
-        <div class="composer-inner">
-          <textarea id="composer"></textarea>
-        </div>
-      </section>
-    </main>
-  `;
-
-  const composer = document.getElementById('composer');
-  if (!(composer instanceof HTMLTextAreaElement)) throw new Error('Expected textarea composer');
-  return composer;
-}
-
 function setupGeminiComposer(): HTMLDivElement {
   document.body.innerHTML = `
     <main>
@@ -66,7 +36,7 @@ function setupGeminiComposer(): HTMLDivElement {
 
 describe('ReflectionHint', () => {
   it('keeps placeholder hint visible and promotes it to the first concrete thread', () => {
-    setupComposer();
+    setupGeminiComposer();
     const hint = new ReflectionHint();
 
     hint.markThreadEligibleForHint('/app');
@@ -84,7 +54,7 @@ describe('ReflectionHint', () => {
   });
 
   it('tracks multiple threads per tab and re-shows when navigating back', () => {
-    setupComposer();
+    setupGeminiComposer();
     const hint = new ReflectionHint();
 
     hint.markThreadEligibleForHint('/app/thread-a');
@@ -103,7 +73,7 @@ describe('ReflectionHint', () => {
   });
 
   it('anchors the hint as a floating overlay inside the composer shell', () => {
-    const composer = setupComposer();
+    const composer = setupGeminiComposer();
     const hint = new ReflectionHint();
 
     hint.markThreadEligibleForHint('/app/thread-a');
@@ -113,12 +83,12 @@ describe('ReflectionHint', () => {
     if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
     expect(root.classList.contains('deliberate-reflection-hint--floaty')).toBe(true);
 
-    const shell = composer.parentElement;
-    if (!(shell instanceof HTMLElement)) throw new Error('Expected composer shell');
+    const shell = document.querySelector('.input-area');
+    if (!(shell instanceof HTMLElement)) throw new Error('Expected Gemini input-area shell');
 
     expect(root.parentElement).toBe(shell);
     expect(shell.classList.contains('deliberate-reflection-hint-anchor')).toBe(true);
-    expect(root.previousElementSibling).toBe(composer);
+    expect(root.parentElement).not.toBe(composer.parentElement);
   });
 
   it('prefers the real Gemini input-area shell over inner wrappers and broader page containers', () => {
@@ -143,7 +113,7 @@ describe('ReflectionHint', () => {
   });
 
   it('logs review interaction without hiding hint', () => {
-    setupComposer();
+    setupGeminiComposer();
     const onReview = vi.fn();
     const hint = new ReflectionHint({ onReview });
 

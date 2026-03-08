@@ -110,8 +110,9 @@ async function resetNativeSendState(page: import('@playwright/test').Page): Prom
 }
 
 async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, prompt: string, prediction: string): Promise<void> {
-  await page.locator('#composer').fill(prompt);
-  await page.locator('#send').click();
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await composer.fill(prompt);
+  await page.getByRole('button', { name: /send message/i }).click();
   await expectModal(page);
   await page.locator('[data-testid="deliberate-mode-option-problem_solving"]').click();
   await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(prediction);
@@ -120,16 +121,18 @@ async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, p
 }
 
 async function sendDelegationPrompt(page: import('@playwright/test').Page, prompt: string): Promise<void> {
-  await page.locator('#composer').fill(prompt);
-  await page.locator('#send').click();
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await composer.fill(prompt);
+  await page.getByRole('button', { name: /send message/i }).click();
   await expectModal(page);
   await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
   await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
 
 async function sendPromptExpectBypass(page: import('@playwright/test').Page, prompt: string): Promise<void> {
-  await page.locator('#composer').fill(prompt);
-  await page.locator('#composer').press('Enter');
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await composer.fill(prompt);
+  await composer.press('Enter');
   await expect(page.locator('#native-send-state')).toHaveText('sent');
   await expectNoModal(page);
 }
@@ -216,19 +219,18 @@ test('local harness scopes reflection hint per thread and keeps hint state acros
       .poll(async () =>
         page.evaluate(() => {
           const hint = document.querySelector('[data-testid="deliberate-reflection-hint"]');
-          const composer = document.getElementById('composer');
           const anchor = hint?.parentElement;
           return {
             hintParentTag: anchor?.tagName || null,
-            sameParent: anchor === composer?.parentElement,
-            anchored: anchor?.classList.contains('deliberate-reflection-hint-anchor') || false
+            anchored: anchor?.classList.contains('deliberate-reflection-hint-anchor') || false,
+            anchorIsInputArea: anchor?.classList.contains('input-area') || false
           };
         })
       )
       .toEqual({
-        hintParentTag: 'BODY',
-        sameParent: true,
-        anchored: true
+        hintParentTag: 'DIV',
+        anchored: true,
+        anchorIsInputArea: true
       });
 
     await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();

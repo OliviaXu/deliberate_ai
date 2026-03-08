@@ -1,24 +1,9 @@
 import { isConcreteGeminiThreadId, isPlaceholderGeminiThreadId } from '../shared/thread-id';
+import { findGeminiComposer, findGeminiComposerAnchor } from './gemini-composer';
 
 interface ReflectionHintOptions {
   onReview?: (threadId: string) => void;
 }
-
-const COMPOSER_SELECTOR = [
-  '#composer',
-  'textarea',
-  '.ql-editor.textarea[contenteditable="true"][role="textbox"]',
-  '[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]',
-  'rich-textarea [contenteditable="true"][role="textbox"]'
-].join(', ');
-const PREFERRED_ANCHOR_SELECTORS = [
-  '.input-area',
-  'input-area-v2',
-  'fieldset.input-area-container',
-  '#composer-shell',
-  'form',
-  'section'
-];
 
 export class ReflectionHint {
   private readonly trackedConcreteThreads = new Set<string>();
@@ -66,8 +51,8 @@ export class ReflectionHint {
     const root = this.getOrCreateRoot();
     root.setAttribute('data-deliberate-thread-id', threadId);
 
-    const composer = document.querySelector<HTMLElement>(COMPOSER_SELECTOR);
-    const anchor = composer ? this.resolveAnchor(composer) : null;
+    const composer = findGeminiComposer();
+    const anchor = composer ? findGeminiComposerAnchor(composer) : null;
     if (anchor) {
       if (this.anchor && this.anchor !== anchor) {
         this.anchor.classList.remove('deliberate-reflection-hint-anchor');
@@ -83,15 +68,6 @@ export class ReflectionHint {
       this.anchor = null;
     }
     document.body.appendChild(root);
-  }
-
-  private resolveAnchor(composer: HTMLElement): HTMLElement | null {
-    for (const selector of PREFERRED_ANCHOR_SELECTORS) {
-      const anchor = composer.closest<HTMLElement>(selector);
-      if (anchor) return anchor;
-    }
-
-    return composer.parentElement;
   }
 
   private detach(): void {

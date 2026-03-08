@@ -1,22 +1,13 @@
 import type { InterceptedSubmitIntent, SubmitSource, Unsubscribe } from '../shared/types';
 import type { Logger } from '../shared/logger';
+import { findGeminiComposer, isGeminiComposerElement, resolveGeminiComposerNear } from './gemini-composer';
 
 interface InternalSubmitIntent extends InterceptedSubmitIntent {
   button: HTMLButtonElement | null;
   composer: HTMLElement | null;
 }
 
-const COMPOSER_MATCH_SELECTOR = [
-  '#composer',
-  'textarea',
-  '.ql-editor.textarea[contenteditable="true"][role="textbox"]',
-  '[contenteditable="true"][role="textbox"][aria-label*="prompt"][aria-label*="Gemini"]'
-].join(', ');
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root';
-
-const COMPOSER_CONTEXTUAL_LOOKUP_SELECTOR = 'rich-textarea [contenteditable="true"][role="textbox"]';
-// Include a wrapper-based selector for lookup paths where the event target is nested inside Gemini's rich-textarea.
-const COMPOSER_LOOKUP_SELECTOR = [COMPOSER_MATCH_SELECTOR, COMPOSER_CONTEXTUAL_LOOKUP_SELECTOR].join(', ');
 
 export class GeminiSendInterceptor {
   constructor(private readonly logger?: Pick<Logger, 'debug' | 'info'>) {}
@@ -242,15 +233,15 @@ export class GeminiSendInterceptor {
     const nearbyComposer = this.resolveComposerNear(button);
     if (nearbyComposer) return nearbyComposer;
 
-    const firstComposer = document.querySelector<HTMLElement>(COMPOSER_LOOKUP_SELECTOR);
+    const firstComposer = findGeminiComposer();
     if (firstComposer) return firstComposer;
 
     return null;
   }
 
   private resolveComposerNear(element: HTMLElement): HTMLElement | null {
-    if (element.matches(COMPOSER_MATCH_SELECTOR)) return element;
-    return element.closest<HTMLElement>(COMPOSER_LOOKUP_SELECTOR);
+    if (isGeminiComposerElement(element)) return element;
+    return resolveGeminiComposerNear(element);
   }
 
   private resolveSendButton(): HTMLButtonElement | null {
