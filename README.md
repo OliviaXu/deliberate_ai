@@ -20,6 +20,46 @@ A browser assistant for the AI era that nudges you to think first, then builds s
 
 After code changes, run `npm run build` again, then click **Reload** on the extension card in `chrome://extensions`.
 
+## Gemini E2E Smoke Test
+
+This flow uses your signed-in Chrome profile and attaches Playwright to that live browser over Chrome DevTools Protocol.
+
+### One-Time Profile Setup
+
+1. Create the repo-local Chrome profile directory:
+   ```bash
+   mkdir -p .pw-profiles/gemini
+   ```
+2. Keep `.pw-profiles/` out of git.
+   The repo already ignores it in `.gitignore`.
+3. Launch the dedicated Gemini browser once:
+   ```bash
+   npm run gemini:open
+   ```
+4. In that Chrome window, sign into `https://gemini.google.com`.
+5. Keep using that same repo-local profile for future Gemini smoke runs.
+
+The profile lives at `.pw-profiles/gemini`, so Gemini auth state stays isolated from your normal daily Chrome profile.
+
+1. Build the extension:
+   ```bash
+   npm run build
+   ```
+2. Launch the dedicated Gemini test browser:
+   ```bash
+   npm run gemini:open
+   ```
+3. In that Chrome window, sign into `https://gemini.google.com` if needed and leave the window open.
+4. Run the live Gemini smoke test:
+   ```bash
+   npm run test:e2e:gemini
+   ```
+
+Notes:
+- The launcher uses the repo-local profile at `.pw-profiles/gemini`.
+- The smoke test always starts from a fresh `https://gemini.google.com/app` tab so stale modal state does not leak across runs.
+- If Playwright cannot attach, make sure Chrome is still running with remote debugging on port `9222`.
+
 ## Debugging Logs and Storage
 
 1. On `https://gemini.google.com`, open DevTools -> **Console** and run:

@@ -2,73 +2,106 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 
+async function clearGeminiComposer(page: import('@playwright/test').Page): Promise<void> {
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await composer.click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.press('Backspace');
+}
+
 test('loads extension on Gemini and emits normalized submit signals', async () => {
+  test.setTimeout(60_000);
   const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
-  const userDataDir = process.env.GEMINI_USER_DATA_DIR || path.resolve(process.cwd(), '.tmp/playwright-gemini-profile');
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: 'chromium',
-    headless: true,
-    ignoreDefaultArgs: ['--disable-extensions'],
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const cdpPort = process.env.GEMINI_CDP_PORT || '9222';
+  const cdpUrl = process.env.GEMINI_CDP_URL || `http://127.0.0.1:${cdpPort}`;
+  const browser = await chromium.connectOverCDP(cdpUrl).catch(() => null);
+  if (!browser) {
+    test.skip(true, `Could not connect to ${cdpUrl}. Start Chrome with \`npm run gemini:open\` and keep that window open.`);
+    return;
+  }
+
+  const context = browser.contexts()[0];
+  if (!context) {
+    test.skip(true, 'No Chrome context was available over CDP. Restart with `npm run gemini:open` and try again.');
+    return;
+  }
+
+  const page = await context.newPage();
+  await page.goto('https://gemini.google.com/app', { waitUntil: 'domcontentloaded' });
+
+  const isGemini = new URL(page.url()).host === 'gemini.google.com';
+  test.skip(!isGemini, 'Gemini redirected to auth flow. Sign into Gemini in the Chrome window opened by `npm run gemini:open`.');
+
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await clearGeminiComposer(page);
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => ({
+          active: document.documentElement.getAttribute('data-deliberate-active'),
+          count: document.documentElement.getAttribute('data-deliberate-signal-count')
+        })),
+      {
+        timeout: 15_000,
+        message: 'Expected the Deliberate AI content script to mark the Gemini page as active.'
+      }
+    )
+    .toMatchObject({ active: 'true' });
+
+  const beforeCount = await page.evaluate(() => {
+    const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
+    return Number(raw || 0);
   });
 
-  try {
-    const serviceWorker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-    const extensionId = new URL(serviceWorker.url()).host;
-    expect(extensionId).toBeTruthy();
+  await composer.click();
+  await composer.pressSequentially('Deliberate AI Gemini smoke test prompt', { delay: 50 });
 
-    const page = await context.newPage();
-    await page.goto('https://gemini.google.com/', { waitUntil: 'domcontentloaded' });
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const textbox = document.querySelector('[role="textbox"][aria-label*="Gemini"]');
+          return textbox?.textContent || '';
+        }),
+      {
+        timeout: 10_000,
+        message: 'Expected the Gemini composer to contain the typed smoke prompt before submitting.'
+      }
+    )
+    .toContain('Deliberate AI Gemini smoke test prompt');
 
-    const isGemini = new URL(page.url()).host === 'gemini.google.com';
-    test.skip(!isGemini, 'Gemini redirected to auth flow. Provide a signed-in profile with GEMINI_USER_DATA_DIR.');
+  await composer.press('Enter');
 
-    // Require the real Gemini send button to exist before proceeding.
-    const realSendButton = page
-      .locator('button.send-button.submit[aria-label*="Send"], button.send-button[aria-label*="Send"]')
-      .first();
-    const realSendVisible = await realSendButton.isVisible({ timeout: 10_000 }).catch(() => false);
-    test.skip(!realSendVisible, 'Could not find visible Gemini send control. Use a signed-in profile with active composer UI.');
+  await expect
+    .poll(
+      async () => {
+        const raw = await page.evaluate(() => document.documentElement.getAttribute('data-deliberate-signal-count'));
+        return Number(raw || 0);
+      },
+      {
+        timeout: 15_000,
+        message: 'Expected the Gemini submit interception counter to increase after pressing Enter in the composer.'
+      }
+    )
+    .toBeGreaterThan(beforeCount);
 
-    await page.waitForFunction(
-      () => document.documentElement.getAttribute('data-deliberate-active') === 'true',
-      { timeout: 10_000 }
-    );
-    const testStateReady = await page.evaluate(
-      () => document.documentElement.getAttribute('data-deliberate-active') === 'true'
-    );
-    expect(testStateReady).toBe(true);
+  const signalCount = await page.evaluate(() => {
+    const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
+    return Number(raw || 0);
+  });
 
-    const keydownDefaultPrevented = await page.evaluate(() => {
-      const evt = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
-      document.dispatchEvent(evt);
-      return evt.defaultPrevented;
-    });
-    expect(keydownDefaultPrevented).toBe(false);
-
-    const beforeCount = await page.evaluate(() => {
-      const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
-      return Number(raw || 0);
-    });
-
-    await page.evaluate(() => {
-      const btn = document.createElement('button');
-      btn.setAttribute('aria-label', 'Send');
-      btn.textContent = 'Send';
-      btn.id = 'deliberate-test-send';
-      document.body.appendChild(btn);
-    });
-    await page.click('#deliberate-test-send');
-
-    const signalCount = await page.evaluate(() => {
-      const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
-      return Number(raw || 0);
-    });
-
-    expect(signalCount).toBeGreaterThanOrEqual(beforeCount + 1);
-  } finally {
-    await context.close();
-  }
+  expect(signalCount).toBeGreaterThanOrEqual(beforeCount + 1);
+  await expect
+    .poll(
+      async () => page.evaluate(() => document.documentElement.getAttribute('data-deliberate-modal-open')),
+      {
+        timeout: 10_000,
+        message: 'Expected the Deliberate AI modal to open after intercepting the Gemini submit.'
+      }
+    )
+    .toBe('true');
 });
