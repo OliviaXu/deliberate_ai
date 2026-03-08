@@ -36,8 +36,10 @@ This flow uses your signed-in Chrome profile and attaches Playwright to that liv
    ```bash
    npm run gemini:open
    ```
-4. In that Chrome window, sign into `https://gemini.google.com`.
-5. Keep using that same repo-local profile for future Gemini smoke runs.
+4. In that Chrome window, open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select:
+   `<repo-root>/.output/chrome-mv3`
+5. In that same Chrome window, sign into `https://gemini.google.com`.
+6. Keep using that same repo-local profile for future Gemini smoke runs.
 
 The profile lives at `.pw-profiles/gemini`, so Gemini auth state stays isolated from your normal daily Chrome profile.
 
@@ -49,12 +51,14 @@ The profile lives at `.pw-profiles/gemini`, so Gemini auth state stays isolated 
    ```bash
    npm run gemini:open
    ```
-3. In that Chrome window, sign into `https://gemini.google.com` if needed and leave the window open.
-4. Run the live Gemini smoke test:
+3. If this profile has never loaded the extension before, open `chrome://extensions`, enable **Developer mode**, and manually **Load unpacked** from:
+   `<repo-root>/.output/chrome-mv3`
+4. In that Chrome window, sign into `https://gemini.google.com` if needed and leave the window open.
+5. Run the live Gemini smoke test:
    ```bash
    npm run test:e2e:gemini
    ```
-5. After rebuilding the extension code, reload the unpacked extension in that same Chrome session:
+6. After rebuilding the extension code, reload the unpacked extension in that same Chrome session:
    ```bash
    npm run gemini:reload-extension
    ```
@@ -63,6 +67,7 @@ Notes:
 - The launcher uses the repo-local profile at `.pw-profiles/gemini`.
 - The smoke test always starts from a fresh `https://gemini.google.com/app` tab so stale modal state does not leak across runs.
 - If Playwright cannot attach, make sure Chrome is still running with remote debugging on port `9222`.
+- The first time you use a repo-local Gemini profile, you must manually load the unpacked extension from `.output/chrome-mv3` in `chrome://extensions`. `gemini:reload-extension` only works after that initial manual install.
 - `gemini:reload-extension` only reloads the unpacked extension already loaded in the attached Chrome session. It does not switch that session to a different worktree.
 - To switch worktrees, quit the dedicated Chrome session from worktree A, `cd` into worktree B, run `npm run build`, then run `npm run gemini:open` from worktree B. You do not need to manually remove and re-add the extension card in Chrome; you need a fresh dedicated Chrome session tied to the new worktree.
 
