@@ -1,4 +1,3 @@
-import { isConcreteGeminiThreadId, isPlaceholderGeminiThreadId } from '../shared/thread-id';
 import { findGeminiComposer, findGeminiComposerAnchor } from './gemini-composer';
 
 interface ReflectionHintOptions {
@@ -6,8 +5,6 @@ interface ReflectionHintOptions {
 }
 
 export class ReflectionHint {
-  private readonly trackedConcreteThreads = new Set<string>();
-  private hasPendingPlaceholderHint = false;
   private root: HTMLDivElement | null = null;
   private anchor: HTMLElement | null = null;
   private currentThreadId = 'unknown';
@@ -21,25 +18,9 @@ export class ReflectionHint {
       });
   }
 
-  markThreadEligibleForHint(threadId: string): void {
-    if (!threadId || threadId === 'unknown') return;
-    if (isPlaceholderGeminiThreadId(threadId)) {
-      this.hasPendingPlaceholderHint = true;
-      return;
-    }
-    if (isConcreteGeminiThreadId(threadId)) {
-      this.trackedConcreteThreads.add(threadId);
-    }
-  }
-
-  updateVisibilityForThread(threadId: string): void {
+  updateVisibilityForThread(threadId: string, visible: boolean): void {
     this.currentThreadId = threadId;
-    if (this.hasPendingPlaceholderHint && isConcreteGeminiThreadId(threadId)) {
-      this.trackedConcreteThreads.add(threadId);
-      this.hasPendingPlaceholderHint = false;
-    }
-
-    if (!this.shouldShowForThread(threadId)) {
+    if (!visible) {
       this.detach();
       return;
     }
@@ -76,13 +57,6 @@ export class ReflectionHint {
       this.anchor.classList.remove('deliberate-reflection-hint-anchor');
       this.anchor = null;
     }
-  }
-
-  private shouldShowForThread(threadId: string): boolean {
-    if (isPlaceholderGeminiThreadId(threadId)) {
-      return this.hasPendingPlaceholderHint;
-    }
-    return this.trackedConcreteThreads.has(threadId);
   }
 
   private getOrCreateRoot(): HTMLDivElement {

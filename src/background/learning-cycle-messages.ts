@@ -29,13 +29,13 @@ type PendingTrackerFactoryParams = Parameters<typeof createPendingThreadResoluti
 function isRuntimeMessage(message: unknown): message is LearningCycleRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
   const maybe = message as { type?: string };
-  return maybe.type === 'learning-cycle:append' || maybe.type === 'learning-cycle:thread-has-entry';
+  return maybe.type === 'learning-cycle:append' || maybe.type === 'learning-cycle:thread-record';
 }
 
 const DEFAULT_PENDING_RESOLUTION_TIMEOUT_MS = 15_000;
 
 export function registerLearningCycleMessageHandlers(
-  store: Pick<LearningCycleStore, 'append' | 'hasAnyForThread' | 'resolveThreadIdForRecord'>,
+  store: Pick<LearningCycleStore, 'append' | 'resolveThreadIdForRecord' | 'getLatestForThread'>,
   chromeApi: ChromeApi = (globalThis as { chrome?: ChromeApi }).chrome || {},
   options: RegisterLearningCycleMessageHandlersOptions = {}
 ): () => void {
@@ -47,13 +47,13 @@ export function registerLearningCycleMessageHandlers(
   const buildPendingTracker = options.trackerFactory ?? createPendingThreadResolutionTracker;
   const pendingTracker = buildPendingTracker(trackerParams);
 
-  const handleThreadHasEntryMessage = (
-    message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:thread-has-entry' }>,
+  const handleThreadRecordMessage = (
+    message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:thread-record' }>,
     sendResponse: (response: unknown) => void
   ): boolean => {
     void store
-      .hasAnyForThread(message.threadId)
-      .then((hasEntry) => sendResponse({ hasEntry }))
+      .getLatestForThread(message.threadId)
+      .then((record) => sendResponse({ record }))
       .catch((error) => sendResponse({ error: String(error) }));
     return true;
   };
@@ -81,10 +81,10 @@ export function registerLearningCycleMessageHandlers(
     if (!isRuntimeMessage(message)) return undefined;
 
     switch (message.type) {
-      case 'learning-cycle:thread-has-entry':
-        return handleThreadHasEntryMessage(message, sendResponse);
       case 'learning-cycle:append':
         return handleAppendMessage(message, sender, sendResponse);
+      case 'learning-cycle:thread-record':
+        return handleThreadRecordMessage(message, sendResponse);
       default:
         return undefined;
     }

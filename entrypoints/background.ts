@@ -5,6 +5,13 @@ import { LearningCycleStore } from '../src/shared/learning-cycle-store';
 
 export default defineBackground(() => {
   console.info('Deliberate AI background worker started');
-  registerLearningCycleMessageHandlers(new LearningCycleStore());
+  const learningCycleStore = new LearningCycleStore();
+
+  registerLearningCycleMessageHandlers({
+    append: (record) => learningCycleStore.append(record),
+    resolveThreadIdForRecord: (recordId, fromThreadId, toThreadId) =>
+      learningCycleStore.resolveThreadIdForRecord(recordId, fromThreadId, toThreadId),
+    getLatestForThread: (threadId) => learningCycleStore.getLatestForThread(threadId)
+  });
   registerThinkingJournalActionHandler();
 });

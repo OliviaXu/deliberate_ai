@@ -70,13 +70,13 @@ describe('LearningCycleStore', () => {
     expect(records[0]?.id).toBe('first');
   });
 
-  it('reports thread-level entry presence', async () => {
+  it('reports thread-level records', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1', threadId: '/app/threads/one' }));
     await store.append(makeRecord({ id: '2', threadId: '/app/threads/two' }));
 
-    await expect(store.hasAnyForThread('/app/threads/one')).resolves.toBe(true);
-    await expect(store.hasAnyForThread('/app/threads/missing')).resolves.toBe(false);
+    await expect(store.getLatestForThread('/app/threads/one')).resolves.toMatchObject({ id: '1' });
+    await expect(store.getLatestForThread('/app/threads/missing')).resolves.toBeNull();
   });
 
   it('resolves a placeholder thread id for a specific record', async () => {
@@ -96,5 +96,26 @@ describe('LearningCycleStore', () => {
     await store.append(makeRecord({ id: '1', threadId: '/app/threads/already-final' }));
 
     await expect(store.resolveThreadIdForRecord('1', '/app', '/app/532b342f83b8e91e')).resolves.toBe(false);
+  });
+
+  it('returns the latest learning-cycle interaction for a thread regardless of mode', async () => {
+    const store = new LearningCycleStore();
+    await store.append(
+      makeRecord({ id: 'learning-1', threadId: '/app/threads/one', timestamp: 20, mode: 'learning', priorKnowledgeNote: 'I know the basics' })
+    );
+    await store.append(
+      makeRecord({
+        id: 'delegation-1',
+        threadId: '/app/threads/one',
+        timestamp: 30,
+        mode: 'delegation'
+      })
+    );
+
+    await expect(store.getLatestForThread('/app/threads/one')).resolves.toMatchObject({
+      id: 'delegation-1',
+      mode: 'delegation'
+    });
+    await expect(store.getLatestForThread('/app/threads/missing')).resolves.toBeNull();
   });
 });

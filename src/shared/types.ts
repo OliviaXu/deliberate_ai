@@ -1,5 +1,7 @@
 export type SubmitSource = 'enter_key' | 'send_button';
 export type InteractionMode = 'delegation' | 'problem_solving' | 'learning';
+export type ReflectionEligibleInteractionMode = Extract<InteractionMode, 'problem_solving' | 'learning'>;
+export type ReflectionStatus = 'none' | 'due';
 
 export interface SubmitSignal {
   source: SubmitSource;
@@ -47,6 +49,8 @@ export type LearningCycleRecord =
   | ProblemSolvingLearningCycleRecord
   | LearningLearningCycleRecord;
 
+export type ReflectionEligibleLearningCycleRecord = ProblemSolvingLearningCycleRecord | LearningLearningCycleRecord;
+
 export interface DelegationLearningCycleSubmission {
   mode: 'delegation';
 }
@@ -71,11 +75,19 @@ export interface LearningCycleAppendMessage {
   record: LearningCycleRecord;
 }
 
-export interface LearningCycleThreadHasEntryMessage {
-  type: 'learning-cycle:thread-has-entry';
+export interface LearningCycleThreadRecordMessage {
+  type: 'learning-cycle:thread-record';
   threadId: string;
 }
 
-export type LearningCycleRuntimeMessage = LearningCycleAppendMessage | LearningCycleThreadHasEntryMessage;
+export interface HistoricalReflectionCandidate {
+  learningCycleId: string;
+  mode: ReflectionEligibleInteractionMode;
+  capturedAt: number;
+}
+
+export type LearningCycleRuntimeMessage =
+  | LearningCycleAppendMessage
+  | LearningCycleThreadRecordMessage;
 
 export type Unsubscribe = () => void;

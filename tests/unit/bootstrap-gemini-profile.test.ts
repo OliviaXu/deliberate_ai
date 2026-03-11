@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+// This script is authored as `.mjs` and currently has no TypeScript source module.
+// @ts-expect-error TS7016
 import { getChromeArgs } from '../../scripts/bootstrap-gemini-profile.mjs';
 
 describe('bootstrap-gemini-profile', () => {

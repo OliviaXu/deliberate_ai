@@ -16,13 +16,6 @@ export class LearningCycleStore {
     await this.writeQueue;
   }
 
-  async hasAnyForThread(threadId: string): Promise<boolean> {
-    // We store all records under one key, so per-thread checks require loading this whole array.
-    // Consider adding an in-memory cache (with invalidation) to avoid repeated storage reads.
-    const current = await this.listRaw();
-    return current.some((record) => record.threadId === threadId);
-  }
-
   async resolveThreadIdForRecord(recordId: string, fromThreadId: string, toThreadId: string): Promise<boolean> {
     let updated = false;
 
@@ -39,6 +32,15 @@ export class LearningCycleStore {
 
     await this.writeQueue;
     return updated;
+  }
+
+  async getLatestForThread(threadId: string): Promise<LearningCycleRecord | null> {
+    const current = await this.listRaw();
+    const matches = current
+      .filter((record) => record.threadId === threadId)
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    return matches[0] ?? null;
   }
 
   private async listRaw(): Promise<LearningCycleRecord[]> {

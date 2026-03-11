@@ -35,49 +35,25 @@ function setupGeminiComposer(): HTMLDivElement {
 }
 
 describe('ReflectionHint', () => {
-  it('keeps placeholder hint visible and promotes it to the first concrete thread', () => {
+  it('shows and hides the hint based on the computed due state for the current thread', () => {
     setupGeminiComposer();
     const hint = new ReflectionHint();
 
-    hint.markThreadEligibleForHint('/app');
-    hint.updateVisibilityForThread('/app');
-    expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
-
-    hint.updateVisibilityForThread('/app/threads/thread-a');
-    expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
-
-    hint.updateVisibilityForThread('/app/threads/thread-b');
+    hint.updateVisibilityForThread('/app/threads/thread-a', false);
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeNull();
 
-    hint.updateVisibilityForThread('/app/threads/thread-a');
-    expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
-  });
-
-  it('tracks multiple threads per tab and re-shows when navigating back', () => {
-    setupGeminiComposer();
-    const hint = new ReflectionHint();
-
-    hint.markThreadEligibleForHint('/app/thread-a');
-    hint.updateVisibilityForThread('/app/thread-a');
+    hint.updateVisibilityForThread('/app/threads/thread-a', true);
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
 
-    hint.updateVisibilityForThread('/app/thread-b');
+    hint.updateVisibilityForThread('/app/threads/thread-a', false);
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeNull();
-
-    hint.markThreadEligibleForHint('/app/thread-b');
-    hint.updateVisibilityForThread('/app/thread-b');
-    expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
-
-    hint.updateVisibilityForThread('/app/thread-a');
-    expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeTruthy();
   });
 
   it('anchors the hint as a floating overlay inside the composer shell', () => {
     const composer = setupGeminiComposer();
     const hint = new ReflectionHint();
 
-    hint.markThreadEligibleForHint('/app/thread-a');
-    hint.updateVisibilityForThread('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a', true);
 
     const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
     if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
@@ -95,8 +71,7 @@ describe('ReflectionHint', () => {
     const composer = setupGeminiComposer();
     const hint = new ReflectionHint();
 
-    hint.markThreadEligibleForHint('/app/thread-a');
-    hint.updateVisibilityForThread('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a', true);
 
     const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
     if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
@@ -117,8 +92,7 @@ describe('ReflectionHint', () => {
     const onReview = vi.fn();
     const hint = new ReflectionHint({ onReview });
 
-    hint.markThreadEligibleForHint('/app/thread-a');
-    hint.updateVisibilityForThread('/app/thread-a');
+    hint.updateVisibilityForThread('/app/thread-a', true);
 
     const label = document.querySelector('.deliberate-reflection-hint__label');
     if (!(label instanceof HTMLSpanElement)) throw new Error('Expected hint label');

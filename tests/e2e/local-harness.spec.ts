@@ -8,6 +8,7 @@ const harnessPath = path.resolve(process.cwd(), 'tests/harness/index.html');
 const harnessHtml = fs.readFileSync(harnessPath, 'utf8');
 const primaryThreadUrl = 'https://gemini.google.com/app/threads/test-thread';
 const secondaryThreadUrl = 'https://gemini.google.com/app/threads/another-thread';
+const tertiaryThreadUrl = 'https://gemini.google.com/app/threads/turn-threshold-thread';
 
 async function launchExtensionContext(userDataDir: string): Promise<import('@playwright/test').BrowserContext> {
   return chromium.launchPersistentContext(userDataDir, {
@@ -77,6 +78,12 @@ async function writeRecords(context: import('@playwright/test').BrowserContext, 
   );
 }
 
+async function setHarnessNow(page: import('@playwright/test').Page, nowMs: number): Promise<void> {
+  await page.evaluate((value) => {
+    document.documentElement.setAttribute('data-deliberate-now-ms', String(value));
+  }, nowMs);
+}
+
 async function expectModal(page: import('@playwright/test').Page): Promise<void> {
   await expect(page.locator('[data-testid="deliberate-mode-modal"]')).toBeVisible();
 }
@@ -126,6 +133,17 @@ async function sendDelegationPrompt(page: import('@playwright/test').Page, promp
   await page.getByRole('button', { name: /send message/i }).click();
   await expectModal(page);
   await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
+  await expect(page.locator('#native-send-state')).toHaveText('sent');
+}
+
+async function sendLearningPrompt(page: import('@playwright/test').Page, prompt: string, initialContext: string): Promise<void> {
+  const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
+  await composer.fill(prompt);
+  await page.getByRole('button', { name: /send message/i }).click();
+  await expectModal(page);
+  await page.locator('[data-testid="deliberate-mode-option-learning"]').click();
+  await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(initialContext);
+  await page.locator('[data-testid="deliberate-mode-continue"]').click();
   await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
 
@@ -195,7 +213,7 @@ test('local harness shows mode modal once per thread and bypasses later sends', 
   }
 });
 
-test('local harness scopes reflection hint per thread and keeps hint state across in-tab thread navigation', async ({}, testInfo) => {
+test('local harness gates reflection hint on due status and scopes it per thread', async ({}, testInfo) => {
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
   const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-hint-${testInfo.workerIndex}-${Date.now()}`);
@@ -207,12 +225,45 @@ test('local harness scopes reflection hint per thread and keeps hint state acros
       consoleMessages.push(message.text());
     });
     await clearRecords(context);
+    const nowMs = 1_800_000_000_000;
+    await setHarnessNow(page, nowMs);
 
+    await sendLearningPrompt(
+      page,
+      'Teach me the tradeoffs of staged rollouts',
+      'I already know the basic feature-flag rollout pattern.'
+    );
+    await expectHintHidden(page);
+
+    await setHarnessNow(page, nowMs + 5 * 60 * 1000 + 1_000);
+    await expectHintVisible(page);
+
+    await navigateThreadInPlace(page, secondaryThreadUrl);
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendDelegationPrompt(page, 'New thread should require one initial mode selection');
+    await expectHintHidden(page);
+
+    await navigateThreadInPlace(page, tertiaryThreadUrl);
+    await resetNativeSendState(page);
     await sendProblemSolvingPrompt(
       page,
-      'Core problem: choose a rollout strategy',
-      'I suspect staged rollout with guardrails and explicit rollback criteria is best because it limits blast radius while preserving learning velocity.'
+      'How should I phase this rollout?',
+      'Start with a feature flag, release to a small cohort first, watch explicit rollback signals, and expand only after the metrics stay healthy.'
     );
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 1');
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 2');
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 3');
     await expectHintVisible(page);
 
     await expect
@@ -242,8 +293,48 @@ test('local harness scopes reflection hint per thread and keeps hint state acros
     await navigateThreadInPlace(page, secondaryThreadUrl);
     await expectHintHidden(page);
 
-    await resetNativeSendState(page);
-    await sendDelegationPrompt(page, 'New thread should require one initial mode selection');
+    await navigateThreadInPlace(page, primaryThreadUrl);
+    await expectHintVisible(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test('local harness shows historical due hint without persisted turn counters and only in eligible threads', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-historical-hint-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+
+    const nowMs = 1_900_000_000_000;
+    await writeRecords(context, [
+      {
+        id: 'historical-learning',
+        timestamp: nowMs - 6 * 60 * 1000,
+        platform: 'gemini',
+        threadId: '/app/threads/test-thread',
+        mode: 'learning',
+        prompt: 'Explain when staged rollouts are counterproductive',
+        priorKnowledgeNote: 'I know the basics of feature flags already.'
+      },
+      {
+        id: 'historical-delegation',
+        timestamp: nowMs - 6 * 60 * 1000,
+        platform: 'gemini',
+        threadId: '/app/threads/another-thread',
+        mode: 'delegation',
+        prompt: 'Write the rollout plan for me'
+      }
+    ]);
+
+    const page = await setupHarness(context, primaryThreadUrl);
+    await setHarnessNow(page, nowMs);
+
+    await expectHintVisible(page);
+
+    await navigateThreadInPlace(page, secondaryThreadUrl);
     await expectHintHidden(page);
 
     await navigateThreadInPlace(page, primaryThreadUrl);

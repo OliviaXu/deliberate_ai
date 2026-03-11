@@ -1,23 +1,35 @@
 import { loadDebugConfig } from '../shared/debug-config';
 import { Logger } from '../shared/logger';
 import { resolveThreadId } from '../shared/thread-id';
-import type { InteractionMode, InterceptedSubmitIntent, LearningCycleRuntimeMessage } from '../shared/types';
+import type {
+  InteractionMode,
+  InterceptedSubmitIntent,
+  LearningCycleRecord,
+  LearningCycleRuntimeMessage,
+  ReflectionEligibleInteractionMode
+} from '../shared/types';
+import { getContentNowMs } from './clock';
 import { handleModeSubmission } from './learning-cycle-flow';
+import { ReflectionEligibilityTracker } from './reflection-eligibility';
 import { ModeSelectionModal } from './mode-modal';
 import { ReflectionHint } from './reflection-hint';
 import { GeminiSendInterceptor } from './send-interceptor';
 import { isThreadIdCacheable, shouldCheckPersistentThreadEntries } from './thread-entry-policy';
 
+const DUE_AFTER_MS = 5 * 60 * 1000;
+const ACTIVE_FOLLOW_UP_THRESHOLD = 3;
+
 const logger = new Logger(loadDebugConfig());
 const interceptor = new GeminiSendInterceptor(logger);
 const modal = new ModeSelectionModal();
 const reflectionHint = new ReflectionHint();
-const threadModalDecisionCache = new Map<string, 'skip'>();
-const pendingThreadChecks = new Map<string, Promise<boolean>>();
+const reflectionEligibility = new ReflectionEligibilityTracker();
+const threadRecordCache = new Map<string, LearningCycleRecord | null>();
+const pendingThreadRecordChecks = new Map<string, Promise<LearningCycleRecord | null>>();
+let awaitingNewThreadFollowUp = false;
 let interceptionCount = 0;
 let busyDropCount = 0;
 let modalOpen = false;
-let lastObservedUrl = window.location.href;
 // Guard to keep modal/check/capture flow single-flight.
 let handlingIntercept = false;
 
@@ -52,35 +64,22 @@ interceptor.onIntercept((intent) => {
 interceptor.start();
 setDomState(interceptionCount, false);
 updateReflectionHintVisibilityForCurrentThread();
-startThreadHintScopeObserver();
+startReflectionHintWatcher();
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   const threadId = resolveThreadId(intent.url);
-
-  if (isThreadIdCacheable(threadId) && threadModalDecisionCache.get(threadId) === 'skip') {
-    const replayAttempted = interceptor.resume(intent);
-    logger.info('thread-entry-modal-bypassed', {
-      source: 'memory-cache',
-      threadId,
-      replayAttempted,
-      interceptionId: intent.interceptionId
-    });
-    return;
-  }
-
-  const shouldShowModal = await resolveShouldShowModal(threadId);
-  if (!shouldShowModal) {
-    const replayAttempted = interceptor.resume(intent);
-    logger.info('thread-entry-modal-bypassed', {
-      source: 'persistent-records',
-      threadId,
-      replayAttempted,
-      interceptionId: intent.interceptionId
-    });
-
-    if (isThreadIdCacheable(threadId)) {
-      threadModalDecisionCache.set(threadId, 'skip');
+  const threadRecord = await resolveThreadRecord(threadId);
+  if (threadRecord) {
+    if (!maybeStartActiveCandidateFromNewThread(threadId, threadRecord)) {
+      reflectionEligibility.observeFollowUpSubmission(threadId);
     }
+    const replayAttempted = interceptor.resume(intent);
+    logger.info('thread-entry-modal-bypassed', {
+      source: 'thread-record',
+      threadId,
+      replayAttempted,
+      interceptionId: intent.interceptionId
+    });
     return;
   }
 
@@ -100,12 +99,11 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
 
   if (result.replayAttempted && result.appendSucceeded) {
     if (isModeEligibleForReflectionHint(result.record.mode)) {
-      reflectionHint.markThreadEligibleForHint(threadId);
-      reflectionHint.updateVisibilityForThread(threadId);
+      awaitingNewThreadFollowUp = true;
     }
 
     if (isThreadIdCacheable(threadId)) {
-      threadModalDecisionCache.set(threadId, 'skip');
+      threadRecordCache.set(threadId, result.record);
       logger.info('thread-entry-modal-consumed', {
         threadId,
         interceptionId: intent.interceptionId,
@@ -113,40 +111,6 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
       });
     }
   }
-}
-
-async function resolveShouldShowModal(threadId: string): Promise<boolean> {
-  if (!shouldCheckPersistentThreadEntries(threadId)) {
-    return true;
-  }
-
-  if (threadModalDecisionCache.get(threadId) === 'skip') return false;
-
-  const pending = pendingThreadChecks.get(threadId);
-  if (pending) return pending;
-
-  const check = Promise.resolve(
-    sendRuntimeMessage({
-      type: 'learning-cycle:thread-has-entry',
-      threadId
-    })
-  )
-    .then((response) => !isThreadHasEntryResponse(response) || !response.hasEntry)
-    .catch((error) => {
-      logger.error('thread-entry-check-failed', { threadId, error: String(error) });
-      return true;
-    })
-    .finally(() => {
-      pendingThreadChecks.delete(threadId);
-    });
-
-  pendingThreadChecks.set(threadId, check);
-  return check;
-}
-
-function isThreadHasEntryResponse(value: unknown): value is { hasEntry: boolean } {
-  if (!value || typeof value !== 'object') return false;
-  return typeof (value as { hasEntry?: unknown }).hasEntry === 'boolean';
 }
 
 function setDomState(count: number, isModalOpen: boolean): void {
@@ -163,18 +127,95 @@ function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unkno
   return Promise.resolve(send(message));
 }
 
-function updateReflectionHintVisibilityForCurrentThread(): void {
-  reflectionHint.updateVisibilityForThread(resolveThreadId(window.location.href));
+function updateReflectionHintVisibilityForCurrentThread(
+  currentThreadId = resolveThreadId(window.location.href),
+  knownThreadRecord?: LearningCycleRecord | null
+): void {
+  const cachedThreadRecord = knownThreadRecord === undefined ? threadRecordCache.get(currentThreadId) : knownThreadRecord;
+  if (
+    cachedThreadRecord === undefined &&
+    shouldCheckPersistentThreadEntries(currentThreadId) &&
+    !pendingThreadRecordChecks.has(currentThreadId)
+  ) {
+    void resolveThreadRecord(currentThreadId).then((record) => {
+      if (record) {
+        updateReflectionHintVisibilityForCurrentThread(currentThreadId, record);
+      }
+    });
+  }
+  reflectionHint.updateVisibilityForThread(
+    currentThreadId,
+    isReflectionDueForThread(currentThreadId, cachedThreadRecord)
+  );
 }
 
-function isModeEligibleForReflectionHint(mode: InteractionMode): boolean {
+function isModeEligibleForReflectionHint(mode: InteractionMode): mode is ReflectionEligibleInteractionMode {
   return mode === 'problem_solving' || mode === 'learning';
 }
 
-function startThreadHintScopeObserver(): void {
+function startReflectionHintWatcher(): void {
   window.setInterval(() => {
-    if (window.location.href === lastObservedUrl) return;
-    lastObservedUrl = window.location.href;
     updateReflectionHintVisibilityForCurrentThread();
-  }, 200);
+  }, 1_000);
+}
+
+function maybeStartActiveCandidateFromNewThread(threadId: string, threadRecord: LearningCycleRecord): boolean {
+  if (!awaitingNewThreadFollowUp) return false;
+  if (!isModeEligibleForReflectionHint(threadRecord.mode)) return false;
+  reflectionEligibility.startTrackingThread(threadId);
+  awaitingNewThreadFollowUp = false;
+  return true;
+}
+
+function isReflectionDueForThread(threadId: string, threadRecord: LearningCycleRecord | null | undefined): boolean {
+  if (!threadRecord) return false;
+  if (!isModeEligibleForReflectionHint(threadRecord.mode)) return false;
+
+  if (reflectionEligibility.getTrackedSubmitCount(threadId) >= ACTIVE_FOLLOW_UP_THRESHOLD) {
+    return true;
+  }
+
+  return getContentNowMs() - threadRecord.timestamp >= DUE_AFTER_MS;
+}
+
+async function resolveThreadRecord(threadId: string): Promise<LearningCycleRecord | null> {
+  if (!shouldCheckPersistentThreadEntries(threadId)) {
+    return null;
+  }
+
+  if (threadRecordCache.has(threadId)) {
+    return threadRecordCache.get(threadId) ?? null;
+  }
+
+  const pending = pendingThreadRecordChecks.get(threadId);
+  if (pending) {
+    return pending;
+  }
+
+  const check = Promise.resolve(
+    sendRuntimeMessage({
+      type: 'learning-cycle:thread-record',
+      threadId
+    })
+  )
+    .then((response) => {
+      const record =
+        response && typeof response === 'object' && 'record' in response
+          ? (response as { record: LearningCycleRecord | null }).record
+          : null;
+      if (record) {
+        threadRecordCache.set(threadId, record);
+      }
+      return record;
+    })
+    .catch((error) => {
+      logger.error('thread-record-check-failed', { threadId, error: String(error) });
+      return null;
+    })
+    .finally(() => {
+      pendingThreadRecordChecks.delete(threadId);
+    });
+
+  pendingThreadRecordChecks.set(threadId, check);
+  return check;
 }

@@ -1,5 +1,6 @@
 import type { InterceptedSubmitIntent, SubmitSource, Unsubscribe } from '../shared/types';
 import type { Logger } from '../shared/logger';
+import { getContentNowMs } from './clock';
 import { findGeminiComposer, isGeminiComposerElement, resolveGeminiComposerNear } from './gemini-composer';
 
 interface InternalSubmitIntent extends InterceptedSubmitIntent {
@@ -115,7 +116,7 @@ export class GeminiSendInterceptor {
     const prompt = composer ? this.getComposerText(composer) : '';
     return {
       source,
-      timestamp: Date.now(),
+      timestamp: getContentNowMs(),
       url: window.location.href,
       platform: 'gemini',
       prompt,

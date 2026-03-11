@@ -5,9 +5,9 @@
 **Working Name:** Deliberate AI  
 **Tagline:** Pause. Predict. Then Prompt.
 
-Deliberate AI is a Chrome extension for `gemini.google.com` that adds a lightweight pause before prompt submission to encourage intentional AI use and self-awareness in problem-solving.
+Deliberate AI is a Chrome extension for `gemini.google.com` that adds a lightweight pause before prompt submission to encourage intentional AI use and self-awareness in problem-solving and learning.
 
-v1.2 focuses on a prediction -> reflection loop for problem-solving, without enforcement, gamification, analytics, or dashboards.
+v1.2 focuses on a prediction/context -> reflection loop for problem-solving and learning interactions, without enforcement, gamification, analytics, or dashboards.
 
 ## 2. Product Goal (v1.2)
 
@@ -84,14 +84,37 @@ After submit, store:
 
 ### 5.1 Reflection Trigger (Background Eligibility)
 
-A reflection uses a two-path eligibility model (no persisted assistant-turn counters):
+A reflection uses a two-path eligibility model for eligible interactions (`problem_solving` and `learning`), with no persisted turn counters:
 
 - Active-thread path (content-script memory, same tab session):
-  - At least 3 assistant responses observed after the initial problem-solving prompt, and
-  - At least 5 minutes since that prompt
+  - Turn tracking begins on the second prompt submission in the same thread after the initial eligible interaction prompt
+  - At least 3 tracked prompt submissions in that thread, or
+  - At least 5 minutes since the initial eligible interaction prompt timestamp
 - Historical-thread fallback path (no in-memory turn history available):
-  - At least 5 minutes since the initial problem-solving prompt, and
-  - No reflection record exists yet for that captured problem-solving interaction
+  - At least 5 minutes since the initial eligible interaction prompt
+  - This reuses the persisted learning-cycle timestamp and does not recover active-session turn counts
+
+Implementation note for v1.2:
+- Eligible interaction modes are `problem_solving` and `learning`
+- Content-script runtime memory is keyed by `thread_id`
+- For each thread, track only the latest unresolved eligible interaction in memory once second-turn tracking has started:
+  - `learningCycleId`
+  - `mode`
+  - `capturedAt` (persisted learning-cycle timestamp for both active and historical time-based checks)
+  - `followUpSubmissionsObserved`
+  - computed `status`
+- Recompute status at runtime on these events:
+  - eligible interaction captured
+  - second-turn tracking started for the current thread
+  - subsequent prompt submission observed in the current thread
+  - thread navigation within the tab
+  - historical-thread lookup result received
+  - periodic time check while a tracked interaction is still within the 5-minute waiting window
+- Status rules:
+  - `none`: no eligible unresolved interaction is currently due
+  - `due`: active-thread path or historical-thread path is satisfied
+- Hint visibility is derived only from the current thread's computed status being `due`
+- `completed` / `dismissed` are deferred to Phase 5, when reflection actions are actually persisted
 
 ### 5.2 Reflection Surfacing (Subtle, In-Thread)
 
@@ -111,7 +134,7 @@ Opened only when user clicks `Review` in-thread (or opens reflection from extens
 
 Display:
 - Original prompt
-- User prediction
+- User prediction or initial context note, depending on mode
 - Timestamp
 
 Prompt:
@@ -167,7 +190,7 @@ Constraints:
 Derived runtime states (not persisted as counters/status snapshots):
 - `none`: no due reflection yet
 - `due`: eligible by active-thread or historical fallback rules
-- `completed` / `dismissed`: reflected by persisted reflection action record
+- `completed` / `dismissed`: deferred until reflection actions are persisted in Phase 5
 
 ## 8. Extension Icon Behavior (v1.2)
 
@@ -182,7 +205,7 @@ Derived runtime states (not persisted as counters/status snapshots):
 - No streaks
 - No performance analysis
 - No AI-generated meta insights
-- No required reflection gate before next problem-solving prompt
+- No required reflection gate before next eligible prompt
 - No gamification
 - No snooze functionality
 
@@ -253,25 +276,31 @@ Tracer bullet E2E:
 ### Phase 3: Hint Visual Exploration + Thread Scoping
 - Implement Gemini `thread_id` extraction strategy for stable in-thread scoping
 - Introduce subtle in-thread reflection hint UI and interaction affordance
-- Show hint immediately after problem-solving capture for visual/placement validation (no eligibility gate yet)
+- Show hint immediately after eligible interaction capture for visual/placement validation (no eligibility gate yet)
 
 Tracer bullet E2E:
-- Start a problem-solving interaction
+- Start an eligible interaction
 - Verify hint appears in the originating thread and not in another thread
 - Validate placement, copy, and dismissibility of the hint visual
 
 ### Phase 4: Reflection Eligibility Engine
 - Implement active-thread eligibility in content-script memory:
-  - >=3 assistant responses in same thread (same tab session)
-  - >=5 minutes elapsed since initial problem-solving prompt
+  - start turn tracking on the second prompt submission in same thread (same tab session) after an eligible interaction
+  - >=3 tracked prompt submissions in same thread, or
+  - >=5 minutes elapsed since the initial eligible interaction prompt timestamp
 - Implement historical-thread fallback eligibility:
-  - >=5 minutes elapsed since initial problem-solving prompt
-  - no reflection record exists for that interaction
-- Compute status transitions at runtime: `none -> due -> completed | dismissed`
+  - >=5 minutes elapsed since initial eligible interaction prompt
+- Runtime implementation shape:
+  - maintain a per-thread in-memory candidate for the latest unresolved eligible interaction after second-turn tracking starts
+  - increment tracked submission count only from live submit interception in the active tab session
+  - on page reload/open, recover only from persisted interaction records and use their original timestamps
+  - compute `none -> due` at runtime instead of persisting counters or snapshots
+  - render the hint only when the current thread's candidate is computed as `due`
+- Compute status transitions at runtime: `none -> due`
 - Gate hint visibility on computed `due` status instead of always-on visual exploration
 
 Tracer bullet E2E:
-- Create active eligible/non-eligible threads and verify 3-turn + 5-minute behavior
+- Create active eligible/non-eligible threads for `problem_solving` and `learning` and verify 3-turn or 5-minute behavior
 - Reload/open historical thread and verify fallback due behavior without persisted turn counters
 - Verify due status appears only in correct thread contexts
 
