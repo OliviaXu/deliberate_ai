@@ -57,13 +57,13 @@ interceptor.onIntercept((intent) => {
     handlingIntercept = false;
     modalOpen = false;
     setDomState(interceptionCount, false);
-    updateReflectionHintVisibilityForCurrentThread();
+    void refreshReflectionHintForCurrentThread();
   });
 });
 
 interceptor.start();
 setDomState(interceptionCount, false);
-updateReflectionHintVisibilityForCurrentThread();
+void refreshReflectionHintForCurrentThread();
 startReflectionHintWatcher();
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
@@ -127,26 +127,14 @@ function sendRuntimeMessage(message: LearningCycleRuntimeMessage): Promise<unkno
   return Promise.resolve(send(message));
 }
 
-function updateReflectionHintVisibilityForCurrentThread(
-  currentThreadId = resolveThreadId(window.location.href),
-  knownThreadRecord?: LearningCycleRecord | null
-): void {
-  const cachedThreadRecord = knownThreadRecord === undefined ? threadRecordCache.get(currentThreadId) : knownThreadRecord;
-  if (
-    cachedThreadRecord === undefined &&
-    shouldCheckPersistentThreadEntries(currentThreadId) &&
-    !pendingThreadRecordChecks.has(currentThreadId)
-  ) {
-    void resolveThreadRecord(currentThreadId).then((record) => {
-      if (record) {
-        updateReflectionHintVisibilityForCurrentThread(currentThreadId, record);
-      }
-    });
+async function refreshReflectionHintForCurrentThread(): Promise<void> {
+  const threadId = resolveThreadId(window.location.href);
+  let threadRecord = threadRecordCache.get(threadId);
+  if (threadRecord === undefined) {
+    threadRecord = await resolveThreadRecord(threadId);
   }
-  reflectionHint.updateVisibilityForThread(
-    currentThreadId,
-    isReflectionDueForThread(currentThreadId, cachedThreadRecord)
-  );
+
+  reflectionHint.updateVisibilityForThread(threadId, isReflectionDueForThread(threadId, threadRecord));
 }
 
 function isModeEligibleForReflectionHint(mode: InteractionMode): mode is ReflectionEligibleInteractionMode {
@@ -155,7 +143,7 @@ function isModeEligibleForReflectionHint(mode: InteractionMode): mode is Reflect
 
 function startReflectionHintWatcher(): void {
   window.setInterval(() => {
-    updateReflectionHintVisibilityForCurrentThread();
+    void refreshReflectionHintForCurrentThread();
   }, 1_000);
 }
 

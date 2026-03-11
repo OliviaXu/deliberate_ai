@@ -231,7 +231,7 @@ describe('content reflection hint refresh', () => {
     expect(startTrackingThread).toHaveBeenCalledWith('/app/threads/thread-a');
   });
 
-  it('reuses a freshly resolved record during async hint refresh without an extra cache lookup', async () => {
+  it('renders once after resolving a missing thread record for hint refresh', async () => {
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
       const payload = message as { type?: string; threadId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
@@ -252,12 +252,11 @@ describe('content reflection hint refresh', () => {
     await import('../../src/content/index');
 
     window.history.replaceState({}, '', '/app/threads/thread-a');
-    const mapGetSpy = vi.spyOn(Map.prototype, 'get');
 
     intervalCallback?.();
     await flushAsyncWork();
 
-    const threadSpecificGetCalls = mapGetSpy.mock.calls.filter(([key]) => key === '/app/threads/thread-a');
-    expect(threadSpecificGetCalls).toHaveLength(2);
+    const threadSpecificVisibilityCalls = updateVisibilityForThread.mock.calls.filter(([threadId]) => threadId === '/app/threads/thread-a');
+    expect(threadSpecificVisibilityCalls).toEqual([['/app/threads/thread-a', true]]);
   });
 });
