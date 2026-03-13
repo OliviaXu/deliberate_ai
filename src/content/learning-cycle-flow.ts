@@ -1,3 +1,4 @@
+import { INTERACTION_MODES } from '../shared/types';
 import type {
   InterceptedSubmitIntent,
   LearningCycleRecord,
@@ -37,30 +38,30 @@ function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: 
     prompt: intent.prompt
   } as const;
 
-  if (submission.mode === 'problem_solving') {
+  if (submission.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
     return {
       ...base,
-      mode: 'problem_solving',
+      mode: INTERACTION_MODES.PROBLEM_SOLVING,
       prediction: submission.prediction
     };
   }
 
-  if (submission.mode === 'learning') {
+  if (submission.mode === INTERACTION_MODES.LEARNING) {
     return submission.priorKnowledgeNote
       ? {
           ...base,
-          mode: 'learning',
+          mode: INTERACTION_MODES.LEARNING,
           priorKnowledgeNote: submission.priorKnowledgeNote
         }
       : {
           ...base,
-          mode: 'learning'
+          mode: INTERACTION_MODES.LEARNING
         };
   }
 
   return {
     ...base,
-    mode: 'delegation'
+    mode: INTERACTION_MODES.DELEGATION
   };
 }
 

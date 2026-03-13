@@ -1,8 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
-function main() {
+export function getChromeArgs({ cdpPort, extensionPath, userDataDir }) {
+  return [
+    `--remote-debugging-port=${cdpPort}`,
+    `--user-data-dir=${userDataDir}`,
+    `--load-extension=${extensionPath}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    'https://gemini.google.com'
+  ];
+}
+
+export function main() {
   const projectRoot = process.cwd();
   const userDataDir = path.resolve(projectRoot, process.env.GEMINI_USER_DATA_DIR || '.pw-profiles/gemini');
   const extensionPath = path.resolve(projectRoot, '.output/chrome-mv3');
@@ -18,14 +30,11 @@ function main() {
   const chromeBinary =
     process.env.GEMINI_CHROME_BINARY ||
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  const chromeArgs = [
-    `--remote-debugging-port=${cdpPort}`,
-    `--user-data-dir=${userDataDir}`,
-    `--load-extension=${extensionPath}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    'https://gemini.google.com'
-  ];
+  const chromeArgs = getChromeArgs({
+    cdpPort,
+    extensionPath,
+    userDataDir
+  });
 
   if (!fs.existsSync(chromeBinary)) {
     console.error(`Google Chrome binary not found at ${chromeBinary}.`);
@@ -48,4 +57,6 @@ function main() {
   console.log('Sign into Gemini in that Chrome window, then keep it open while tests run.');
 }
 
-main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

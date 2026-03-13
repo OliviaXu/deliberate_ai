@@ -3,48 +3,43 @@
 
 @layer components {
   #deliberate-mode-modal-root {
+    @apply fixed inset-0 flex items-center justify-center p-3 font-deliberate;
     position: fixed;
     inset: 0;
     z-index: 2147483647;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
     background: var(--deliberate-scrim);
-    font-family: 'Google Sans Text', 'Google Sans', 'Sohne', 'Inter', 'Segoe UI', system-ui, sans-serif;
   }
 
   #deliberate-mode-modal-root .deliberate-panel {
+    @apply overflow-auto border backdrop-blur-sm;
     width: min(var(--deliberate-modal-max-width), calc(100vw - 24px));
     max-height: calc(100vh - 24px);
-    overflow: auto;
     border-radius: var(--deliberate-radius-modal);
-    border: 1px solid var(--deliberate-panel-border);
     background: var(--deliberate-panel-bg);
     box-shadow: var(--deliberate-panel-shadow);
     color: var(--deliberate-text-main);
     padding: var(--deliberate-modal-padding);
-    backdrop-filter: blur(6px);
+    border-color: var(--deliberate-panel-border);
   }
 
   .deliberate-title {
-    margin: 0;
+    @apply m-0 px-4 tracking-normal;
     margin-bottom: var(--deliberate-title-gap);
     padding-inline: var(--deliberate-space-3);
     font-size: var(--deliberate-font-title-size);
     line-height: var(--deliberate-font-title-line);
-    letter-spacing: 0;
     font-weight: var(--deliberate-font-title-weight);
     color: var(--deliberate-text-main);
     text-wrap: balance;
   }
 
   .deliberate-mode-stack {
-    display: grid;
+    @apply grid;
     gap: var(--deliberate-stack-gap);
   }
 
   .deliberate-mode-button {
+    @apply w-full text-left transition-transform duration-100;
     width: 100%;
     min-height: var(--deliberate-option-min-height);
     border-radius: var(--deliberate-radius-option);
@@ -52,7 +47,6 @@
     background: var(--deliberate-surface-1);
     color: var(--deliberate-text-secondary);
     padding: 12px var(--deliberate-space-3);
-    text-align: left;
     font-size: var(--deliberate-font-option-size);
     line-height: var(--deliberate-font-option-line);
     font-weight: var(--deliberate-font-option-weight);
@@ -72,21 +66,18 @@
   }
 
   .deliberate-mode-button:focus-visible {
-    outline: none;
+    @apply outline-none;
     box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
   }
 
   .deliberate-detail-card {
-    display: grid;
+    @apply grid border-0 bg-transparent p-0;
     gap: var(--deliberate-space-2);
-    border: 0;
     border-radius: 0;
-    background: transparent;
-    padding: 0;
   }
 
   .deliberate-input-shell {
-    position: relative;
+    @apply relative border;
     border: 1px solid var(--deliberate-input-border);
     border-radius: var(--deliberate-radius-input);
     background: var(--deliberate-input-bg);
@@ -98,6 +89,7 @@
   }
 
   .deliberate-input {
+    @apply w-full border-0 bg-transparent;
     width: 100%;
     box-sizing: border-box;
     min-height: var(--deliberate-textarea-min-height);
@@ -118,11 +110,11 @@
   }
 
   .deliberate-input:focus-visible {
-    outline: none;
+    @apply outline-none;
   }
 
   .deliberate-count {
-    margin: 0;
+    @apply m-0 px-4;
     padding-inline: var(--deliberate-space-3);
     font-size: var(--deliberate-font-count-size);
     line-height: var(--deliberate-font-count-line);
@@ -130,27 +122,24 @@
   }
 
   .deliberate-continue {
-    position: absolute;
+    @apply absolute border-0 p-0 leading-none;
     right: var(--deliberate-action-inset);
     bottom: var(--deliberate-action-inset);
     width: var(--deliberate-icon-size);
     height: var(--deliberate-icon-size);
     border-radius: var(--deliberate-radius-icon);
-    border: 0;
-    padding: 0;
     font-size: 19px;
-    line-height: 1;
     font-weight: 600;
     transition: background-color 130ms ease, color 130ms ease, border-color 130ms ease, transform 90ms ease;
   }
 
   .deliberate-continue:focus-visible {
-    outline: none;
+    @apply outline-none;
     box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
   }
 
   .deliberate-continue--enabled {
-    cursor: pointer;
+    @apply cursor-pointer;
     background: var(--deliberate-action-bg);
     color: var(--deliberate-action-text);
   }
@@ -165,18 +154,19 @@
   }
 
   .deliberate-continue--disabled {
-    cursor: not-allowed;
+    @apply cursor-not-allowed;
     background: rgba(148, 163, 184, 0.09);
     color: var(--deliberate-text-muted);
   }
 
   .deliberate-continue--hidden {
-    display: none;
+    @apply hidden;
   }
 }
 
 @media (max-width: 640px) {
   #deliberate-mode-modal-root {
+    @apply p-2;
     padding: 8px;
   }
 
@@ -189,15 +179,18 @@
 
   .deliberate-title,
   .deliberate-count {
+    @apply px-3;
     padding-inline: 12px;
   }
 
   .deliberate-mode-button {
+    @apply px-3;
     min-height: 50px;
     padding-inline: 12px;
   }
 
   .deliberate-input {
+    @apply px-3;
     min-height: 112px;
     padding-inline: 12px;
     padding-bottom: 64px;

@@ -1,5 +1,19 @@
 export type SubmitSource = 'enter_key' | 'send_button';
-export type InteractionMode = 'delegation' | 'problem_solving' | 'learning';
+export const INTERACTION_MODES = {
+  DELEGATION: 'delegation',
+  PROBLEM_SOLVING: 'problem_solving',
+  LEARNING: 'learning'
+} as const;
+export type InteractionMode = (typeof INTERACTION_MODES)[keyof typeof INTERACTION_MODES];
+export type ReflectionEligibleInteractionMode =
+  | typeof INTERACTION_MODES.PROBLEM_SOLVING
+  | typeof INTERACTION_MODES.LEARNING;
+export const REFLECTION_ELIGIBLE_INTERACTION_MODES = [
+  INTERACTION_MODES.PROBLEM_SOLVING,
+  INTERACTION_MODES.LEARNING
+] as const;
+export type ReflectionDueStatus = 'none' | 'due';
+export type ReflectionScore = 0 | 25 | 50 | 75 | 100;
 
 export interface SubmitSignal {
   source: SubmitSource;
@@ -29,16 +43,16 @@ interface LearningCycleBase {
 }
 
 export interface DelegationLearningCycleRecord extends LearningCycleBase {
-  mode: 'delegation';
+  mode: typeof INTERACTION_MODES.DELEGATION;
 }
 
 export interface ProblemSolvingLearningCycleRecord extends LearningCycleBase {
-  mode: 'problem_solving';
+  mode: typeof INTERACTION_MODES.PROBLEM_SOLVING;
   prediction: string;
 }
 
 export interface LearningLearningCycleRecord extends LearningCycleBase {
-  mode: 'learning';
+  mode: typeof INTERACTION_MODES.LEARNING;
   priorKnowledgeNote?: string;
 }
 
@@ -47,17 +61,19 @@ export type LearningCycleRecord =
   | ProblemSolvingLearningCycleRecord
   | LearningLearningCycleRecord;
 
+export type ReflectionEligibleLearningCycleRecord = ProblemSolvingLearningCycleRecord | LearningLearningCycleRecord;
+
 export interface DelegationLearningCycleSubmission {
-  mode: 'delegation';
+  mode: typeof INTERACTION_MODES.DELEGATION;
 }
 
 export interface ProblemSolvingLearningCycleSubmission {
-  mode: 'problem_solving';
+  mode: typeof INTERACTION_MODES.PROBLEM_SOLVING;
   prediction: string;
 }
 
 export interface LearningLearningCycleSubmission {
-  mode: 'learning';
+  mode: typeof INTERACTION_MODES.LEARNING;
   priorKnowledgeNote?: string;
 }
 
@@ -71,11 +87,46 @@ export interface LearningCycleAppendMessage {
   record: LearningCycleRecord;
 }
 
-export interface LearningCycleThreadHasEntryMessage {
-  type: 'learning-cycle:thread-has-entry';
+export interface LearningCycleThreadRecordMessage {
+  type: 'learning-cycle:thread-record';
   threadId: string;
 }
 
-export type LearningCycleRuntimeMessage = LearningCycleAppendMessage | LearningCycleThreadHasEntryMessage;
+interface ReflectionBase {
+  id: string;
+  timestamp: number;
+  threadId: string;
+}
+
+export interface CompletedReflectionRecord extends ReflectionBase {
+  status: 'completed';
+  score: ReflectionScore;
+  notes?: string;
+}
+
+export type ReflectionRecord = CompletedReflectionRecord;
+
+export interface ReflectionSubmission {
+  score: ReflectionScore;
+  notes?: string;
+}
+
+export type LearningCycleRuntimeMessage =
+  | LearningCycleAppendMessage
+  | LearningCycleThreadRecordMessage;
+
+export interface ReflectionAppendMessage {
+  type: 'reflection:append';
+  record: ReflectionRecord;
+}
+
+export interface ReflectionThreadHasCompletedMessage {
+  type: 'reflection:thread-has-completed';
+  threadId: string;
+}
+
+export type ReflectionRuntimeMessage = ReflectionAppendMessage | ReflectionThreadHasCompletedMessage;
+
+export type BackgroundRuntimeMessage = LearningCycleRuntimeMessage | ReflectionRuntimeMessage;
 
 export type Unsubscribe = () => void;

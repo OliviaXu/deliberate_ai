@@ -22,12 +22,12 @@ describe('registerLearningCycleMessageHandlers', () => {
 
   it('appends records for append messages', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const onMessage = vi.fn();
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -47,18 +47,19 @@ describe('registerLearningCycleMessageHandlers', () => {
       })
     ).resolves.toEqual({ ok: true });
     expect(append).toHaveBeenCalledOnce();
-    expect(hasAnyForThread).not.toHaveBeenCalled();
     expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
+    expect(getLatestForThread).not.toHaveBeenCalled();
   });
 
-  it('returns thread entry presence for lookup messages', async () => {
+  it('returns the latest thread record for lookup messages', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => true);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const record = makeRecord({ id: 'record-lookup', mode: 'delegation' });
+    const getLatestForThread = vi.fn(async () => record);
     const onMessage = vi.fn();
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -73,24 +74,54 @@ describe('registerLearningCycleMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) => {
-        listener({ type: 'learning-cycle:thread-has-entry', threadId: '/app/thread' }, {}, resolve);
+        listener({ type: 'learning-cycle:thread-record', threadId: '/app/thread' }, {}, resolve);
       })
-    ).resolves.toEqual({ hasEntry: true });
-    expect(hasAnyForThread).toHaveBeenCalledWith('/app/thread');
+    ).resolves.toEqual({ record });
+
+    expect(getLatestForThread).toHaveBeenCalledWith('/app/thread');
     expect(append).not.toHaveBeenCalled();
     expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
   });
 
+  it('returns null when a thread has no stored record', async () => {
+    const append = vi.fn(async () => undefined);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
+    const onMessage = vi.fn();
+
+    registerLearningCycleMessageHandlers(
+      { append, resolveThreadIdForRecord, getLatestForThread },
+      {
+        runtime: {
+          onMessage: {
+            addListener: onMessage
+          }
+        }
+      }
+    );
+
+    const listener = onMessage.mock.calls[0]?.[0];
+    if (!listener) throw new Error('Expected listener');
+
+    await expect(
+      new Promise((resolve) => {
+        listener({ type: 'learning-cycle:thread-record', threadId: '/app/thread' }, {}, resolve);
+      })
+    ).resolves.toEqual({ record: null });
+
+    expect(getLatestForThread).toHaveBeenCalledWith('/app/thread');
+  });
+
   it('tracks placeholder records through pending tracker when sender tab is present', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const onMessage = vi.fn();
     const trackPlaceholder = vi.fn();
     const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -120,14 +151,14 @@ describe('registerLearningCycleMessageHandlers', () => {
 
   it('does not track placeholder records without sender tab id', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const onMessage = vi.fn();
     const trackPlaceholder = vi.fn();
     const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -156,14 +187,14 @@ describe('registerLearningCycleMessageHandlers', () => {
 
   it('does not track placeholder records when sender tab id is not a valid integer', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const onMessage = vi.fn();
     const trackPlaceholder = vi.fn();
     const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -192,14 +223,14 @@ describe('registerLearningCycleMessageHandlers', () => {
 
   it('does not track non-placeholder thread ids', async () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const onMessage = vi.fn();
     const trackPlaceholder = vi.fn();
     const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
 
     registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
@@ -228,15 +259,15 @@ describe('registerLearningCycleMessageHandlers', () => {
 
   it('returns cleanup that disposes tracker and detaches runtime listener', () => {
     const append = vi.fn(async () => undefined);
-    const hasAnyForThread = vi.fn(async () => false);
     const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
     const addListener = vi.fn();
     const removeListener = vi.fn();
     const dispose = vi.fn();
     const trackerFactory = vi.fn(() => ({ trackPlaceholder: vi.fn(), dispose }));
 
     const cleanup = registerLearningCycleMessageHandlers(
-      { append, hasAnyForThread, resolveThreadIdForRecord },
+      { append, resolveThreadIdForRecord, getLatestForThread },
       {
         runtime: {
           onMessage: {
