@@ -1,7 +1,8 @@
 @tailwind components;
 
 @layer components {
-  #deliberate-mode-modal-root {
+  #deliberate-mode-modal-root,
+  #deliberate-reflection-modal-root {
     --deliberate-space-1: 8px;
     --deliberate-space-2: 12px;
     --deliberate-space-3: 16px;
@@ -60,7 +61,8 @@
     --deliberate-focus-ring: rgba(59, 130, 246, 0.38);
   }
 
-  #deliberate-mode-modal-root[data-deliberate-theme='dark'] {
+  #deliberate-mode-modal-root[data-deliberate-theme='dark'],
+  #deliberate-reflection-modal-root[data-deliberate-theme='dark'] {
     --deliberate-scrim: rgba(2, 6, 23, 0.64);
     --deliberate-panel-bg: #0f172a;
     --deliberate-panel-border: rgba(148, 163, 184, 0.26);

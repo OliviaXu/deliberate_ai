@@ -1,4 +1,4 @@
-import type { InteractionMode, LearningCycleSubmission } from '../shared/types';
+import { INTERACTION_MODES, type InteractionMode, type LearningCycleSubmission } from '../shared/types';
 
 const MODAL_ROOT_ID = 'deliberate-mode-modal-root';
 const PROBLEM_SOLVING_MIN_CHARS = 100;
@@ -52,11 +52,21 @@ export class ModeSelectionModal {
 
     const stack = document.createElement('div');
     stack.className = 'deliberate-mode-stack';
-    stack.appendChild(this.makeModeButton('delegation', 'delegate a mundane task', () => this.finish(root, resolve, { mode: 'delegation' })));
     stack.appendChild(
-      this.makeModeButton('problem_solving', 'solve a core problem', () => this.renderProblemSolvingDetails(panel, root, resolve))
+      this.makeModeButton(INTERACTION_MODES.DELEGATION, 'delegate a mundane task', () =>
+        this.finish(root, resolve, { mode: INTERACTION_MODES.DELEGATION })
+      )
     );
-    stack.appendChild(this.makeModeButton('learning', 'learn / explore', () => this.renderLearningDetails(panel, root, resolve)));
+    stack.appendChild(
+      this.makeModeButton(INTERACTION_MODES.PROBLEM_SOLVING, 'solve a core problem', () =>
+        this.renderProblemSolvingDetails(panel, root, resolve)
+      )
+    );
+    stack.appendChild(
+      this.makeModeButton(INTERACTION_MODES.LEARNING, 'learn / explore', () =>
+        this.renderLearningDetails(panel, root, resolve)
+      )
+    );
     panel.appendChild(stack);
   }
 
@@ -94,7 +104,7 @@ export class ModeSelectionModal {
     this.setContinueButtonEnabled(continueButton, false);
     const submit = (): void => {
       this.finish(root, resolve, {
-        mode: 'problem_solving',
+        mode: INTERACTION_MODES.PROBLEM_SOLVING,
         prediction: input.value.trim()
       });
     };
@@ -131,7 +141,13 @@ export class ModeSelectionModal {
     this.setContinueButtonEnabled(continueButton, true);
     const submit = (): void => {
       const priorKnowledgeNote = input.value.trim();
-      this.finish(root, resolve, priorKnowledgeNote ? { mode: 'learning', priorKnowledgeNote } : { mode: 'learning' });
+      this.finish(
+        root,
+        resolve,
+        priorKnowledgeNote
+          ? { mode: INTERACTION_MODES.LEARNING, priorKnowledgeNote }
+          : { mode: INTERACTION_MODES.LEARNING }
+      );
     };
     continueButton.addEventListener('click', submit);
     this.bindEnterToContinue(input, continueButton, submit);

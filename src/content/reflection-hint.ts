@@ -1,14 +1,14 @@
 import { findGeminiComposer, findGeminiComposerAnchor } from './gemini-composer';
 
 interface ReflectionHintOptions {
-  onReview?: (threadId: string) => void;
+  onReview?: (threadId: string) => Promise<void> | void;
 }
 
 export class ReflectionHint {
   private root: HTMLDivElement | null = null;
   private anchor: HTMLElement | null = null;
   private currentThreadId = 'unknown';
-  private readonly onReview: (threadId: string) => void;
+  private readonly onReview: (threadId: string) => Promise<void> | void;
 
   constructor(options: ReflectionHintOptions = {}) {
     this.onReview =
@@ -77,7 +77,7 @@ export class ReflectionHint {
     reviewButton.setAttribute('data-testid', 'deliberate-reflection-hint-review');
     reviewButton.textContent = 'reflect';
     reviewButton.addEventListener('click', () => {
-      this.onReview(this.currentThreadId);
+      void this.onReview(this.currentThreadId);
     });
 
     root.append(label, reviewButton);

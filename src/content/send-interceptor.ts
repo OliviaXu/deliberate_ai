@@ -8,7 +8,7 @@ interface InternalSubmitIntent extends InterceptedSubmitIntent {
   composer: HTMLElement | null;
 }
 
-const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root';
+const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
 export class GeminiSendInterceptor {
   constructor(private readonly logger?: Pick<Logger, 'debug' | 'info'>) {}

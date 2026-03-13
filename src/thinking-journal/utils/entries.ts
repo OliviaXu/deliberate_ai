@@ -1,9 +1,9 @@
-import type { InteractionMode, LearningCycleRecord } from '../../shared/types';
+import { INTERACTION_MODES, type InteractionMode, type LearningCycleRecord } from '../../shared/types';
 
 const JOURNAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const LONG_PROMPT_CHAR_THRESHOLD = 220;
 
-export type ThinkingJournalFilter = 'all' | 'problem_solving' | 'delegation' | 'learning';
+export type ThinkingJournalFilter = 'all' | InteractionMode;
 
 export interface ThinkingJournalEntry {
   id: string;
@@ -64,7 +64,7 @@ function toThinkingJournalEntry(record: LearningCycleRecord): ThinkingJournalEnt
     promptIsLong: record.prompt.length > LONG_PROMPT_CHAR_THRESHOLD
   };
 
-  if (record.mode === 'problem_solving') {
+  if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
     const prediction = record.prediction?.trim();
     return {
       ...base,
@@ -72,7 +72,7 @@ function toThinkingJournalEntry(record: LearningCycleRecord): ThinkingJournalEnt
     };
   }
 
-  if (record.mode === 'learning') {
+  if (record.mode === INTERACTION_MODES.LEARNING) {
     const initialContext = record.priorKnowledgeNote?.trim();
     return {
       ...base,
@@ -84,13 +84,13 @@ function toThinkingJournalEntry(record: LearningCycleRecord): ThinkingJournalEnt
 }
 
 function modeLabel(mode: InteractionMode): string {
-  if (mode === 'problem_solving') return 'Problem-Solving';
-  if (mode === 'delegation') return 'Delegation';
+  if (mode === INTERACTION_MODES.PROBLEM_SOLVING) return 'Problem-Solving';
+  if (mode === INTERACTION_MODES.DELEGATION) return 'Delegation';
   return 'Learning';
 }
 
 function modeEmoji(mode: InteractionMode): string {
-  if (mode === 'problem_solving') return '🤔';
-  if (mode === 'delegation') return '😌';
+  if (mode === INTERACTION_MODES.PROBLEM_SOLVING) return '🤔';
+  if (mode === INTERACTION_MODES.DELEGATION) return '😌';
   return '🧑‍🎓';
 }

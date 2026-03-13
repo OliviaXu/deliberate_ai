@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { INTERACTION_MODES } from '../shared/types';
 import { loadThinkingJournalEntries } from './thinking-journal-store';
 import { filterThinkingJournalEntries, type ThinkingJournalEntry, type ThinkingJournalFilter } from './utils/entries';
 
@@ -8,9 +9,9 @@ interface ThinkingJournalAppProps {
 
 const FILTERS: Array<{ value: ThinkingJournalFilter; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'problem_solving', label: 'Problem-Solving' },
-  { value: 'delegation', label: 'Delegation' },
-  { value: 'learning', label: 'Learning' }
+  { value: INTERACTION_MODES.PROBLEM_SOLVING, label: 'Problem-Solving' },
+  { value: INTERACTION_MODES.DELEGATION, label: 'Delegation' },
+  { value: INTERACTION_MODES.LEARNING, label: 'Learning' }
 ];
 
 export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps): JSX.Element {
@@ -110,7 +111,7 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
                   )}
                 </section>
 
-                {entry.mode === 'problem_solving' && (
+                {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
                   <section className="mt-4">
                     <h2 className="mb-[7px] mt-0 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[#6a7786]">
                       Your Hypothesis
@@ -119,7 +120,7 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
                   </section>
                 )}
 
-                {entry.mode === 'learning' && entry.initialContext && (
+                {entry.mode === INTERACTION_MODES.LEARNING && entry.initialContext && (
                   <section className="mt-4">
                     <h2 className="mb-[7px] mt-0 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[#6a7786]">
                       Initial Context

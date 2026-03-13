@@ -2,6 +2,7 @@ import { chromium, expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
+import { REFLECTIONS_STORAGE_KEY } from '../../src/shared/reflection-store';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const harnessPath = path.resolve(process.cwd(), 'tests/harness/index.html');
@@ -48,10 +49,13 @@ async function getExtensionId(context: import('@playwright/test').BrowserContext
 
 async function clearRecords(context: import('@playwright/test').BrowserContext): Promise<void> {
   const sw = await getServiceWorker(context);
-  await sw.evaluate(async (storageKey) => {
+  await sw.evaluate(async ({ learningCyclesStorageKey, reflectionsStorageKey }) => {
     const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } }).chrome;
-    await chromeApi?.storage?.local?.set({ [storageKey]: [] });
-  }, LEARNING_CYCLES_STORAGE_KEY);
+    await chromeApi?.storage?.local?.set({
+      [learningCyclesStorageKey]: [],
+      [reflectionsStorageKey]: []
+    });
+  }, { learningCyclesStorageKey: LEARNING_CYCLES_STORAGE_KEY, reflectionsStorageKey: REFLECTIONS_STORAGE_KEY });
 }
 
 async function readRecords(context: import('@playwright/test').BrowserContext): Promise<unknown[]> {
@@ -78,6 +82,19 @@ async function writeRecords(context: import('@playwright/test').BrowserContext, 
   );
 }
 
+async function readReflectionRecords(context: import('@playwright/test').BrowserContext): Promise<unknown[]> {
+  const sw = await getServiceWorker(context);
+  const records = await sw.evaluate(async (storageKey) => {
+    const chromeApi = (globalThis as {
+      chrome?: { storage?: { local?: { get: (key: string) => Promise<Record<string, unknown>> } } };
+    }).chrome;
+    const raw = (await chromeApi?.storage?.local?.get(storageKey)) || {};
+    const value = raw[storageKey];
+    return Array.isArray(value) ? value : [];
+  }, REFLECTIONS_STORAGE_KEY);
+  return records as unknown[];
+}
+
 async function setHarnessNow(page: import('@playwright/test').Page, nowMs: number): Promise<void> {
   await page.evaluate((value) => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(value));
@@ -99,6 +116,20 @@ async function expectHintVisible(page: import('@playwright/test').Page): Promise
 
 async function expectHintHidden(page: import('@playwright/test').Page): Promise<void> {
   await expect(page.locator('[data-testid="deliberate-reflection-hint"]')).toHaveCount(0);
+}
+
+async function expectReflectionModal(page: import('@playwright/test').Page): Promise<void> {
+  await expect(page.locator('[data-testid="deliberate-reflection-modal"]')).toBeVisible();
+}
+
+async function submitReflection(page: import('@playwright/test').Page, score: '0' | '25' | '50' | '75' | '100', notes?: string): Promise<void> {
+  await expectReflectionModal(page);
+  await page.locator(`[data-testid="deliberate-reflection-score-${score}"]`).click();
+  if (notes) {
+    await page.locator('[data-testid="deliberate-reflection-notes"]').fill(notes);
+  }
+  await page.locator('[data-testid="deliberate-reflection-submit"]').click();
+  await expect(page.locator('[data-testid="deliberate-reflection-modal"]')).toHaveCount(0);
 }
 
 async function navigateThreadInPlace(page: import('@playwright/test').Page, threadUrl: string): Promise<void> {
@@ -220,10 +251,6 @@ test('local harness gates reflection hint on due status and scopes it per thread
   const context = await launchExtensionContext(userDataDir);
   try {
     const page = await setupHarness(context, primaryThreadUrl);
-    const consoleMessages: string[] = [];
-    page.on('console', (message) => {
-      consoleMessages.push(message.text());
-    });
     await clearRecords(context);
     const nowMs = 1_800_000_000_000;
     await setHarnessNow(page, nowMs);
@@ -285,9 +312,9 @@ test('local harness gates reflection hint on due status and scopes it per thread
       });
 
     await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
-    await expect
-      .poll(() => consoleMessages.some((message) => message.includes('deliberate-reflection-hint-review')))
-      .toBe(true);
+    await expectReflectionModal(page);
+    await page.locator('[data-testid="deliberate-reflection-close"]').click();
+    await expect(page.locator('[data-testid="deliberate-reflection-modal"]')).toHaveCount(0);
     await expectHintVisible(page);
 
     await navigateThreadInPlace(page, secondaryThreadUrl);
@@ -339,6 +366,118 @@ test('local harness shows historical due hint without persisted turn counters an
 
     await navigateThreadInPlace(page, primaryThreadUrl);
     await expectHintVisible(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test('local harness submits a due reflection and persists completion for an active-thread path', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-reflection-active-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    const page = await setupHarness(context, tertiaryThreadUrl);
+    await clearRecords(context);
+
+    await sendProblemSolvingPrompt(
+      page,
+      'How should I phase this rollout?',
+      'Start with a feature flag, release to a small cohort first, watch explicit rollback signals, and expand only after the metrics stay healthy.'
+    );
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 1');
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 2');
+    await expectHintHidden(page);
+
+    await resetNativeSendState(page);
+    await sendPromptExpectBypass(page, 'follow-up prompt 3');
+    await expectHintVisible(page);
+
+    await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
+    await submitReflection(
+      page,
+      '75',
+      'I should make rollback signals explicit before I compare rollout shapes.'
+    );
+    await expectHintHidden(page);
+
+    await expect
+      .poll(async () => {
+        const records = await readReflectionRecords(context);
+        return records;
+      })
+      .toEqual([
+        expect.objectContaining({
+          threadId: '/app/threads/turn-threshold-thread',
+          status: 'completed',
+          score: 75,
+          notes: 'I should make rollback signals explicit before I compare rollout shapes.'
+        })
+      ]);
+
+    await navigateThreadInPlace(page, secondaryThreadUrl);
+    await expectHintHidden(page);
+
+    await navigateThreadInPlace(page, tertiaryThreadUrl);
+    await expectHintHidden(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test('local harness submits a due reflection and persists completion for a historical path', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-reflection-historical-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+
+    const nowMs = 1_900_000_000_000;
+    await writeRecords(context, [
+      {
+        id: 'historical-learning',
+        timestamp: nowMs - 6 * 60 * 1000,
+        platform: 'gemini',
+        threadId: '/app/threads/test-thread',
+        mode: 'learning',
+        prompt: 'Explain when staged rollouts are counterproductive',
+        priorKnowledgeNote: 'I know the basics of feature flags already.'
+      }
+    ]);
+
+    const page = await setupHarness(context, primaryThreadUrl);
+    await setHarnessNow(page, nowMs);
+    await expectHintVisible(page);
+
+    await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
+    await submitReflection(page, '50');
+    await expectHintHidden(page);
+
+    await expect
+      .poll(async () => {
+        const records = await readReflectionRecords(context);
+        return records;
+      })
+      .toEqual([
+        expect.objectContaining({
+          threadId: '/app/threads/test-thread',
+          status: 'completed',
+          score: 50
+        })
+      ]);
+
+    await navigateThreadInPlace(page, secondaryThreadUrl);
+    await expectHintHidden(page);
+
+    await navigateThreadInPlace(page, primaryThreadUrl);
+    await expectHintHidden(page);
   } finally {
     await context.close();
   }
