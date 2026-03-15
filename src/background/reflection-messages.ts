@@ -19,11 +19,11 @@ interface ChromeApi {
 function isReflectionRuntimeMessage(message: unknown): message is ReflectionRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
   const maybe = message as { type?: string };
-  return maybe.type === 'reflection:append' || maybe.type === 'reflection:thread-has-completed';
+  return maybe.type === 'reflection:append' || maybe.type === 'reflection:record-has-completed';
 }
 
 export function registerReflectionMessageHandlers(
-  store: Pick<ReflectionStore, 'append' | 'hasCompletedReflectionForThread'>,
+  store: Pick<ReflectionStore, 'append' | 'hasCompletedReflectionForRecord'>,
   chromeApi: ChromeApi = (globalThis as { chrome?: ChromeApi }).chrome || {}
 ): () => void {
   const runtimeMessageListener = (
@@ -40,9 +40,9 @@ export function registerReflectionMessageHandlers(
           .then(() => sendResponse({ ok: true }))
           .catch((error) => sendResponse({ error: String(error) }));
         return true;
-      case 'reflection:thread-has-completed':
+      case 'reflection:record-has-completed':
         void store
-          .hasCompletedReflectionForThread(message.threadId)
+          .hasCompletedReflectionForRecord(message.learningCycleRecordId)
           .then((hasCompletedReflection) => sendResponse({ hasCompletedReflection }))
           .catch((error) => sendResponse({ error: String(error) }));
         return true;

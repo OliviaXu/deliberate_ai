@@ -415,6 +415,7 @@ test('local harness submits a due reflection and persists completion for an acti
       .toEqual([
         expect.objectContaining({
           threadId: '/app/threads/turn-threshold-thread',
+          learningCycleRecordId: expect.any(String),
           status: 'completed',
           score: 75,
           notes: 'I should make rollback signals explicit before I compare rollout shapes.'
@@ -468,6 +469,7 @@ test('local harness submits a due reflection and persists completion for a histo
       .toEqual([
         expect.objectContaining({
           threadId: '/app/threads/test-thread',
+          learningCycleRecordId: 'historical-learning',
           status: 'completed',
           score: 50
         })

@@ -3,7 +3,6 @@ import {
   isReflectionEligibleRecord,
   type InteractionMode,
   type LearningCycleRecord,
-  type ReflectionEligibleLearningCycleRecord,
   type ReflectionRecord,
   type ReflectionScore
 } from '../../shared/types';
@@ -75,37 +74,36 @@ function buildReflectionMap(
   records: LearningCycleRecord[],
   reflections: ReflectionRecord[]
 ): Map<string, ReflectionRecord> {
-  const eligibleRecords = records.filter(isReflectionEligibleRecord);
+  const eligibleRecordIds = new Set(records.filter(isReflectionEligibleRecord).map((record) => record.id));
   const reflectionsByRecordId = new Map<string, ReflectionRecord>();
 
   for (const reflection of reflections) {
-    const matchedRecord = findMatchedRecord(eligibleRecords, reflection);
-    if (!matchedRecord) continue;
-
-    const existing = reflectionsByRecordId.get(matchedRecord.id);
-    if (!existing || reflection.timestamp > existing.timestamp) {
-      reflectionsByRecordId.set(matchedRecord.id, reflection);
-    }
+    const directRecordId = resolveDirectRecordId(reflection, eligibleRecordIds);
+    if (!directRecordId) continue;
+    setLatestReflectionForRecord(reflectionsByRecordId, directRecordId, reflection);
   }
 
   return reflectionsByRecordId;
 }
 
-function findMatchedRecord(
-  records: ReflectionEligibleLearningCycleRecord[],
+function resolveDirectRecordId(
+  reflection: ReflectionRecord,
+  eligibleRecordIds: Set<string>
+): string | null {
+  const directRecordId = reflection.learningCycleRecordId?.trim();
+  if (!directRecordId) return null;
+  return eligibleRecordIds.has(directRecordId) ? directRecordId : null;
+}
+
+function setLatestReflectionForRecord(
+  reflectionsByRecordId: Map<string, ReflectionRecord>,
+  recordId: string,
   reflection: ReflectionRecord
-): ReflectionEligibleLearningCycleRecord | null {
-  let match: ReflectionEligibleLearningCycleRecord | null = null;
-
-  for (const record of records) {
-    if (record.threadId !== reflection.threadId) continue;
-    if (record.timestamp > reflection.timestamp) continue;
-    if (!match || record.timestamp > match.timestamp) {
-      match = record;
-    }
+): void {
+  const existing = reflectionsByRecordId.get(recordId);
+  if (!existing || reflection.timestamp > existing.timestamp) {
+    reflectionsByRecordId.set(recordId, reflection);
   }
-
-  return match;
 }
 
 function toThinkingJournalEntry(record: LearningCycleRecord, reflection?: ReflectionRecord): ThinkingJournalEntry {

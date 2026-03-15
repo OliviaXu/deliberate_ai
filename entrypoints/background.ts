@@ -18,7 +18,7 @@ export default defineBackground(() => {
   });
   registerReflectionMessageHandlers({
     append: (record) => reflectionStore.append(record),
-    hasCompletedReflectionForThread: (threadId) => reflectionStore.hasCompletedReflectionForThread(threadId)
+    hasCompletedReflectionForRecord: (learningCycleRecordId) => reflectionStore.hasCompletedReflectionForRecord(learningCycleRecordId)
   });
   registerThinkingJournalActionHandler();
 });

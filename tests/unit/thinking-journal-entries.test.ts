@@ -22,6 +22,7 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
     id: 'reflection-1',
     timestamp: NOW_MS,
     threadId: '/app/threads/default',
+    learningCycleRecordId: '1',
     status: 'completed',
     score: 75,
     ...overrides
@@ -83,7 +84,7 @@ describe('buildThinkingJournalEntries', () => {
     expect(entries[0]?.hypothesis).toBe('No hypothesis recorded.');
   });
 
-  it('attaches a completed reflection to the latest eligible learning-cycle record in the same thread', () => {
+  it('attaches a completed reflection to the directly linked learning-cycle record', () => {
     const entries = buildThinkingJournalEntries(
       [
         makeRecord({
@@ -98,6 +99,7 @@ describe('buildThinkingJournalEntries', () => {
         makeReflection({
           id: 'reflection-a',
           threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - DAY_MS,
           score: 50,
           notes: 'The issue was actually an expired token.'
@@ -112,6 +114,44 @@ describe('buildThinkingJournalEntries', () => {
       score: 50,
       notes: 'The issue was actually an expired token.'
     });
+  });
+
+  it('matches reflections by learning-cycle foreign key even when other records share the thread', () => {
+    const entries = buildThinkingJournalEntries(
+      [
+        makeRecord({
+          id: 'problem-older',
+          threadId: '/app/threads/thread-a',
+          mode: 'problem_solving',
+          timestamp: NOW_MS - 3 * DAY_MS,
+          prediction: 'Maybe stale cache.'
+        }),
+        makeRecord({
+          id: 'learning-newer',
+          threadId: '/app/threads/thread-a',
+          mode: 'learning',
+          timestamp: NOW_MS - DAY_MS,
+          priorKnowledgeNote: 'I know the rollout basics.'
+        })
+      ],
+      [
+        makeReflection({
+          id: 'reflection-direct',
+          threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'problem-older',
+          timestamp: NOW_MS - 1000,
+          score: 100,
+          notes: 'The cache was fine. The auth token was stale.'
+        })
+      ],
+      NOW_MS
+    );
+
+    expect(entries.find((entry) => entry.id === 'problem-older')?.reflection).toMatchObject({
+      score: 100,
+      notes: 'The cache was fine. The auth token was stale.'
+    });
+    expect(entries.find((entry) => entry.id === 'learning-newer')?.reflection).toBeUndefined();
   });
 
   it('keeps the learning-cycle timestamp as the sort anchor even when a matched reflection is newer', () => {
@@ -136,6 +176,7 @@ describe('buildThinkingJournalEntries', () => {
         makeReflection({
           id: 'reflection-a',
           threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'older-problem',
           timestamp: NOW_MS - 1000,
           score: 100
         })
@@ -147,7 +188,7 @@ describe('buildThinkingJournalEntries', () => {
     expect(entries[1]?.reflection?.score).toBe(100);
   });
 
-  it('drops reflections that cannot be matched to an eligible interaction and prefers the latest matched reflection', () => {
+  it('drops reflections without a direct eligible record id and prefers the latest direct reflection per record', () => {
     const entries = buildThinkingJournalEntries(
       [
         makeRecord({
@@ -175,18 +216,21 @@ describe('buildThinkingJournalEntries', () => {
         makeReflection({
           id: 'reflection-delegation',
           threadId: '/app/threads/thread-delegation',
+          learningCycleRecordId: 'delegation-1',
           timestamp: NOW_MS - DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-1',
           threadId: '/app/threads/thread-problem',
+          learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - 2 * DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-2',
           threadId: '/app/threads/thread-problem',
+          learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - DAY_MS,
           score: 75,
           notes: 'The bottleneck was downstream, not the queue.'
@@ -194,15 +238,24 @@ describe('buildThinkingJournalEntries', () => {
         makeReflection({
           id: 'reflection-out-of-window',
           threadId: '/app/threads/thread-old',
+          learningCycleRecordId: 'old-learning',
           timestamp: NOW_MS - DAY_MS,
           score: 50
         }),
         makeReflection({
           id: 'reflection-unmatched',
           threadId: '/app/threads/thread-missing',
+          learningCycleRecordId: 'missing-record',
           timestamp: NOW_MS - DAY_MS,
           score: 100
-        })
+        }),
+        {
+          id: 'reflection-missing-record-id',
+          timestamp: NOW_MS - DAY_MS,
+          threadId: '/app/threads/thread-problem',
+          status: 'completed',
+          score: 100
+        }
       ],
       NOW_MS
     );
@@ -232,6 +285,7 @@ describe('filterThinkingJournalEntries', () => {
       makeReflection({
         id: 'reflection-problem',
         threadId: '/app/threads/default',
+        learningCycleRecordId: 'problem',
         timestamp: NOW_MS - DAY_MS / 2,
         score: 25
       })

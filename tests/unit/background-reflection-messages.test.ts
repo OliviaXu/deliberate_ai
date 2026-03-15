@@ -7,6 +7,7 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
     id: 'reflection-1',
     timestamp: Date.now(),
     threadId: '/app/thread',
+    learningCycleRecordId: 'record-1',
     status: 'completed',
     score: 50,
     ...overrides
@@ -20,12 +21,12 @@ describe('registerReflectionMessageHandlers', () => {
 
   it('appends reflection records for reflection messages', async () => {
     const append = vi.fn(async () => undefined);
-    const hasCompletedReflectionForThread = vi.fn(async () => false);
+    const hasCompletedReflectionForRecord = vi.fn(async () => false);
     const onMessage = vi.fn();
     const reflection = makeReflection({ timestamp: 123 });
 
     registerReflectionMessageHandlers(
-      { append, hasCompletedReflectionForThread },
+      { append, hasCompletedReflectionForRecord },
       {
         runtime: {
           onMessage: {
@@ -45,16 +46,16 @@ describe('registerReflectionMessageHandlers', () => {
     ).resolves.toEqual({ ok: true });
 
     expect(append).toHaveBeenCalledWith(reflection);
-    expect(hasCompletedReflectionForThread).not.toHaveBeenCalled();
+    expect(hasCompletedReflectionForRecord).not.toHaveBeenCalled();
   });
 
-  it('returns whether a thread already has a completed reflection', async () => {
+  it('returns whether a learning-cycle record already has a completed reflection', async () => {
     const append = vi.fn(async () => undefined);
-    const hasCompletedReflectionForThread = vi.fn(async () => true);
+    const hasCompletedReflectionForRecord = vi.fn(async () => true);
     const onMessage = vi.fn();
 
     registerReflectionMessageHandlers(
-      { append, hasCompletedReflectionForThread },
+      { append, hasCompletedReflectionForRecord },
       {
         runtime: {
           onMessage: {
@@ -69,22 +70,22 @@ describe('registerReflectionMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) => {
-        listener({ type: 'reflection:thread-has-completed', threadId: '/app/thread' }, {}, resolve);
+        listener({ type: 'reflection:record-has-completed', learningCycleRecordId: 'record-1' }, {}, resolve);
       })
     ).resolves.toEqual({ hasCompletedReflection: true });
 
-    expect(hasCompletedReflectionForThread).toHaveBeenCalledWith('/app/thread');
+    expect(hasCompletedReflectionForRecord).toHaveBeenCalledWith('record-1');
     expect(append).not.toHaveBeenCalled();
   });
 
   it('returns cleanup that detaches the runtime listener', () => {
     const append = vi.fn(async () => undefined);
-    const hasCompletedReflectionForThread = vi.fn(async () => false);
+    const hasCompletedReflectionForRecord = vi.fn(async () => false);
     const addListener = vi.fn();
     const removeListener = vi.fn();
 
     const cleanup = registerReflectionMessageHandlers(
-      { append, hasCompletedReflectionForThread },
+      { append, hasCompletedReflectionForRecord },
       {
         runtime: {
           onMessage: {

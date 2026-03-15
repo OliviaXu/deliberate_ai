@@ -23,7 +23,10 @@ const ACTIVE_FOLLOW_UP_THRESHOLD = 3;
 
 interface CachedThreadState {
   learningCycleRecord?: LearningCycleRecord | null;
-  hasCompletedReflection?: boolean;
+  completedReflection?: {
+    learningCycleRecordId: string;
+    hasCompleted: boolean;
+  };
 }
 
 const logger = new Logger(loadDebugConfig());
@@ -113,7 +116,9 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
 
     if (isThreadIdCacheable(threadId)) {
       setCachedLearningCycleRecord(threadId, result.record);
-      setCachedThreadHasCompletedReflection(threadId, false);
+      if (isReflectionEligibleMode(result.record.mode)) {
+        setCachedReflectionCompletion(result.record.id, threadId, false);
+      }
       logger.info('thread-entry-modal-consumed', {
         threadId,
         interceptionId: intent.interceptionId,
@@ -213,21 +218,21 @@ async function resolveLearningCycleRecord(threadId: string): Promise<LearningCyc
   return check;
 }
 
-async function resolveThreadHasCompletedReflection(threadId: string): Promise<boolean> {
-  const cachedValue = threadStateCache.get(threadId)?.hasCompletedReflection;
-  if (cachedValue !== undefined) {
-    return cachedValue;
+async function resolveRecordHasCompletedReflection(learningCycleRecord: ReflectionEligibleLearningCycleRecord): Promise<boolean> {
+  const cachedValue = threadStateCache.get(learningCycleRecord.threadId)?.completedReflection;
+  if (cachedValue?.learningCycleRecordId === learningCycleRecord.id) {
+    return cachedValue.hasCompleted;
   }
 
-  const pending = pendingReflectionCompletionChecks.get(threadId);
+  const pending = pendingReflectionCompletionChecks.get(learningCycleRecord.id);
   if (pending) {
     return pending;
   }
 
   const check = Promise.resolve(
     sendRuntimeMessage({
-      type: 'reflection:thread-has-completed',
-      threadId
+      type: 'reflection:record-has-completed',
+      learningCycleRecordId: learningCycleRecord.id
     })
   )
     .then((response) => {
@@ -235,18 +240,22 @@ async function resolveThreadHasCompletedReflection(threadId: string): Promise<bo
         response && typeof response === 'object' && 'hasCompletedReflection' in response
           ? Boolean((response as { hasCompletedReflection?: unknown }).hasCompletedReflection)
           : false;
-      setCachedThreadHasCompletedReflection(threadId, hasCompletedReflection);
+      setCachedReflectionCompletion(learningCycleRecord.id, learningCycleRecord.threadId, hasCompletedReflection);
       return hasCompletedReflection;
     })
     .catch((error) => {
-      logger.error('reflection-thread-status-check-failed', { threadId, error: String(error) });
+      logger.error('reflection-record-status-check-failed', {
+        learningCycleRecordId: learningCycleRecord.id,
+        threadId: learningCycleRecord.threadId,
+        error: String(error)
+      });
       return false;
     })
     .finally(() => {
-      pendingReflectionCompletionChecks.delete(threadId);
+      pendingReflectionCompletionChecks.delete(learningCycleRecord.id);
     });
 
-  pendingReflectionCompletionChecks.set(threadId, check);
+  pendingReflectionCompletionChecks.set(learningCycleRecord.id, check);
   return check;
 }
 
@@ -257,7 +266,7 @@ async function refreshReflectionHintForThread(threadId: string): Promise<void> {
     return;
   }
 
-  const hasCompletedReflection = await resolveThreadHasCompletedReflection(threadId);
+  const hasCompletedReflection = await resolveRecordHasCompletedReflection(learningCycleRecord);
   reflectionHint.updateVisibilityForThread(
     threadId,
     !hasCompletedReflection && isReflectionDueForThread(threadId, learningCycleRecord)
@@ -279,7 +288,7 @@ async function handleReflectionReview(threadId: string): Promise<void> {
   const response = await Promise.resolve(
     sendRuntimeMessage({
       type: 'reflection:append',
-      record: createReflectionRecord(threadId, submission)
+      record: createReflectionRecord(learningCycleRecord, submission)
     })
   ).catch((error) => {
     logger.error('reflection-append-failed', { threadId, error: String(error) });
@@ -287,21 +296,25 @@ async function handleReflectionReview(threadId: string): Promise<void> {
   });
 
   if (response && typeof response === 'object' && (response as { ok?: boolean }).ok === true) {
-    setCachedThreadHasCompletedReflection(threadId, true);
+    setCachedReflectionCompletion(learningCycleRecord.id, threadId, true);
     reflectionHint.updateVisibilityForThread(threadId, false);
     logger.info('reflection-completed', { threadId, mode: learningCycleRecord.mode });
     return;
   }
 }
 
-function createReflectionRecord(threadId: string, submission: ReflectionSubmission): ReflectionRecord {
+function createReflectionRecord(
+  learningCycleRecord: ReflectionEligibleLearningCycleRecord,
+  submission: ReflectionSubmission
+): ReflectionRecord {
   const timestamp = getContentNowMs();
   const notes = submission.notes?.trim();
 
   return {
-    id: `${threadId}:${timestamp}`,
+    id: `${learningCycleRecord.id}:${timestamp}`,
     timestamp,
-    threadId,
+    threadId: learningCycleRecord.threadId,
+    learningCycleRecordId: learningCycleRecord.id,
     status: 'completed',
     score: submission.score,
     ...(notes ? { notes } : {})
@@ -313,7 +326,13 @@ function setCachedLearningCycleRecord(threadId: string, learningCycleRecord: Lea
   threadStateCache.set(threadId, { ...current, learningCycleRecord });
 }
 
-function setCachedThreadHasCompletedReflection(threadId: string, hasCompletedReflection: boolean): void {
+function setCachedReflectionCompletion(learningCycleRecordId: string, threadId: string, hasCompleted: boolean): void {
   const current = threadStateCache.get(threadId) ?? {};
-  threadStateCache.set(threadId, { ...current, hasCompletedReflection });
+  threadStateCache.set(threadId, {
+    ...current,
+    completedReflection: {
+      learningCycleRecordId,
+      hasCompleted
+    }
+  });
 }

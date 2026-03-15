@@ -20,9 +20,9 @@ export class ReflectionStore {
     await this.writeQueue;
   }
 
-  async hasCompletedReflectionForThread(threadId: string): Promise<boolean> {
+  async hasCompletedReflectionForRecord(learningCycleRecordId: string): Promise<boolean> {
     const current = await this.listRaw();
-    return current.some((record) => record.threadId === threadId && record.status === 'completed');
+    return current.some((record) => record.status === 'completed' && record.learningCycleRecordId === learningCycleRecordId);
   }
 
   private async listRaw(): Promise<ReflectionRecord[]> {

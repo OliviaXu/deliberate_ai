@@ -22,6 +22,7 @@ describe('loadThinkingJournalEntries', () => {
         id: 'reflection-1',
         timestamp: nowMs - dayMs / 2,
         threadId: '/app/threads/abc',
+        learningCycleRecordId: 'problem',
         status: 'completed',
         score: 75,
         notes: 'I should have checked the auth token path first.'

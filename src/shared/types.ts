@@ -106,6 +106,7 @@ interface ReflectionBase {
   id: string;
   timestamp: number;
   threadId: string;
+  learningCycleRecordId?: string;
 }
 
 export interface CompletedReflectionRecord extends ReflectionBase {
@@ -130,12 +131,12 @@ export interface ReflectionAppendMessage {
   record: ReflectionRecord;
 }
 
-export interface ReflectionThreadHasCompletedMessage {
-  type: 'reflection:thread-has-completed';
-  threadId: string;
+export interface ReflectionRecordHasCompletedMessage {
+  type: 'reflection:record-has-completed';
+  learningCycleRecordId: string;
 }
 
-export type ReflectionRuntimeMessage = ReflectionAppendMessage | ReflectionThreadHasCompletedMessage;
+export type ReflectionRuntimeMessage = ReflectionAppendMessage | ReflectionRecordHasCompletedMessage;
 
 export type BackgroundRuntimeMessage = LearningCycleRuntimeMessage | ReflectionRuntimeMessage;
 

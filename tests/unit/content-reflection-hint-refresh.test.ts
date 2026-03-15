@@ -155,7 +155,7 @@ describe('content reflection hint refresh', () => {
 
   it('starts active tracking on the first bypassed concrete-thread submit using the persisted thread record timestamp', async () => {
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -296,7 +296,7 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -311,7 +311,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -346,6 +346,7 @@ describe('content reflection hint refresh', () => {
         type: 'reflection:append',
         record: expect.objectContaining({
           threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75,
           notes: 'I should anchor the comparison around rollback criteria sooner.'
@@ -367,7 +368,7 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -382,7 +383,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -407,6 +408,7 @@ describe('content reflection hint refresh', () => {
       type: 'reflection:append',
       record: expect.objectContaining({
         threadId: '/app/threads/thread-a',
+        learningCycleRecordId: 'record-1',
         status: 'completed',
         score: 75
       })
@@ -426,7 +428,7 @@ describe('content reflection hint refresh', () => {
     window.history.replaceState({}, '', '/app/threads/thread-a');
     let completionStatusChecks = 0;
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -441,7 +443,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         completionStatusChecks += 1;
         return { hasCompletedReflection: completionStatusChecks > 1 };
       }
@@ -470,6 +472,7 @@ describe('content reflection hint refresh', () => {
         type: 'reflection:append',
         record: expect.objectContaining({
           threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75
         })
@@ -481,7 +484,7 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -496,7 +499,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -525,6 +528,7 @@ describe('content reflection hint refresh', () => {
         type: 'reflection:append',
         record: expect.objectContaining({
           threadId: '/app/threads/thread-a',
+          learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75
         })
@@ -536,7 +540,7 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -551,7 +555,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -577,7 +581,7 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
@@ -592,7 +596,7 @@ describe('content reflection hint refresh', () => {
         };
       }
 
-      if (payload.type === 'reflection:thread-has-completed' && payload.threadId === '/app/threads/thread-a') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
