@@ -63,6 +63,16 @@ export type LearningCycleRecord =
 
 export type ReflectionEligibleLearningCycleRecord = ProblemSolvingLearningCycleRecord | LearningLearningCycleRecord;
 
+export function isReflectionEligibleMode(mode: InteractionMode): mode is ReflectionEligibleInteractionMode {
+  return mode === INTERACTION_MODES.PROBLEM_SOLVING || mode === INTERACTION_MODES.LEARNING;
+}
+
+export function isReflectionEligibleRecord(
+  record: LearningCycleRecord
+): record is ReflectionEligibleLearningCycleRecord {
+  return isReflectionEligibleMode(record.mode);
+}
+
 export interface DelegationLearningCycleSubmission {
   mode: typeof INTERACTION_MODES.DELEGATION;
 }

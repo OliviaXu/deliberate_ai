@@ -8,6 +8,10 @@ export class LearningCycleStore {
 
   constructor(private readonly storage = new StorageClient()) {}
 
+  async listAll(): Promise<LearningCycleRecord[]> {
+    return this.listRaw();
+  }
+
   async append(record: LearningCycleRecord): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.listRaw();

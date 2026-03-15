@@ -1,17 +1,15 @@
 import { loadDebugConfig } from '../shared/debug-config';
 import { Logger } from '../shared/logger';
 import { isConcreteGeminiThreadId, resolveThreadId } from '../shared/thread-id';
-import { INTERACTION_MODES } from '../shared/types';
 import type {
   BackgroundRuntimeMessage,
-  InteractionMode,
   InterceptedSubmitIntent,
   LearningCycleRecord,
-  ReflectionEligibleInteractionMode,
   ReflectionEligibleLearningCycleRecord,
   ReflectionRecord,
   ReflectionSubmission
 } from '../shared/types';
+import { isReflectionEligibleMode, isReflectionEligibleRecord } from '../shared/types';
 import { getContentNowMs } from './clock';
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ReflectionEligibilityTracker } from './reflection-eligibility';
@@ -109,7 +107,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   });
 
   if (result.replayAttempted && result.appendSucceeded) {
-    if (isModeEligibleForReflectionHint(result.record.mode)) {
+    if (isReflectionEligibleMode(result.record.mode)) {
       awaitingNewThreadFollowUp = true;
     }
 
@@ -143,10 +141,6 @@ async function refreshReflectionHintForCurrentThread(): Promise<void> {
   await refreshReflectionHintForThread(resolveThreadId(window.location.href));
 }
 
-function isModeEligibleForReflectionHint(mode: InteractionMode): mode is ReflectionEligibleInteractionMode {
-  return mode === INTERACTION_MODES.PROBLEM_SOLVING || mode === INTERACTION_MODES.LEARNING;
-}
-
 function isThreadIdCacheable(threadId: string): boolean {
   return isConcreteGeminiThreadId(threadId);
 }
@@ -159,7 +153,7 @@ function startReflectionHintWatcher(): void {
 
 function maybeStartActiveCandidateFromNewThread(threadId: string, learningCycleRecord: LearningCycleRecord): boolean {
   if (!awaitingNewThreadFollowUp) return false;
-  if (!isModeEligibleForReflectionHint(learningCycleRecord.mode)) return false;
+  if (!isReflectionEligibleRecord(learningCycleRecord)) return false;
   reflectionEligibility.startTrackingThread(threadId);
   awaitingNewThreadFollowUp = false;
   return true;
@@ -258,22 +252,24 @@ async function resolveThreadHasCompletedReflection(threadId: string): Promise<bo
 
 async function refreshReflectionHintForThread(threadId: string): Promise<void> {
   const learningCycleRecord = await resolveLearningCycleRecord(threadId);
-  if (!learningCycleRecord || !isModeEligibleForReflectionHint(learningCycleRecord.mode)) {
+  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
     reflectionHint.updateVisibilityForThread(threadId, false);
     return;
   }
 
   const hasCompletedReflection = await resolveThreadHasCompletedReflection(threadId);
-  const reflectionEligibleLearningCycleRecord = learningCycleRecord as ReflectionEligibleLearningCycleRecord;
   reflectionHint.updateVisibilityForThread(
     threadId,
-    !hasCompletedReflection && isReflectionDueForThread(threadId, reflectionEligibleLearningCycleRecord)
+    !hasCompletedReflection && isReflectionDueForThread(threadId, learningCycleRecord)
   );
 }
 
 async function handleReflectionReview(threadId: string): Promise<void> {
-  // Review is only reachable from a visible hint, which implies an eligible due record.
-  const learningCycleRecord = (await resolveLearningCycleRecord(threadId)) as ReflectionEligibleLearningCycleRecord;
+  const learningCycleRecord = await resolveLearningCycleRecord(threadId);
+  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
+    reflectionHint.updateVisibilityForThread(threadId, false);
+    return;
+  }
 
   const submission = await reflectionModal.open(learningCycleRecord);
   if (!submission) {

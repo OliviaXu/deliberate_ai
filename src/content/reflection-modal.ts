@@ -147,7 +147,7 @@ export class ReflectionModal {
       submitButton.disabled = false;
       actions.appendChild(submitButton);
 
-      let sliderValue = DEFAULT_REFLECTION_SCORE;
+      let sliderValue = Number(DEFAULT_REFLECTION_SCORE);
       const syncSliderProgress = (): void => {
         scaleTrackShell.style.setProperty('--deliberate-reflection-scale-progress', String(sliderValue / 100));
       };

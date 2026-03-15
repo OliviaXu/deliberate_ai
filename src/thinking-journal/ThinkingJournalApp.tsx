@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { INTERACTION_MODES } from '../shared/types';
+import { INTERACTION_MODES, type ReflectionScore } from '../shared/types';
 import { loadThinkingJournalEntries } from './thinking-journal-store';
 import { filterThinkingJournalEntries, type ThinkingJournalEntry, type ThinkingJournalFilter } from './utils/entries';
 
@@ -7,16 +7,37 @@ interface ThinkingJournalAppProps {
   preloadedEntries?: ThinkingJournalEntry[];
 }
 
-const FILTERS: Array<{ value: ThinkingJournalFilter; label: string }> = [
+const FILTERS: Array<{ value: ThinkingJournalFilter; label: string; emoji?: string }> = [
   { value: 'all', label: 'All' },
-  { value: INTERACTION_MODES.PROBLEM_SOLVING, label: 'Problem-Solving' },
-  { value: INTERACTION_MODES.DELEGATION, label: 'Delegation' },
-  { value: INTERACTION_MODES.LEARNING, label: 'Learning' }
+  { value: INTERACTION_MODES.PROBLEM_SOLVING, label: 'Problem-Solving', emoji: '🤔' },
+  { value: INTERACTION_MODES.DELEGATION, label: 'Delegation', emoji: '😌' },
+  { value: INTERACTION_MODES.LEARNING, label: 'Learning', emoji: '🧑‍🎓' }
 ];
+
+type ReflectionVisualLevel = 1 | 2 | 3 | 4 | 5;
+
+const NAV_CHIP_BASE_CLASS =
+  'group font-journal appearance-none cursor-pointer rounded-[15px] border px-3 py-[0.55rem] text-[0.92rem] font-semibold leading-none transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(59,130,246,0.38)]';
+
+const NAV_CHIP_SELECTED_CLASS = 'border-transparent bg-white text-[#2f4257]';
+
+const NAV_CHIP_UNSELECTED_CLASS =
+  'border-transparent bg-transparent text-[#6f6963] hover:bg-white hover:text-[#2f4257]';
+
+const CHIP_CONTENT_CLASS = 'inline-flex items-center gap-1.5';
+
+const CHIP_EMOJI_CLASS =
+  'text-[0.88rem] leading-none opacity-95 [filter:grayscale(0.45)_saturate(0.55)] group-hover:[filter:none]';
+
+const CHIP_EMOJI_SELECTED_CLASS = 'text-[0.88rem] leading-none opacity-100 [filter:none]';
+
+const METADATA_TAG_CLASS =
+  'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
 export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps): JSX.Element {
   const [entries, setEntries] = useState<ThinkingJournalEntry[]>(preloadedEntries ?? []);
   const [filter, setFilter] = useState<ThinkingJournalFilter>('all');
+  const [withReflectionOnly, setWithReflectionOnly] = useState(false);
   const [expandedPromptIds, setExpandedPromptIds] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(preloadedEntries === undefined);
 
@@ -39,66 +60,141 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
     };
   }, [preloadedEntries]);
 
-  const filteredEntries = useMemo(() => filterThinkingJournalEntries(entries, filter), [entries, filter]);
+  const filteredEntries = useMemo(
+    () =>
+      filterThinkingJournalEntries(entries, {
+        mode: filter,
+        withReflectionOnly
+      }),
+    [entries, filter, withReflectionOnly]
+  );
 
   return (
-    <main className="mx-auto max-w-[860px] px-5 pb-14 pt-10 sm:px-3.5 sm:pb-11 sm:pt-7">
+    <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
       <header>
         <h1 className="m-0 text-[clamp(1.85rem,2.7vw,2.35rem)] font-semibold tracking-[-0.02em]">Thinking Journal</h1>
-        <p className="mt-2.5 text-[0.98rem] text-[#566271]">A quiet view of your thinking.</p>
+        <p className="mt-1.5 text-[0.95rem] text-[#5d6977]">A quiet view of your thinking</p>
       </header>
 
-      <section className="mt-[26px] flex flex-wrap gap-2.5" aria-label="Thinking Journal filters">
-        {FILTERS.map((item) => (
-          <button
-            type="button"
-            key={item.value}
-            className={`appearance-none cursor-pointer rounded-[15px] border px-3 py-2 text-[0.9rem] font-medium leading-none shadow-none transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(59,130,246,0.38)] ${
-              item.value === filter
-                ? 'border-[rgba(15,23,42,0.14)] bg-[#f6f7f9] text-[#202124]'
-                : 'border-[rgba(15,23,42,0.14)] bg-white text-[#2c3136] hover:bg-[#f6f7f9]'
-            }`}
-            onClick={() => setFilter(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
+      <section className="mt-4 border-b border-[#e3e8ee] pb-2.5" aria-label="Thinking Journal filters">
+        <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-filter-groups">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {FILTERS.map((item) => {
+              const isSelected = item.value === filter;
+              return (
+                <button
+                  type="button"
+                  key={item.value}
+                  className={`${NAV_CHIP_BASE_CLASS} ${isSelected ? NAV_CHIP_SELECTED_CLASS : NAV_CHIP_UNSELECTED_CLASS}`}
+                  onClick={() => setFilter(item.value)}
+                >
+                  {item.emoji ? (
+                    <span className={CHIP_CONTENT_CLASS}>
+                      <span
+                        className={
+                          isSelected
+                            ? CHIP_EMOJI_SELECTED_CLASS
+                            : CHIP_EMOJI_CLASS
+                        }
+                        data-testid={`thinking-journal-filter-emoji-${item.value}`}
+                      >
+                        {item.emoji}
+                      </span>
+                      <span>{item.label}</span>
+                    </span>
+                  ) : (
+                    item.label
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center md:ml-auto">
+            <button
+              type="button"
+              className={`${NAV_CHIP_BASE_CLASS} ${withReflectionOnly ? NAV_CHIP_SELECTED_CLASS : NAV_CHIP_UNSELECTED_CLASS}`}
+              aria-pressed={withReflectionOnly}
+              onClick={() => setWithReflectionOnly((current) => !current)}
+            >
+              With reflection
+            </button>
+          </div>
+        </div>
       </section>
 
-      <section className="mt-7 grid gap-[18px]" aria-live="polite">
+      <section className="mt-3 grid gap-2.5" aria-live="polite">
         {loading && <p className="mt-2 text-[#6a7786]">Loading entries...</p>}
         {!loading && filteredEntries.length === 0 && <p className="mt-2 text-[#6a7786]">No entries in the last 7 days.</p>}
         {!loading &&
           filteredEntries.map((entry) => {
             const isExpanded = Boolean(expandedPromptIds[entry.id]);
+            const supportingContent = (
+              <>
+                {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
+                  <section>
+                    <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
+                      Your Hypothesis
+                    </h2>
+                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.hypothesis}</p>
+                  </section>
+                )}
+
+                {entry.mode === INTERACTION_MODES.LEARNING && entry.initialContext && (
+                  <section>
+                    <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
+                      Starting Point
+                    </h2>
+                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.initialContext}</p>
+                  </section>
+                )}
+              </>
+            );
+            const hasSupportingContent =
+              entry.mode === INTERACTION_MODES.PROBLEM_SOLVING ||
+              (entry.mode === INTERACTION_MODES.LEARNING && Boolean(entry.initialContext));
+            const hasBody = hasSupportingContent || Boolean(entry.reflection);
+
             return (
               <article
                 key={entry.id}
-                className="rounded-[14px] border border-[#dce2e8] bg-white p-[18px]"
+                className="rounded-[14px] border border-[#dce2e8] bg-white p-2.5"
                 data-testid="thinking-journal-card"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3.5">
-                  <p className="m-0 text-[0.9rem] text-[#5f6b7a]">{entry.dateLabel}</p>
-                  <span className="whitespace-nowrap rounded-full border border-[#d7e1ee] bg-[#f2f6fb] px-2.5 py-1.5 text-[0.84rem] text-[#2f4257]">
-                    {entry.modeEmoji} {entry.modeLabel}
-                  </span>
-                </div>
-
-                <section className="mt-4">
-                  <h2 className="mb-[7px] mt-0 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[#6a7786]">Prompt</h2>
-                  <p
-                    className={`m-0 whitespace-pre-wrap leading-[1.6] text-[#213040] ${
-                      entry.promptIsLong && !isExpanded
-                        ? '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:3]'
-                        : ''
-                    }`}
-                  >
-                    {entry.prompt}
-                  </p>
+                <div className="flex flex-col gap-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-card-header">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <p className="m-0 shrink-0 text-[1rem] text-[#707b88]" data-testid="thinking-journal-date-title">
+                          {entry.dateLabel}
+                        </p>
+                        <p
+                          className={`m-0 min-w-0 whitespace-pre-wrap text-[1rem] leading-[1.45] text-[#213040] ${
+                            entry.promptIsLong && !isExpanded
+                              ? '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
+                              : ''
+                          }`}
+                          data-testid="thinking-journal-prompt-title"
+                        >
+                          {entry.prompt}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5" data-testid="thinking-journal-card-badge-group">
+                      {entry.reflection ? <ReflectionSpark level={toReflectionVisualLevel(entry.reflection.score)} /> : null}
+                      <span className={METADATA_TAG_CLASS} data-testid="thinking-journal-card-mode-badge">
+                        <span className={CHIP_CONTENT_CLASS}>
+                          <span className={CHIP_EMOJI_SELECTED_CLASS} data-testid="thinking-journal-card-mode-badge-emoji">
+                            {entry.modeEmoji}
+                          </span>
+                          <span data-testid="thinking-journal-card-mode-badge-label">{entry.modeLabel}</span>
+                        </span>
+                      </span>
+                    </span>
+                  </div>
                   {entry.promptIsLong && (
                     <button
                       type="button"
-                      className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-[0.88rem] text-[#52657e]"
+                      className="w-fit cursor-pointer border-0 bg-transparent p-0 text-[0.88rem] text-[#52657e]"
                       onClick={() =>
                         setExpandedPromptIds((current) => ({
                           ...current,
@@ -109,29 +205,132 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
                       {isExpanded ? 'Show less' : 'Show more'}
                     </button>
                   )}
-                </section>
+                </div>
 
-                {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
-                  <section className="mt-4">
-                    <h2 className="mb-[7px] mt-0 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[#6a7786]">
-                      Your Hypothesis
-                    </h2>
-                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.hypothesis}</p>
-                  </section>
-                )}
-
-                {entry.mode === INTERACTION_MODES.LEARNING && entry.initialContext && (
-                  <section className="mt-4">
-                    <h2 className="mb-[7px] mt-0 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[#6a7786]">
-                      Initial Context
-                    </h2>
-                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.initialContext}</p>
-                  </section>
-                )}
+                {hasBody &&
+                  (entry.reflection ? (
+                  <div
+                    className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.88fr)] md:items-start"
+                    data-testid="thinking-journal-card-columns"
+                  >
+                    <div className="grid gap-2" data-testid="thinking-journal-supporting-column">
+                      {hasSupportingContent ? supportingContent : null}
+                    </div>
+                    <section
+                      className="border-t border-[#edf1f4] pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0"
+                      data-testid="thinking-journal-reflection"
+                    >
+                      <h2
+                        className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]"
+                        data-testid="thinking-journal-reflection-header"
+                      >
+                        Reflection
+                      </h2>
+                      {entry.reflection.notes && (
+                        <p
+                          className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]"
+                          data-testid="thinking-journal-reflection-notes"
+                        >
+                          {entry.reflection.notes}
+                        </p>
+                      )}
+                    </section>
+                  </div>
+                ) : (
+                  <div className="mt-2 grid gap-2">{supportingContent}</div>
+                ))}
               </article>
             );
           })}
       </section>
     </main>
   );
+}
+
+function toReflectionVisualLevel(score: ReflectionScore): ReflectionVisualLevel {
+  if (score <= 0) return 1;
+  if (score <= 25) return 2;
+  if (score <= 50) return 3;
+  if (score <= 75) return 4;
+  return 5;
+}
+
+function ReflectionSpark({ level }: { level: ReflectionVisualLevel }): JSX.Element {
+  const styles = sparkStyles(level);
+
+  return (
+    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center" data-testid="thinking-journal-reflection-spark" data-level={level}>
+      <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
+        {styles.glowOpacity > 0 && (
+          <circle cx="10" cy="10" r="6.2" fill={styles.glowColor} opacity={styles.glowOpacity} />
+        )}
+        <path
+          d="M10 2.8L11.82 8.18L17.2 10L11.82 11.82L10 17.2L8.18 11.82L2.8 10L8.18 8.18L10 2.8Z"
+          fill={styles.fillColor}
+          fillOpacity={styles.fillOpacity}
+          stroke={styles.strokeColor}
+          strokeOpacity={styles.strokeOpacity}
+          strokeWidth="1.15"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function sparkStyles(level: ReflectionVisualLevel): {
+  fillColor: string;
+  fillOpacity: number;
+  strokeColor: string;
+  strokeOpacity: number;
+  glowColor: string;
+  glowOpacity: number;
+} {
+  switch (level) {
+    case 1:
+      return {
+        fillColor: '#e0ad5f',
+        fillOpacity: 0,
+        strokeColor: '#c08d45',
+        strokeOpacity: 0.82,
+        glowColor: '#eac88c',
+        glowOpacity: 0
+      };
+    case 2:
+      return {
+        fillColor: '#e2ad5c',
+        fillOpacity: 0.08,
+        strokeColor: '#c98e3b',
+        strokeOpacity: 0.98,
+        glowColor: '#efcf96',
+        glowOpacity: 0.12
+      };
+    case 3:
+      return {
+        fillColor: '#dfaa56',
+        fillOpacity: 0.52,
+        strokeColor: '#c7862e',
+        strokeOpacity: 0.98,
+        glowColor: '#e9c37f',
+        glowOpacity: 0.08
+      };
+    case 4:
+      return {
+        fillColor: '#d4973c',
+        fillOpacity: 0.72,
+        strokeColor: '#b7761f',
+        strokeOpacity: 1,
+        glowColor: '#e0b86d',
+        glowOpacity: 0.14
+      };
+    case 5:
+      return {
+        fillColor: '#cb8928',
+        fillOpacity: 0.84,
+        strokeColor: '#aa6915',
+        strokeOpacity: 1,
+        glowColor: '#dfb366',
+        glowOpacity: 0.2
+      };
+  }
 }

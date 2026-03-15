@@ -69,4 +69,16 @@ describe('ReflectionStore', () => {
     expect(records).toHaveLength(1);
     expect(records[0]?.id).toBe('reflection-3');
   });
+
+  it('lists all stored reflections', async () => {
+    const store = new ReflectionStore();
+
+    await store.append(makeReflection({ id: 'reflection-1', threadId: '/app/threads/thread-a' }));
+    await store.append(makeReflection({ id: 'reflection-2', threadId: '/app/threads/thread-b', score: 25 }));
+
+    await expect(store.listAll()).resolves.toEqual([
+      expect.objectContaining({ id: 'reflection-1', threadId: '/app/threads/thread-a' }),
+      expect.objectContaining({ id: 'reflection-2', threadId: '/app/threads/thread-b', score: 25 })
+    ]);
+  });
 });

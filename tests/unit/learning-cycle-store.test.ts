@@ -79,6 +79,17 @@ describe('LearningCycleStore', () => {
     await expect(store.getLatestForThread('/app/threads/missing')).resolves.toBeNull();
   });
 
+  it('lists all stored records', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({ id: '1', threadId: '/app/threads/one' }));
+    await store.append(makeRecord({ id: '2', threadId: '/app/threads/two' }));
+
+    await expect(store.listAll()).resolves.toEqual([
+      expect.objectContaining({ id: '1', threadId: '/app/threads/one' }),
+      expect.objectContaining({ id: '2', threadId: '/app/threads/two' })
+    ]);
+  });
+
   it('resolves a placeholder thread id for a specific record', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1', threadId: '/app' }));

@@ -8,6 +8,10 @@ export class ReflectionStore {
 
   constructor(private readonly storage = new StorageClient()) {}
 
+  async listAll(): Promise<ReflectionRecord[]> {
+    return this.listRaw();
+  }
+
   async append(record: ReflectionRecord): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.listRaw();
