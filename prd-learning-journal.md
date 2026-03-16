@@ -41,8 +41,8 @@ Mode emojis remain exactly: **🤔 😌 🧑‍🎓**.
 4. The card remains anchored to the original interaction timestamp and mode badge.
 5. The reflection section should:
    1. Use a simple `Reflection` label
-   2. Show `Reflected <timestamp>`
-   3. Show the persisted reflection score (`0 | 25 | 50 | 75 | 100`)
+   2. Do **not** show a reflection timestamp line
+   3. Communicate reflection score visually (no required numeric label); current UI uses the spark visual mapped from persisted score (`0 | 25 | 50 | 75 | 100`)
    4. Show the optional reflection note when present
 6. Reuse the existing prompt and hypothesis/prior-context content already shown on the card; do not duplicate them inside the reflection section.
 7. Do not create a separate reflection card when the source learning-cycle card is already present.
@@ -104,7 +104,8 @@ Mode emojis remain exactly: **🤔 😌 🧑‍🎓**.
       - drops reflections that cannot be matched to an eligible interaction
    2. `tests/unit/thinking-journal-app.test.tsx`
       - renders one card with an optional reflection section
-      - shows reflection timestamp, score, and optional note
+      - keeps reflection score as a visual signal (spark), with optional note
+      - does not render a reflected timestamp text line
       - keeps prompt truncation behavior for the prompt block
       - toggles `With reflection only`
 2. **Green**
@@ -115,10 +116,11 @@ Mode emojis remain exactly: **🤔 😌 🧑‍🎓**.
 ## Acceptance Criteria For Phase 2
 1. Timeline still shows only the last 7 days.
 2. Cards for eligible `problem_solving` and `learning` entries show a reflection section when a completed reflection is matched.
-3. Reflection sections show reflected timestamp, score, and optional note.
-4. Delegation entries never show reflection sections.
-5. The `With reflection only` filter works alongside the existing mode filter.
-6. UI remains calm, minimal, and read-only.
+3. Reflection sections do not show a reflected timestamp text line.
+4. Reflection score is presented in some user-facing way; visual-only representation is acceptable (current spark mapping).
+5. Delegation entries never show reflection sections.
+6. The `With reflection only` filter works alongside the existing mode filter.
+7. UI remains calm, minimal, and read-only.
 
 ## Assumptions
 1. Phase 1 behavior remains unchanged.
