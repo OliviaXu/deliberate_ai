@@ -10,6 +10,7 @@ export default defineBackground(() => {
   const learningCycleStore = new LearningCycleStore();
   const reflectionStore = new ReflectionStore();
 
+<<<<<<< HEAD
   registerLearningCycleMessageHandlers({
     append: (record) => learningCycleStore.append(record),
     resolveThreadIdForRecord: (recordId, fromThreadId, toThreadId) =>
@@ -20,5 +21,9 @@ export default defineBackground(() => {
     append: (record) => reflectionStore.append(record),
     hasCompletedReflectionForRecord: (learningCycleRecordId) => reflectionStore.hasCompletedReflectionForRecord(learningCycleRecordId)
   });
+=======
+  registerLearningCycleMessageHandlers(learningCycleStore);
+  registerReflectionMessageHandlers(reflectionStore);
+>>>>>>> 1fcb1e6 (Simplify background store registration)
   registerThinkingJournalActionHandler();
 });
