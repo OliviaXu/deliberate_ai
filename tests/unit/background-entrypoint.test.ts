@@ -15,7 +15,7 @@ const learningCycleStoreInstance = {
 };
 const reflectionStoreInstance = {
   append: vi.fn(),
-  hasCompletedReflectionForThread: vi.fn()
+  hasCompletedReflectionForRecord: vi.fn()
 };
 
 const LearningCycleStore = vi.fn(() => learningCycleStoreInstance);
