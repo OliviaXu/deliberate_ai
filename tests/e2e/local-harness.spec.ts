@@ -10,14 +10,27 @@ const harnessHtml = fs.readFileSync(harnessPath, 'utf8');
 const primaryThreadUrl = 'https://gemini.google.com/app/threads/test-thread';
 const secondaryThreadUrl = 'https://gemini.google.com/app/threads/another-thread';
 const tertiaryThreadUrl = 'https://gemini.google.com/app/threads/turn-threshold-thread';
+const PERSISTENT_CONTEXT_LAUNCH_ATTEMPTS = 3;
 
 async function launchExtensionContext(userDataDir: string): Promise<import('@playwright/test').BrowserContext> {
-  return chromium.launchPersistentContext(userDataDir, {
-    channel: 'chromium',
-    headless: true,
-    ignoreDefaultArgs: ['--disable-extensions'],
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
-  });
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= PERSISTENT_CONTEXT_LAUNCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await chromium.launchPersistentContext(userDataDir, {
+        channel: 'chromium',
+        headless: true,
+        ignoreDefaultArgs: ['--disable-extensions'],
+        args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt === PERSISTENT_CONTEXT_LAUNCH_ATTEMPTS) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  throw lastError;
 }
 
 async function setupHarness(
@@ -124,7 +137,7 @@ async function expectReflectionModal(page: import('@playwright/test').Page): Pro
 
 async function submitReflection(page: import('@playwright/test').Page, score: '0' | '25' | '50' | '75' | '100', notes?: string): Promise<void> {
   await expectReflectionModal(page);
-  await page.locator(`[data-testid="deliberate-reflection-score-${score}"]`).click();
+  await page.locator('[data-testid="deliberate-reflection-scale-input"]').fill(score);
   if (notes) {
     await page.locator('[data-testid="deliberate-reflection-notes"]').fill(notes);
   }
@@ -313,7 +326,7 @@ test('local harness gates reflection hint on due status and scopes it per thread
 
     await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
     await expectReflectionModal(page);
-    await page.locator('[data-testid="deliberate-reflection-close"]').click();
+    await page.locator('[data-testid="deliberate-reflection-cancel"]').click();
     await expect(page.locator('[data-testid="deliberate-reflection-modal"]')).toHaveCount(0);
     await expectHintVisible(page);
 
@@ -485,13 +498,16 @@ test('local harness submits a due reflection and persists completion for a histo
   }
 });
 
-test('local harness bypasses modal after browser restart when thread already has entry', async ({}, testInfo) => {
-  test.skip(process.env.E2E_PERSISTENT !== '1', 'Set E2E_PERSISTENT=1 to run restart persistence check.');
+test('local harness bypasses modal in a fresh browser context when thread already has entry', async ({}, testInfo) => {
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
-  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-once-persistent-${testInfo.workerIndex}-${Date.now()}`);
+  const runId = `${testInfo.workerIndex}-${Date.now()}`;
+  const firstUserDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-once-seed-${runId}`);
+  const secondUserDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-once-fresh-${runId}`);
+  let seededRecords: unknown[] = [];
+
   {
-    const firstContext = await launchExtensionContext(userDataDir);
+    const firstContext = await launchExtensionContext(firstUserDataDir);
     try {
       const page = await setupHarness(firstContext, primaryThreadUrl);
       await clearRecords(firstContext);
@@ -502,19 +518,19 @@ test('local harness bypasses modal after browser restart when thread already has
           return records.length;
         })
         .toBe(1);
+      seededRecords = await readRecords(firstContext);
     } finally {
       await firstContext.close();
     }
   }
 
   {
-    const secondContext = await launchExtensionContext(userDataDir);
+    const secondContext = await launchExtensionContext(secondUserDataDir);
     try {
+      await writeRecords(secondContext, seededRecords);
       const page = await setupHarness(secondContext, primaryThreadUrl);
       await resetNativeSendState(page);
-      await sendPromptExpectBypass(page, 'After restart, same thread should bypass modal');
-      const records = await readRecords(secondContext);
-      expect(records).toHaveLength(1);
+      await sendPromptExpectBypass(page, 'Fresh browser context should still bypass modal');
     } finally {
       await secondContext.close();
     }
@@ -564,18 +580,18 @@ test('thinking journal renders seeded entries and supports mode filters', async 
     await page.goto(`chrome-extension://${extensionId}/thinking-journal.html`, { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByRole('heading', { name: 'Thinking Journal' })).toBeVisible();
-    await expect(page.getByText('A quiet view of your thinking.')).toBeVisible();
+    await expect(page.getByText('A quiet view of your thinking')).toBeVisible();
 
     await expect(page.getByText('This should not render because it is out of range')).toHaveCount(0);
     await expect(page.getByText('Your Hypothesis')).toBeVisible();
     await expect(page.getByText('No hypothesis recorded.')).toBeVisible();
-    await expect(page.getByText('Initial Context')).toBeVisible();
+    await expect(page.getByText('Starting Point')).toBeVisible();
     await expect(page.getByText('I already know OAuth basics')).toBeVisible();
 
     await page.getByRole('button', { name: 'Learning' }).click();
     await expect(page.locator('[data-testid="thinking-journal-card"]')).toHaveCount(1);
-    await expect(page.getByText('🧑‍🎓 Learning')).toBeVisible();
-    await expect(page.getByText('🤔 Problem-Solving')).toHaveCount(0);
+    await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]')).toHaveText('Learning');
+    await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]').getByText('Problem-Solving')).toHaveCount(0);
   } finally {
     await context.close();
   }

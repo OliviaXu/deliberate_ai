@@ -141,7 +141,6 @@ describe('content reflection hint refresh', () => {
       timestamp: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
-      interceptionId: 1,
       prompt: 'First prompt'
     });
 
@@ -178,7 +177,6 @@ describe('content reflection hint refresh', () => {
       timestamp: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
-      interceptionId: 1,
       prompt: 'First prompt'
     });
 
@@ -191,7 +189,6 @@ describe('content reflection hint refresh', () => {
       timestamp: 2_000,
       url: 'https://gemini.google.com/app/threads/thread-a',
       platform: 'gemini',
-      interceptionId: 2,
       prompt: 'Second turn'
     });
 
@@ -231,7 +228,6 @@ describe('content reflection hint refresh', () => {
       timestamp: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
-      interceptionId: 1,
       prompt: 'First prompt'
     });
 
@@ -253,7 +249,6 @@ describe('content reflection hint refresh', () => {
       timestamp: 2_000,
       url: 'https://gemini.google.com/app/threads/thread-a',
       platform: 'gemini',
-      interceptionId: 2,
       prompt: 'Second turn'
     });
 
@@ -261,6 +256,50 @@ describe('content reflection hint refresh', () => {
 
     expect(threadRecordRequestCount).toBe(2);
     expect(startTrackingThread).toHaveBeenCalledWith('/app/threads/thread-a');
+  });
+
+  it('retries a missed concrete-thread lookup during intercept before reopening the mode modal', async () => {
+    let threadRecordRequestCount = 0;
+    runtimeSendMessage.mockImplementation(async (message: unknown) => {
+      const payload = message as { type?: string; threadId?: string };
+      if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
+        threadRecordRequestCount += 1;
+        if (threadRecordRequestCount === 1) {
+          return { record: null };
+        }
+
+        return {
+          record: {
+            id: 'record-1',
+            timestamp: 999,
+            platform: 'gemini',
+            threadId: '/app/threads/thread-a',
+            prompt: 'First prompt',
+            mode: 'learning'
+          }
+        };
+      }
+      return { record: null };
+    });
+
+    window.history.replaceState({}, '', '/app/threads/thread-a');
+
+    await import('../../src/content/index');
+    await flushAsyncWork();
+
+    interceptHandler?.({
+      source: 'enter_key',
+      timestamp: 2_000,
+      url: 'https://gemini.google.com/app/threads/thread-a',
+      platform: 'gemini',
+      prompt: 'Second turn'
+    });
+
+    await flushAsyncWork();
+
+    expect(threadRecordRequestCount).toBe(2);
+    expect(modalOpen).not.toHaveBeenCalled();
+    expect(observeFollowUpSubmission).toHaveBeenCalledWith('/app/threads/thread-a');
   });
 
   it('renders once after resolving a missing thread record for hint refresh', async () => {

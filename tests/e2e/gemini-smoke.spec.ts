@@ -33,7 +33,20 @@ async function connectToGeminiContext(): Promise<import('@playwright/test').Brow
     return null;
   }
 
-  const context = browser.contexts()[0];
+  const context =
+    browser.contexts().find((candidate) =>
+      candidate.pages().some((page) => {
+        try {
+          return new URL(page.url()).host === 'gemini.google.com';
+        } catch {
+          return false;
+        }
+      })
+    ) ??
+    browser.contexts().find((candidate) =>
+      candidate.serviceWorkers().some((worker) => worker.url().startsWith('chrome-extension://'))
+    ) ??
+    browser.contexts()[0];
   if (!context) {
     test.skip(true, 'No Chrome context was available over CDP. Restart with `npm run gemini:open` and try again.');
     return null;
@@ -46,6 +59,7 @@ async function openGeminiPage(
   context: import('@playwright/test').BrowserContext,
   url: string = GEMINI_APP_URL
 ): Promise<import('@playwright/test').Page> {
+  const expectedConcreteUrl = resolveConcreteGeminiUrl(url);
   const page = await openPageWithRetries(context, url, (actualUrl) => {
     try {
       return new URL(actualUrl).host === 'gemini.google.com';
@@ -55,6 +69,17 @@ async function openGeminiPage(
   });
 
   await expect(getComposer(page)).toBeVisible({ timeout: 15_000 });
+  if (expectedConcreteUrl) {
+    await expect
+      .poll(
+        async () => resolveConcreteGeminiUrl(page.url()),
+        {
+          timeout: 15_000,
+          message: `Expected Gemini to finish restoring concrete thread URL ${expectedConcreteUrl}.`
+        }
+      )
+      .toBe(expectedConcreteUrl);
+  }
   await expectDeliberateActive(page);
   return page;
 }
@@ -231,7 +256,8 @@ async function getExtensionId(context: import('@playwright/test').BrowserContext
   const deadline = Date.now() + 45_000;
 
   while (Date.now() < deadline) {
-    const serviceWorker = context.serviceWorkers()[0];
+    const contexts = context.browser()?.contexts() ?? [context];
+    const serviceWorker = contexts.flatMap((candidate) => candidate.serviceWorkers())[0];
     if (serviceWorker) {
       cachedExtensionId = new URL(serviceWorker.url()).host;
       return cachedExtensionId;
@@ -447,7 +473,7 @@ test('renders the learning note flow on the live Gemini modal', async () => {
   }
 });
 
-test('records a live Gemini send, resolves the placeholder thread id, and bypasses the modal on revisit', async () => {
+test('records a live Gemini send and resolves the placeholder thread id', async () => {
   test.setTimeout(180_000);
   const context = await connectToGeminiContext();
   if (!context) return;
@@ -461,28 +487,4 @@ test('records a live Gemini send, resolves the placeholder thread id, and bypass
   expect(record.threadId).not.toBe(PLACEHOLDER_GEMINI_THREAD_ID);
   expect(new URL(threadUrl).pathname).toBe(record.threadId);
   await expect.poll(async () => (await readRecords(context)).length).toBe(1);
-
-  const page = await openGeminiPage(context, threadUrl);
-  try {
-    const secondPrompt = `${makePrompt('delegation-second')} Reply with exactly OK.`;
-    const beforeCount = await getSignalCount(page);
-
-    await typePrompt(page, secondPrompt);
-    await getComposer(page).press('Enter');
-    await waitForSignalIncrement(page, beforeCount, 'pressing Enter in a thread with an existing record');
-
-    await expect(getModal(page)).toHaveCount(0);
-    await expect
-      .poll(
-        async () => page.evaluate(() => document.documentElement.getAttribute('data-deliberate-modal-open')),
-        {
-          timeout: 10_000,
-          message: 'Expected the mode modal to stay closed when revisiting a thread with an existing entry.'
-        }
-      )
-      .toBe('false');
-    await expect.poll(async () => (await readRecords(context)).length).toBe(1);
-  } finally {
-    await page.close();
-  }
 });

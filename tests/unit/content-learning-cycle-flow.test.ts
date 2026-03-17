@@ -7,7 +7,6 @@ const baseIntent: InterceptedSubmitIntent = {
   timestamp: 1730000000000,
   url: 'https://gemini.google.com/app/threads/123',
   platform: 'gemini',
-  interceptionId: 10,
   prompt: 'What is the best rollout sequence?'
 };
 
@@ -61,6 +60,7 @@ describe('handleModeSubmission', () => {
   it('includes problem-solving prediction in append payload', async () => {
     const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
     const resume = vi.fn(() => true);
+    const randomUuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000000');
 
     await handleModeSubmission({
       intent: baseIntent,
@@ -75,12 +75,14 @@ describe('handleModeSubmission', () => {
     expect(payload).toMatchObject({
       type: 'learning-cycle:append',
       record: {
+        id: '00000000-0000-4000-8000-000000000000',
         mode: 'problem_solving',
         prediction: 'x'.repeat(100),
         prompt: 'What is the best rollout sequence?',
         threadId: '/app/threads/123'
       }
     });
+    expect(randomUuid).toHaveBeenCalledOnce();
   });
 
   it('reports append failure when runtime response is not ok', async () => {

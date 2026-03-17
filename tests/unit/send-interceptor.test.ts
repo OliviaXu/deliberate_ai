@@ -77,6 +77,7 @@ describe('GeminiSendInterceptor', () => {
     expect(state.textContent).toBe('idle');
     const intent = handler.mock.calls[0]?.[0];
     expect(intent?.prompt).toBe('draft');
+    expect(intent).not.toHaveProperty('interceptionId');
 
     interceptor.stop();
   });
