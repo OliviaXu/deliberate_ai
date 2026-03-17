@@ -8,6 +8,11 @@ interface InternalSubmitIntent extends InterceptedSubmitIntent {
   composer: HTMLElement | null;
 }
 
+interface ResumableSubmitIntent {
+  emittedIntent: InterceptedSubmitIntent;
+  replayIntent: InternalSubmitIntent;
+}
+
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
 export class GeminiSendInterceptor {
@@ -15,10 +20,9 @@ export class GeminiSendInterceptor {
 
   private readonly handlers = new Set<(intent: InterceptedSubmitIntent) => void>();
   private started = false;
-  private interceptionId = 0;
   // One-shot gate used to let our synthetic "resume send" event pass through.
   private bypassNextInterception = false;
-  private lastIntent: InternalSubmitIntent | null = null;
+  private lastResumableIntent: ResumableSubmitIntent | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (!this.isSubmitKeyEvent(event)) return;
@@ -112,7 +116,6 @@ export class GeminiSendInterceptor {
     composer: HTMLElement | null,
     button: HTMLButtonElement | null
   ): InternalSubmitIntent {
-    this.interceptionId += 1;
     const prompt = composer ? this.getComposerText(composer) : '';
     return {
       source,
@@ -120,28 +123,29 @@ export class GeminiSendInterceptor {
       url: window.location.href,
       platform: 'gemini',
       prompt,
-      interceptionId: this.interceptionId,
       button,
       composer
     };
   }
 
   private emitIntent(intent: InternalSubmitIntent): void {
-    this.lastIntent = intent;
-    const publicIntent: InterceptedSubmitIntent = {
+    const emittedIntent: InterceptedSubmitIntent = {
       source: intent.source,
       timestamp: intent.timestamp,
       url: intent.url,
       platform: intent.platform,
-      prompt: intent.prompt,
-      interceptionId: intent.interceptionId
+      prompt: intent.prompt
     };
-    this.handlers.forEach((handler) => handler(publicIntent));
+    this.lastResumableIntent = {
+      emittedIntent,
+      replayIntent: intent
+    };
+    this.handlers.forEach((handler) => handler(emittedIntent));
   }
 
   private resolveIntentForResume(intent: InterceptedSubmitIntent): InternalSubmitIntent | null {
-    if (this.lastIntent && this.lastIntent.interceptionId === intent.interceptionId) return this.lastIntent;
-    return null;
+    if (this.lastResumableIntent?.emittedIntent !== intent) return null;
+    return this.lastResumableIntent.replayIntent;
   }
 
   private consumeBypassIfSet(): boolean {
@@ -153,13 +157,13 @@ export class GeminiSendInterceptor {
 
   private tryResumeByButtonThenEnter(intent: InternalSubmitIntent): boolean {
     if (this.resumeByClick(intent.button)) return true;
-    this.logger?.info('resume-fallback-button-to-enter', { interceptionId: intent.interceptionId });
+    this.logger?.info('resume-fallback-button-to-enter');
     return this.resumeByEnter(intent.composer);
   }
 
   private tryResumeByClickThenEnter(intent: InternalSubmitIntent): boolean {
     if (this.resumeByClick(this.resolveSendButton())) return true;
-    this.logger?.info('resume-fallback-click-to-enter', { interceptionId: intent.interceptionId });
+    this.logger?.info('resume-fallback-click-to-enter');
     return this.resumeByEnter(intent.composer);
   }
 

@@ -57,8 +57,7 @@ interceptor.onIntercept((intent) => {
     busyDropCount += 1;
     logger.info('submit-intent-dropped-while-busy', {
       busyDropCount,
-      threadId: resolveThreadId(intent.url),
-      interceptionId: intent.interceptionId
+      threadId: resolveThreadId(intent.url)
     });
     setDomState(interceptionCount, modalOpen);
     return;
@@ -89,8 +88,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
     logger.info('thread-entry-modal-bypassed', {
       source: 'thread-record',
       threadId,
-      replayAttempted,
-      interceptionId: intent.interceptionId
+      replayAttempted
     });
     return;
   }
@@ -99,7 +97,7 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   setDomState(interceptionCount, true);
 
   const submission = await modeModal.open();
-  logger.info('mode-selected', { mode: submission.mode, interceptionId: intent.interceptionId });
+  logger.info('mode-selected', { mode: submission.mode });
 
   const result = await handleModeSubmission({
     intent,
@@ -121,7 +119,6 @@ async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
       }
       logger.info('thread-entry-modal-consumed', {
         threadId,
-        interceptionId: intent.interceptionId,
         mode: result.record.mode
       });
     }

@@ -31,7 +31,7 @@ interface HandleModeSubmissionResult {
 
 function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: LearningCycleSubmission): LearningCycleRecord {
   const base = {
-    id: `${intent.timestamp}-${intent.interceptionId}`,
+    id: globalThis.crypto.randomUUID(),
     timestamp: intent.timestamp,
     platform: intent.platform,
     threadId: resolveThreadId(intent.url),
@@ -73,8 +73,7 @@ export async function handleModeSubmission(params: HandleModeSubmissionParams): 
   logger.info('send-replay-attempted', {
     replayAttempted,
     deliveryNotVerified: true,
-    source: intent.source,
-    interceptionId: intent.interceptionId
+    source: intent.source
   });
 
   if (!replayAttempted) {

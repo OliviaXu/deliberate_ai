@@ -23,7 +23,6 @@ export interface SubmitSignal {
 }
 
 export interface InterceptedSubmitIntent extends SubmitSignal {
-  interceptionId: number;
   prompt: string;
 }
 
