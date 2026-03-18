@@ -34,6 +34,7 @@ export class GeminiSendInterceptor {
 
     const composer = eventComposer ?? this.resolveActiveComposer();
     if (!composer) return;
+    if (!event.isTrusted && !this.bypassNextInterception) return;
     this.intercept(event, 'enter_key', composer, null);
   };
 
@@ -43,6 +44,7 @@ export class GeminiSendInterceptor {
     if (!button) return;
     if (this.isDisabled(button)) return;
     if (!this.isSendButton(button)) return;
+    if (!event.isTrusted && !this.bypassNextInterception) return;
     const composer = this.resolveComposerForClick(button);
     if (!composer) {
       this.logger?.debug('composer-resolution-click-none');

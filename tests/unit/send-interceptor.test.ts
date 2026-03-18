@@ -55,6 +55,30 @@ function setupGeminiHarness(options: { includeSendButton?: boolean; includeCompo
   };
 }
 
+function triggerTrustedEnter(interceptor: GeminiSendInterceptor, composer: HTMLElement): void {
+  (interceptor as unknown as { onKeyDown: (event: KeyboardEvent) => void }).onKeyDown({
+    key: 'Enter',
+    shiftKey: false,
+    ctrlKey: false,
+    altKey: false,
+    metaKey: false,
+    isComposing: false,
+    isTrusted: true,
+    target: composer,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn()
+  } as unknown as KeyboardEvent);
+}
+
+function triggerTrustedClick(interceptor: GeminiSendInterceptor, button: HTMLButtonElement): void {
+  (interceptor as unknown as { onClick: (event: MouseEvent) => void }).onClick({
+    isTrusted: true,
+    target: button,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn()
+  } as unknown as MouseEvent);
+}
+
 describe('GeminiSendInterceptor', () => {
   it('blocks Enter submit and emits an interception intent', () => {
     const { composer, state } = setupGeminiHarness({ includeSendButton: false });
@@ -71,7 +95,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    triggerTrustedEnter(interceptor, composer);
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(state.textContent).toBe('idle');
@@ -97,7 +121,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    triggerTrustedEnter(interceptor, composer);
     const intent = handler.mock.calls[0]?.[0];
     if (!intent) throw new Error('Expected interception intent');
 
@@ -133,7 +157,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    composer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    triggerTrustedEnter(interceptor, composer);
     const intent = handler.mock.calls[0]?.[0];
     if (!intent) throw new Error('Expected interception intent');
 
@@ -157,7 +181,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    button.click();
+    triggerTrustedClick(interceptor, button);
     const intent = handler.mock.calls[0]?.[0];
     if (!intent) throw new Error('Expected interception intent');
 
@@ -181,7 +205,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    button.click();
+    triggerTrustedClick(interceptor, button);
 
     expect(handler).toHaveBeenCalledTimes(1);
     const firstIntent = handler.mock.calls[0]?.[0];
@@ -239,6 +263,51 @@ describe('GeminiSendInterceptor', () => {
 
     expect(handler).not.toHaveBeenCalled();
     expect(state.textContent).toBe('modal-clicked');
+
+    interceptor.stop();
+  });
+
+  it('ignores untrusted Enter events from the composer', () => {
+    const { composer, state } = setupGeminiHarness({ includeSendButton: false });
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+    composer.focus();
+    composer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    composer.dispatchEvent(event);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(state.textContent).toBe('sent');
+
+    interceptor.stop();
+  });
+
+  it('ignores untrusted click events on the send button', () => {
+    const { button, state } = setupGeminiHarness();
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(state.textContent).toBe('sent');
 
     interceptor.stop();
   });
