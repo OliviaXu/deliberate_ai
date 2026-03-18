@@ -21,7 +21,7 @@ interface SynchronousReplayAllowance {
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
 export class GeminiSendInterceptor {
-  constructor(private readonly logger?: Pick<Logger, 'debug' | 'info'>) {}
+  constructor(private readonly logger?: Pick<Logger, 'debug' | 'info' | 'error'>) {}
 
   private readonly handlers = new Set<(intent: InterceptedSubmitIntent) => void>();
   private started = false;
@@ -87,8 +87,8 @@ export class GeminiSendInterceptor {
     const internalIntent = this.resolveIntentForResume(intent);
     if (!internalIntent) return false;
     return internalIntent.source === 'send_button'
-      ? this.tryResumeByButtonThenEnter(internalIntent)
-      : this.tryResumeByClickThenEnter(internalIntent);
+      ? this.tryResumeByButton(internalIntent)
+      : this.tryResumeByClick(internalIntent);
   }
 
   private intercept(
@@ -164,16 +164,22 @@ export class GeminiSendInterceptor {
     }
   }
 
-  private tryResumeByButtonThenEnter(intent: InternalSubmitIntent): boolean {
+  private tryResumeByButton(intent: InternalSubmitIntent): boolean {
     if (this.resumeByClick(intent.button)) return true;
-    this.logger?.info('resume-fallback-button-to-enter');
-    return this.resumeByEnter(intent.composer);
+    this.logger?.error('resume-click-replay-failed', {
+      source: intent.source,
+      reason: 'original-button-unavailable'
+    });
+    return false;
   }
 
-  private tryResumeByClickThenEnter(intent: InternalSubmitIntent): boolean {
+  private tryResumeByClick(intent: InternalSubmitIntent): boolean {
     if (this.resumeByClick(this.resolveSendButton())) return true;
-    this.logger?.info('resume-fallback-click-to-enter');
-    return this.resumeByEnter(intent.composer);
+    this.logger?.error('resume-click-replay-failed', {
+      source: intent.source,
+      reason: 'send-button-unavailable'
+    });
+    return false;
   }
 
   private resumeByClick(button: HTMLButtonElement | null): boolean {
@@ -182,21 +188,6 @@ export class GeminiSendInterceptor {
     if (this.isDisabled(button)) return false;
     this.withSynchronousReplayAllowance('send_button', button, () => {
       button.click();
-    });
-    return true;
-  }
-
-  private resumeByEnter(composer: HTMLElement | null): boolean {
-    if (!(composer instanceof HTMLElement)) return false;
-    if (!composer.isConnected) return false;
-    composer.focus();
-    this.withSynchronousReplayAllowance('enter_key', composer, () => {
-      const event = new KeyboardEvent('keydown', {
-        key: 'Enter',
-        bubbles: true,
-        cancelable: true
-      });
-      composer.dispatchEvent(event);
     });
     return true;
   }

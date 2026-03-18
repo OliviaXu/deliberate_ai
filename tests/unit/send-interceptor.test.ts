@@ -106,7 +106,7 @@ describe('GeminiSendInterceptor', () => {
     interceptor.stop();
   });
 
-  it('resumes blocked send once without reopening interception loop', () => {
+  it('fails resume and logs an error when enter-origin intent has no clickable send button', () => {
     const { composer, state } = setupGeminiHarness({ includeSendButton: false });
     if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
     composer.focus();
@@ -116,7 +116,8 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const logger = { debug: vi.fn(), info: vi.fn(), error: vi.fn() };
+    const interceptor = new GeminiSendInterceptor(logger);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -125,11 +126,13 @@ describe('GeminiSendInterceptor', () => {
     const intent = handler.mock.calls[0]?.[0];
     if (!intent) throw new Error('Expected interception intent');
 
-    const resumed = interceptor.resume(intent);
-
-    expect(resumed).toBe(true);
-    expect(state.textContent).toBe('sent');
+    expect(interceptor.resume(intent)).toBe(false);
+    expect(state.textContent).toBe('idle');
     expect(handler).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith('resume-click-replay-failed', {
+      source: 'enter_key',
+      reason: 'send-button-unavailable'
+    });
 
     interceptor.stop();
   });
@@ -237,51 +240,32 @@ describe('GeminiSendInterceptor', () => {
     interceptor.stop();
   });
 
-  it('does not intercept another synthetic enter during enter replay', () => {
-    const { composer, state } = setupGeminiHarness({ includeSendButton: false });
-    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
-    let secondaryEnterCount = 0;
-
-    const otherComposer = document.createElement('div');
-    otherComposer.className = 'ql-editor textarea new-input-ui';
-    otherComposer.setAttribute('contenteditable', 'true');
-    otherComposer.setAttribute('role', 'textbox');
-    otherComposer.setAttribute('aria-label', 'Enter a prompt for Gemini');
-    otherComposer.textContent = 'other draft';
-    document.querySelector('.text-input-field_textarea-inner')?.appendChild(otherComposer);
-
-    composer.focus();
-    composer.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
+  it('fails resume and logs an error when button-origin intent cannot click the original button', () => {
+    const { button, state } = setupGeminiHarness();
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
+    button.addEventListener('click', (event) => {
       if (event.defaultPrevented) return;
-      state.textContent = 'primary-sent';
-    });
-    otherComposer.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      if (event.defaultPrevented) return;
-      secondaryEnterCount += 1;
-      state.textContent = 'secondary-sent';
+      state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const logger = { debug: vi.fn(), info: vi.fn(), error: vi.fn() };
+    const interceptor = new GeminiSendInterceptor(logger);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
 
-    triggerTrustedEnter(interceptor, composer);
+    triggerTrustedClick(interceptor, button);
     const intent = handler.mock.calls[0]?.[0];
     if (!intent) throw new Error('Expected interception intent');
 
-    const originalDispatchEvent = composer.dispatchEvent.bind(composer);
-    vi.spyOn(composer, 'dispatchEvent').mockImplementation((event) => {
-      otherComposer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-      return originalDispatchEvent(event);
-    });
+    button.remove();
 
-    expect(interceptor.resume(intent)).toBe(true);
-    expect(handler).toHaveBeenCalledTimes(1);
-    expect(secondaryEnterCount).toBe(1);
-    expect(state.textContent).toBe('primary-sent');
+    expect(interceptor.resume(intent)).toBe(false);
+    expect(state.textContent).toBe('idle');
+    expect(logger.error).toHaveBeenCalledWith('resume-click-replay-failed', {
+      source: 'send_button',
+      reason: 'original-button-unavailable'
+    });
 
     interceptor.stop();
   });
