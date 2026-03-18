@@ -234,6 +234,12 @@
     background: transparent;
   }
 
+  .deliberate-reflection-context-section--prompt-only {
+    gap: 0;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
   .deliberate-reflection-context-section--supporting .deliberate-reflection-meta-row {
     padding-inline: 0;
   }
@@ -257,6 +263,11 @@
     padding-inline: 0;
     padding-top: 4px;
     gap: 12px;
+  }
+
+  .deliberate-reflection-actions--prompt-only {
+    margin-top: 4px;
+    padding-top: 0;
   }
 
   .deliberate-reflection-cancel-button {

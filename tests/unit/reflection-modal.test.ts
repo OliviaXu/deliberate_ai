@@ -92,13 +92,14 @@ describe('ReflectionModal', () => {
     document.body.style.backgroundColor = '';
   });
 
-  it('renders prompt and prior context as multiline text blocks instead of textareas', async () => {
+  it('renders prompt and prediction as multiline text blocks instead of textareas', async () => {
     document.body.innerHTML = '';
     const modal = new ReflectionModal();
     const pending = modal.open(
       makeLearningCycleRecord({
+        mode: 'problem_solving',
         prompt: 'Line one of the prompt.\nLine two of the prompt.',
-        priorKnowledgeNote: 'Context line one.\nContext line two.'
+        prediction: 'Context line one.\nContext line two.'
       })
     );
 
@@ -112,6 +113,7 @@ describe('ReflectionModal', () => {
 
     expect(promptValue?.textContent).toBe('Line one of the prompt.\nLine two of the prompt.');
     expect(contextValue?.textContent).toBe('Context line one.\nContext line two.');
+    expect(document.querySelector('[data-testid="deliberate-reflection-context-label"]')?.textContent).toBe('Prediction');
     expect(promptLabel?.textContent).toContain('Prompt (');
     expect(promptLabel?.classList.contains('deliberate-reflection-meta-label--muted')).toBe(true);
 
@@ -119,17 +121,21 @@ describe('ReflectionModal', () => {
     await expect(pending).resolves.toBeNull();
   });
 
-  it('omits the prior context row when its value is blank', async () => {
+  it('does not render prior context for learning reflections and uses compact prompt spacing', async () => {
     document.body.innerHTML = '';
     const modal = new ReflectionModal();
     const pending = modal.open(
       makeLearningCycleRecord({
-        priorKnowledgeNote: '   '
+        priorKnowledgeNote: 'I already know roughly how feature flags work.'
       })
     );
 
+    const contextSection = document.querySelector('[data-testid="deliberate-reflection-context-section"]');
+    const actions = document.querySelector('[data-testid="deliberate-reflection-actions"]');
     expect(document.querySelector('[data-testid="deliberate-reflection-context-value"]')).toBeNull();
     expect(document.querySelector('[data-testid="deliberate-reflection-context-label"]')).toBeNull();
+    expect(contextSection?.classList.contains('deliberate-reflection-context-section--prompt-only')).toBe(true);
+    expect(actions?.classList.contains('deliberate-reflection-actions--prompt-only')).toBe(true);
     expect(document.querySelector('[data-testid="deliberate-reflection-prompt-value"]')?.textContent).toBe(
       'Teach me when staged rollouts backfire.'
     );

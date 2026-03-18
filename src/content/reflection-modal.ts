@@ -115,6 +115,8 @@ export class ReflectionModal {
             valueTestId: 'deliberate-reflection-context-value'
           })
         );
+      } else {
+        contextSection.classList.add('deliberate-reflection-context-section--prompt-only');
       }
       contextSection.appendChild(
         this.makeMetaRow({
@@ -129,6 +131,9 @@ export class ReflectionModal {
       const actions = document.createElement('div');
       actions.className = 'deliberate-reflection-actions';
       actions.setAttribute('data-testid', 'deliberate-reflection-actions');
+      if (!contextValue) {
+        actions.classList.add('deliberate-reflection-actions--prompt-only');
+      }
 
       const cancelButton = document.createElement('button');
       cancelButton.type = 'button';
@@ -228,11 +233,9 @@ export class ReflectionModal {
   }
 
   private getContextValue(record: ReflectionEligibleLearningCycleRecord): string | null {
-    if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
-      return this.normalizeOptionalText(record.prediction);
-    }
-
-    return this.normalizeOptionalText(record.priorKnowledgeNote);
+    return record.mode === INTERACTION_MODES.PROBLEM_SOLVING
+      ? this.normalizeOptionalText(record.prediction)
+      : null;
   }
 
   private normalizeOptionalText(value: string | null | undefined): string | null {
