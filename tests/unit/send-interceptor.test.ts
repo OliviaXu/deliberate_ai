@@ -168,6 +168,51 @@ describe('GeminiSendInterceptor', () => {
     interceptor.stop();
   });
 
+  it('does not intercept another synthetic send button click during click replay', () => {
+    const { button, state } = setupGeminiHarness();
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
+    let secondaryClickCount = 0;
+
+    const otherButton = document.createElement('button');
+    otherButton.type = 'button';
+    otherButton.className = 'send-button';
+    otherButton.setAttribute('aria-label', 'Send alternate message');
+    otherButton.innerHTML = '<mat-icon fonticon="send"></mat-icon>';
+    document.querySelector('.input-area')?.appendChild(otherButton);
+
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'primary-sent';
+    });
+    otherButton.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      secondaryClickCount += 1;
+      state.textContent = 'secondary-sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedClick(interceptor, button);
+    const intent = handler.mock.calls[0]?.[0];
+    if (!intent) throw new Error('Expected interception intent');
+
+    const originalPrimaryClick = button.click.bind(button);
+    button.click = () => {
+      otherButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      originalPrimaryClick();
+    };
+
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(secondaryClickCount).toBe(1);
+    expect(state.textContent).toBe('primary-sent');
+
+    interceptor.stop();
+  });
+
   it('blocks send button click and resumes after mode selection path', () => {
     const { button, state } = setupGeminiHarness();
     if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
@@ -188,6 +233,55 @@ describe('GeminiSendInterceptor', () => {
     expect(state.textContent).toBe('idle');
     expect(interceptor.resume(intent)).toBe(true);
     expect(state.textContent).toBe('sent');
+
+    interceptor.stop();
+  });
+
+  it('does not intercept another synthetic enter during enter replay', () => {
+    const { composer, state } = setupGeminiHarness({ includeSendButton: false });
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+    let secondaryEnterCount = 0;
+
+    const otherComposer = document.createElement('div');
+    otherComposer.className = 'ql-editor textarea new-input-ui';
+    otherComposer.setAttribute('contenteditable', 'true');
+    otherComposer.setAttribute('role', 'textbox');
+    otherComposer.setAttribute('aria-label', 'Enter a prompt for Gemini');
+    otherComposer.textContent = 'other draft';
+    document.querySelector('.text-input-field_textarea-inner')?.appendChild(otherComposer);
+
+    composer.focus();
+    composer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      state.textContent = 'primary-sent';
+    });
+    otherComposer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      if (event.defaultPrevented) return;
+      secondaryEnterCount += 1;
+      state.textContent = 'secondary-sent';
+    });
+
+    const interceptor = new GeminiSendInterceptor();
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedEnter(interceptor, composer);
+    const intent = handler.mock.calls[0]?.[0];
+    if (!intent) throw new Error('Expected interception intent');
+
+    const originalDispatchEvent = composer.dispatchEvent.bind(composer);
+    vi.spyOn(composer, 'dispatchEvent').mockImplementation((event) => {
+      otherComposer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      return originalDispatchEvent(event);
+    });
+
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(secondaryEnterCount).toBe(1);
+    expect(state.textContent).toBe('primary-sent');
 
     interceptor.stop();
   });
