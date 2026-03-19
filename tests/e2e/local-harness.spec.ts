@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
 import { REFLECTIONS_STORAGE_KEY } from '../../src/shared/reflection-store';
+import { TEST_CLOCK_GLOBAL_KEY } from '../../src/shared/test-clock';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const harnessPath = path.resolve(process.cwd(), 'tests/harness/index.html');
@@ -108,10 +109,33 @@ async function readReflectionRecords(context: import('@playwright/test').Browser
   return records as unknown[];
 }
 
-async function setHarnessNow(page: import('@playwright/test').Page, nowMs: number): Promise<void> {
-  await page.evaluate((value) => {
-    document.documentElement.setAttribute('data-deliberate-now-ms', String(value));
-  }, nowMs);
+async function setHarnessNow(context: import('@playwright/test').BrowserContext, nowMs: number): Promise<void> {
+  const sw = await getServiceWorker(context);
+  await sw.evaluate(
+    async ({ globalKey, value }) => {
+      const control = (globalThis as Record<string, unknown>)[globalKey] as
+        | { setNowMs?: (nextNowMs: number | null) => Promise<void> | void }
+        | undefined;
+      if (!control?.setNowMs) throw new Error('Expected service worker test clock control');
+      await control.setNowMs(value);
+    },
+    { globalKey: TEST_CLOCK_GLOBAL_KEY, value: nowMs }
+  );
+}
+
+async function clearHarnessNow(context: import('@playwright/test').BrowserContext): Promise<void> {
+  const sw = await getServiceWorker(context);
+  await sw.evaluate(async (globalKey) => {
+    const control = (globalThis as Record<string, unknown>)[globalKey] as
+      | { setNowMs?: (nextNowMs: number | null) => Promise<void> | void }
+      | undefined;
+    await control?.setNowMs?.(null);
+  }, TEST_CLOCK_GLOBAL_KEY);
+}
+
+async function reloadHarness(page: import('@playwright/test').Page): Promise<void> {
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-deliberate-active') === 'true');
 }
 
 async function expectModal(page: import('@playwright/test').Page): Promise<void> {
@@ -253,6 +277,7 @@ test('local harness shows mode modal once per thread and bypasses later sends', 
       ])
     );
   } finally {
+    await clearHarnessNow(context);
     await context.close();
   }
 });
@@ -263,10 +288,10 @@ test('local harness gates reflection hint on due status and scopes it per thread
   const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thread-hint-${testInfo.workerIndex}-${Date.now()}`);
   const context = await launchExtensionContext(userDataDir);
   try {
-    const page = await setupHarness(context, primaryThreadUrl);
     await clearRecords(context);
     const nowMs = 1_800_000_000_000;
-    await setHarnessNow(page, nowMs);
+    await setHarnessNow(context, nowMs);
+    const page = await setupHarness(context, primaryThreadUrl);
 
     await sendLearningPrompt(
       page,
@@ -275,7 +300,8 @@ test('local harness gates reflection hint on due status and scopes it per thread
     );
     await expectHintHidden(page);
 
-    await setHarnessNow(page, nowMs + 5 * 60 * 1000 + 1_000);
+    await setHarnessNow(context, nowMs + 5 * 60 * 1000 + 1_000);
+    await reloadHarness(page);
     await expectHintVisible(page);
 
     await navigateThreadInPlace(page, secondaryThreadUrl);
@@ -336,6 +362,7 @@ test('local harness gates reflection hint on due status and scopes it per thread
     await navigateThreadInPlace(page, primaryThreadUrl);
     await expectHintVisible(page);
   } finally {
+    await clearHarnessNow(context);
     await context.close();
   }
 });
@@ -349,6 +376,7 @@ test('local harness shows historical due hint without persisted turn counters an
     await clearRecords(context);
 
     const nowMs = 1_900_000_000_000;
+    await setHarnessNow(context, nowMs);
     await writeRecords(context, [
       {
         id: 'historical-learning',
@@ -370,7 +398,6 @@ test('local harness shows historical due hint without persisted turn counters an
     ]);
 
     const page = await setupHarness(context, primaryThreadUrl);
-    await setHarnessNow(page, nowMs);
 
     await expectHintVisible(page);
 
@@ -454,6 +481,7 @@ test('local harness submits a due reflection and persists completion for a histo
     await clearRecords(context);
 
     const nowMs = 1_900_000_000_000;
+    await setHarnessNow(context, nowMs);
     await writeRecords(context, [
       {
         id: 'historical-learning',
@@ -467,7 +495,6 @@ test('local harness submits a due reflection and persists completion for a histo
     ]);
 
     const page = await setupHarness(context, primaryThreadUrl);
-    await setHarnessNow(page, nowMs);
     await expectHintVisible(page);
 
     await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();

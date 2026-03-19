@@ -10,7 +10,7 @@ import type {
   ReflectionSubmission
 } from '../shared/types';
 import { isReflectionEligibleMode, isReflectionEligibleRecord } from '../shared/types';
-import { getContentNowMs } from './clock';
+import { getContentNowMs, initializeContentClock } from './clock';
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ReflectionEligibilityTracker } from './reflection-eligibility';
 import { ReflectionHint } from './reflection-hint';
@@ -72,10 +72,15 @@ interceptor.onIntercept((intent) => {
   });
 });
 
-interceptor.start();
-setDomState(interceptionCount, false);
-void refreshReflectionHintForCurrentThread();
-startReflectionHintWatcher();
+void startContent();
+
+async function startContent(): Promise<void> {
+  await initializeContentClock();
+  interceptor.start();
+  setDomState(interceptionCount, false);
+  void refreshReflectionHintForCurrentThread();
+  startReflectionHintWatcher();
+}
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
   const threadId = resolveThreadId(intent.url);
