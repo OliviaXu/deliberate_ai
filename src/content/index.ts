@@ -45,7 +45,16 @@ let modalOpen = false;
 // Guard to keep modal/check/capture flow single-flight.
 let handlingIntercept = false;
 
-interceptor.onIntercept((intent) => {
+async function startContent(): Promise<void> {
+  interceptor.onIntercept(onInterceptedSubmit);
+  await initializeContentClock();
+  interceptor.start();
+  setDomState(interceptionCount, false);
+  void refreshReflectionHintForCurrentThread();
+  startReflectionHintWatcher();
+}
+
+function onInterceptedSubmit(intent: InterceptedSubmitIntent): void {
   interceptionCount += 1;
   logger.info('submit-intent-detected', intent);
   if (handlingIntercept) {
@@ -70,16 +79,6 @@ interceptor.onIntercept((intent) => {
     setDomState(interceptionCount, false);
     void refreshReflectionHintForCurrentThread();
   });
-});
-
-void startContent();
-
-async function startContent(): Promise<void> {
-  await initializeContentClock();
-  interceptor.start();
-  setDomState(interceptionCount, false);
-  void refreshReflectionHintForCurrentThread();
-  startReflectionHintWatcher();
 }
 
 async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
@@ -137,19 +136,12 @@ function setDomState(count: number, isModalOpen: boolean): void {
   document.documentElement.setAttribute('data-deliberate-busy-drop-count', String(busyDropCount));
 }
 
-function sendRuntimeMessage(message: BackgroundRuntimeMessage): Promise<unknown> | undefined {
-  const chromeApi = (globalThis as { chrome?: { runtime?: { sendMessage?: (payload: unknown) => Promise<unknown> | unknown } } }).chrome;
-  const send = chromeApi?.runtime?.sendMessage;
-  if (!send) return undefined;
-  return Promise.resolve(send(message));
-}
-
-async function refreshReflectionHintForCurrentThread(): Promise<void> {
-  await refreshReflectionHintForThread(resolveThreadId(window.location.href));
-}
-
-function isThreadIdCacheable(threadId: string): boolean {
-  return isConcreteGeminiThreadId(threadId);
+function maybeStartActiveCandidateFromNewThread(threadId: string, learningCycleRecord: LearningCycleRecord): boolean {
+  if (!awaitingNewThreadFollowUp) return false;
+  if (!isReflectionEligibleRecord(learningCycleRecord)) return false;
+  reflectionEligibility.startTrackingThread(threadId);
+  awaitingNewThreadFollowUp = false;
+  return true;
 }
 
 function startReflectionHintWatcher(): void {
@@ -158,12 +150,22 @@ function startReflectionHintWatcher(): void {
   }, 1_000);
 }
 
-function maybeStartActiveCandidateFromNewThread(threadId: string, learningCycleRecord: LearningCycleRecord): boolean {
-  if (!awaitingNewThreadFollowUp) return false;
-  if (!isReflectionEligibleRecord(learningCycleRecord)) return false;
-  reflectionEligibility.startTrackingThread(threadId);
-  awaitingNewThreadFollowUp = false;
-  return true;
+async function refreshReflectionHintForCurrentThread(): Promise<void> {
+  await refreshReflectionHintForThread(resolveThreadId(window.location.href));
+}
+
+async function refreshReflectionHintForThread(threadId: string): Promise<void> {
+  const learningCycleRecord = await resolveLearningCycleRecord(threadId);
+  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
+    reflectionHint.updateVisibilityForThread(threadId, false);
+    return;
+  }
+
+  const hasCompletedReflection = await resolveRecordHasCompletedReflection(learningCycleRecord);
+  reflectionHint.updateVisibilityForThread(
+    threadId,
+    !hasCompletedReflection && isReflectionDueForThread(threadId, learningCycleRecord)
+  );
 }
 
 function isReflectionDueForThread(
@@ -175,6 +177,70 @@ function isReflectionDueForThread(
   }
 
   return getContentNowMs() - learningCycleRecord.timestamp >= DUE_AFTER_MS;
+}
+
+async function handleReflectionReview(threadId: string): Promise<void> {
+  const learningCycleRecord = await resolveLearningCycleRecord(threadId);
+  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
+    reflectionHint.updateVisibilityForThread(threadId, false);
+    return;
+  }
+
+  const submission = await reflectionModal.open(learningCycleRecord);
+  if (!submission) {
+    return;
+  }
+
+  const response = await Promise.resolve(
+    sendRuntimeMessage({
+      type: 'reflection:append',
+      record: createReflectionRecord(learningCycleRecord, submission)
+    })
+  ).catch((error) => {
+    logger.error('reflection-append-failed', { threadId, error: String(error) });
+    return null;
+  });
+
+  if (response && typeof response === 'object' && (response as { ok?: boolean }).ok === true) {
+    setCachedReflectionCompletion(learningCycleRecord.id, threadId, true);
+    reflectionHint.updateVisibilityForThread(threadId, false);
+    logger.info('reflection-completed', { threadId, mode: learningCycleRecord.mode });
+    return;
+  }
+}
+
+function createReflectionRecord(
+  learningCycleRecord: ReflectionEligibleLearningCycleRecord,
+  submission: ReflectionSubmission
+): ReflectionRecord {
+  const timestamp = getContentNowMs();
+  const notes = submission.notes?.trim();
+
+  return {
+    id: `${learningCycleRecord.id}:${timestamp}`,
+    timestamp,
+    threadId: learningCycleRecord.threadId,
+    learningCycleRecordId: learningCycleRecord.id,
+    status: 'completed',
+    score: submission.score,
+    ...(notes ? { notes } : {})
+  };
+}
+
+function setCachedLearningCycleRecord(threadId: string, learningCycleRecord: LearningCycleRecord | null): void {
+  const current = threadStateCache.get(threadId) ?? {};
+  threadStateCache.set(threadId, { ...current, learningCycleRecord });
+}
+
+function setCachedReflectionCompletion(learningCycleRecordId: string, threadId: string, hasCompleted: boolean): void {
+  const current = threadStateCache.get(threadId) ?? {};
+  threadStateCache.set(threadId, {
+    ...current,
+    completedReflection: {
+      learningCycleRecordId,
+      hasCompleted
+    }
+  });
 }
 
 async function resolveLearningCycleRecord(threadId: string): Promise<LearningCycleRecord | null> {
@@ -261,80 +327,15 @@ async function resolveRecordHasCompletedReflection(learningCycleRecord: Reflecti
   return check;
 }
 
-async function refreshReflectionHintForThread(threadId: string): Promise<void> {
-  const learningCycleRecord = await resolveLearningCycleRecord(threadId);
-  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
-    reflectionHint.updateVisibilityForThread(threadId, false);
-    return;
-  }
-
-  const hasCompletedReflection = await resolveRecordHasCompletedReflection(learningCycleRecord);
-  reflectionHint.updateVisibilityForThread(
-    threadId,
-    !hasCompletedReflection && isReflectionDueForThread(threadId, learningCycleRecord)
-  );
+function sendRuntimeMessage(message: BackgroundRuntimeMessage): Promise<unknown> | undefined {
+  const chromeApi = (globalThis as { chrome?: { runtime?: { sendMessage?: (payload: unknown) => Promise<unknown> | unknown } } }).chrome;
+  const send = chromeApi?.runtime?.sendMessage;
+  if (!send) return undefined;
+  return Promise.resolve(send(message));
 }
 
-async function handleReflectionReview(threadId: string): Promise<void> {
-  const learningCycleRecord = await resolveLearningCycleRecord(threadId);
-  if (!learningCycleRecord || !isReflectionEligibleRecord(learningCycleRecord)) {
-    reflectionHint.updateVisibilityForThread(threadId, false);
-    return;
-  }
-
-  const submission = await reflectionModal.open(learningCycleRecord);
-  if (!submission) {
-    return;
-  }
-
-  const response = await Promise.resolve(
-    sendRuntimeMessage({
-      type: 'reflection:append',
-      record: createReflectionRecord(learningCycleRecord, submission)
-    })
-  ).catch((error) => {
-    logger.error('reflection-append-failed', { threadId, error: String(error) });
-    return null;
-  });
-
-  if (response && typeof response === 'object' && (response as { ok?: boolean }).ok === true) {
-    setCachedReflectionCompletion(learningCycleRecord.id, threadId, true);
-    reflectionHint.updateVisibilityForThread(threadId, false);
-    logger.info('reflection-completed', { threadId, mode: learningCycleRecord.mode });
-    return;
-  }
+function isThreadIdCacheable(threadId: string): boolean {
+  return isConcreteGeminiThreadId(threadId);
 }
 
-function createReflectionRecord(
-  learningCycleRecord: ReflectionEligibleLearningCycleRecord,
-  submission: ReflectionSubmission
-): ReflectionRecord {
-  const timestamp = getContentNowMs();
-  const notes = submission.notes?.trim();
-
-  return {
-    id: `${learningCycleRecord.id}:${timestamp}`,
-    timestamp,
-    threadId: learningCycleRecord.threadId,
-    learningCycleRecordId: learningCycleRecord.id,
-    status: 'completed',
-    score: submission.score,
-    ...(notes ? { notes } : {})
-  };
-}
-
-function setCachedLearningCycleRecord(threadId: string, learningCycleRecord: LearningCycleRecord | null): void {
-  const current = threadStateCache.get(threadId) ?? {};
-  threadStateCache.set(threadId, { ...current, learningCycleRecord });
-}
-
-function setCachedReflectionCompletion(learningCycleRecordId: string, threadId: string, hasCompleted: boolean): void {
-  const current = threadStateCache.get(threadId) ?? {};
-  threadStateCache.set(threadId, {
-    ...current,
-    completedReflection: {
-      learningCycleRecordId,
-      hasCompleted
-    }
-  });
-}
+void startContent();
