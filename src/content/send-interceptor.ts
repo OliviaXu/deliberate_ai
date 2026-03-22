@@ -1,6 +1,5 @@
 import type { InterceptedSubmitIntent, SubmitSource, Unsubscribe } from '../shared/types';
 import type { Logger } from '../shared/logger';
-import { getContentNowMs } from './clock';
 import { findGeminiComposer, isGeminiComposerElement, resolveGeminiComposerNear } from './gemini-composer';
 
 interface InternalSubmitIntent extends InterceptedSubmitIntent {
@@ -21,7 +20,10 @@ interface SynchronousReplayAllowance {
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
 export class GeminiSendInterceptor {
-  constructor(private readonly logger?: Pick<Logger, 'debug' | 'info' | 'error'>) {}
+  constructor(
+    private readonly logger?: Pick<Logger, 'debug' | 'info' | 'error'>,
+    private readonly now: () => number = Date.now
+  ) {}
 
   private readonly handlers = new Set<(intent: InterceptedSubmitIntent) => void>();
   private started = false;
@@ -119,7 +121,7 @@ export class GeminiSendInterceptor {
     const prompt = composer ? this.getComposerText(composer) : '';
     return {
       source,
-      timestamp: getContentNowMs(),
+      timestamp: this.now(),
       url: window.location.href,
       platform: 'gemini',
       prompt,

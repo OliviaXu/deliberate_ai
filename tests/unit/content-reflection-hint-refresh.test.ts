@@ -25,6 +25,27 @@ let intervalCallback: (() => void) | null = null;
 let reviewHandler: ((threadId: string) => Promise<void> | void) | null = null;
 const runtimeSendMessage = vi.fn<(message: unknown) => Promise<unknown>>(async () => ({ record: null }));
 
+function getRuntimeMessages(): Array<{ type?: string; threadId?: string }> {
+  return runtimeSendMessage.mock.calls.map(([message]) => message as { type?: string; threadId?: string });
+}
+
+function expectNoClockBootstrapMessage(): void {
+  expect(getRuntimeMessages()).not.toContainEqual(
+    expect.objectContaining({
+      type: 'deliberate:clock:get'
+    })
+  );
+}
+
+function expectNoThreadRecordLookup(threadId: string): void {
+  expect(getRuntimeMessages()).not.toContainEqual(
+    expect.objectContaining({
+      type: 'learning-cycle:thread-record',
+      threadId
+    })
+  );
+}
+
 async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -133,7 +154,8 @@ describe('content reflection hint refresh', () => {
     await import('../../src/content/index');
 
     expect(updateVisibilityForThread).toHaveBeenCalledTimes(1);
-    expect(runtimeSendMessage).not.toHaveBeenCalled();
+    expectNoClockBootstrapMessage();
+    expectNoThreadRecordLookup('/app');
     expect(interceptHandler).toBeTruthy();
 
     interceptHandler?.({
@@ -147,7 +169,8 @@ describe('content reflection hint refresh', () => {
     await flushAsyncWork();
 
     expect(startTrackingThread).not.toHaveBeenCalled();
-    expect(runtimeSendMessage).not.toHaveBeenCalled();
+    expectNoClockBootstrapMessage();
+    expectNoThreadRecordLookup('/app');
     expect(updateVisibilityForThread).toHaveBeenCalledTimes(2);
     expect(updateVisibilityForThread).toHaveBeenNthCalledWith(2, '/app', false);
   });
