@@ -19,6 +19,11 @@ export default defineConfig({
       name: 'chromium-gemini-smoke',
       testMatch: /gemini-smoke\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'chromium-chatgpt-smoke',
+      testMatch: /chatgpt-smoke\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] }
     }
   ]
 });

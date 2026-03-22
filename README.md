@@ -83,6 +83,43 @@ Notes:
 - `gemini:reload-extension` only reloads the unpacked extension already loaded in the attached Chrome session. It does not switch that session to a different worktree.
 - To switch worktrees, quit the dedicated Chrome session from worktree A, `cd` into worktree B, run `npm run build`, then run `npm run gemini:open` from worktree B. You do not need to manually remove and re-add the extension card in Chrome; you need a fresh dedicated Chrome session tied to the new worktree.
 
+## ChatGPT Live Inspection
+
+This flow mirrors the Gemini CDP setup, but it is currently for live ChatGPT inspection and selector discovery only. The extension does not yet inject into `chatgpt.com`.
+
+### One-Time Profile Setup
+
+1. Create the repo-local Chrome profile directory:
+   ```bash
+   mkdir -p .pw-profiles/chatgpt
+   ```
+2. Build the extension:
+   ```bash
+   npm run build
+   ```
+3. Launch the dedicated ChatGPT browser:
+   ```bash
+   npm run chatgpt:open
+   ```
+4. In that Chrome window, open `chrome://extensions`, enable **Developer mode**, and manually **Load unpacked** from:
+   `<repo-root>/.output/chrome-mv3`
+5. In that same Chrome window, sign into `https://chatgpt.com`.
+6. Leave that window open for future live inspection runs.
+
+### Probe The Live Surface
+
+1. With the dedicated ChatGPT Chrome window still open, run:
+   ```bash
+   npm run test:e2e:chatgpt
+   ```
+2. The probe attaches over CDP, opens `https://chatgpt.com`, and prints a summary of candidate textbox and send-button elements.
+
+Notes:
+- The launcher uses the repo-local profile at `.pw-profiles/chatgpt`.
+- The default CDP endpoint is `http://127.0.0.1:9223`.
+- If Playwright cannot attach, make sure Chrome is still running with remote debugging on port `9223`.
+- `chatgpt:reload-extension` reloads the unpacked extension in the attached ChatGPT Chrome session after rebuilds, but the extension still will not inject into `chatgpt.com` until host permissions and content matching are added.
+
 ## Debugging Logs and Storage
 
 1. On `https://gemini.google.com`, open DevTools -> **Console** and run:
