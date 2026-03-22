@@ -1,3 +1,3 @@
-import { startContentApp } from './app';
+import { bootContentApp } from './bootstrap';
 
-void startContentApp({ now: Date.now });
+void bootContentApp({ now: Date.now });

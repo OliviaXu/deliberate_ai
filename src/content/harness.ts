@@ -1,4 +1,4 @@
-import { startContentApp } from './app';
+import { bootContentApp } from './bootstrap';
 import { readHarnessNowMs } from './harness-clock';
 
-void startContentApp({ now: readHarnessNowMs });
+void bootContentApp({ now: readHarnessNowMs });
