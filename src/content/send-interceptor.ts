@@ -12,11 +12,6 @@ interface ResumableSubmitIntent {
   replayIntent: InternalSubmitIntent;
 }
 
-interface SynchronousReplayAllowance {
-  source: SubmitSource;
-  target: HTMLElement;
-}
-
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
 export class GeminiSendInterceptor {
@@ -27,7 +22,6 @@ export class GeminiSendInterceptor {
 
   private readonly handlers = new Set<(intent: InterceptedSubmitIntent) => void>();
   private started = false;
-  private activeSynchronousReplayAllowance: SynchronousReplayAllowance | null = null;
   private lastResumableIntent: ResumableSubmitIntent | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -40,11 +34,8 @@ export class GeminiSendInterceptor {
 
     const composer = eventComposer ?? this.resolveActiveComposer();
     if (!composer) return;
-    if (!event.isTrusted) {
-      if (this.matchesSynchronousReplayAllowance('enter_key', composer)) return;
-      return;
-    }
-    this.intercept(event, 'enter_key', composer, null);
+    if (!event.isTrusted) return;
+    this.intercept(event, 'enter_key', composer, this.resolveSendButton());
   };
 
   private readonly onClick = (event: MouseEvent): void => {
@@ -53,10 +44,7 @@ export class GeminiSendInterceptor {
     if (!button) return;
     if (this.isDisabled(button)) return;
     if (!this.isSendButton(button)) return;
-    if (!event.isTrusted) {
-      if (this.matchesSynchronousReplayAllowance('send_button', button)) return;
-      return;
-    }
+    if (!event.isTrusted) return;
     const composer = this.resolveComposerForClick(button);
     if (!composer) {
       this.logger?.debug('composer-resolution-click-none');
@@ -86,11 +74,20 @@ export class GeminiSendInterceptor {
   }
 
   resume(intent: InterceptedSubmitIntent): boolean {
-    const internalIntent = this.resolveIntentForResume(intent);
-    if (!internalIntent) return false;
-    return internalIntent.source === 'send_button'
-      ? this.tryResumeByButton(internalIntent)
-      : this.tryResumeByClick(internalIntent);
+    const replayIntent = this.resolveIntentForResume(intent);
+    const button = replayIntent?.button;
+    if (!(button instanceof HTMLButtonElement) || !button.isConnected || this.isDisabled(button)) {
+      if (replayIntent) {
+        this.logger?.error('resume-click-replay-failed', {
+          source: replayIntent.source,
+          reason: 'replay-button-unavailable'
+        });
+      }
+      return false;
+    }
+
+    button.click();
+    return true;
   }
 
   private intercept(
@@ -148,50 +145,6 @@ export class GeminiSendInterceptor {
   private resolveIntentForResume(intent: InterceptedSubmitIntent): InternalSubmitIntent | null {
     if (this.lastResumableIntent?.emittedIntent !== intent) return null;
     return this.lastResumableIntent.replayIntent;
-  }
-
-  private matchesSynchronousReplayAllowance(source: SubmitSource, target: HTMLElement): boolean {
-    return (
-      this.activeSynchronousReplayAllowance?.source === source &&
-      this.activeSynchronousReplayAllowance.target === target
-    );
-  }
-
-  private withSynchronousReplayAllowance<T>(source: SubmitSource, target: HTMLElement, action: () => T): T {
-    this.activeSynchronousReplayAllowance = { source, target };
-    try {
-      return action();
-    } finally {
-      this.activeSynchronousReplayAllowance = null;
-    }
-  }
-
-  private tryResumeByButton(intent: InternalSubmitIntent): boolean {
-    if (this.resumeByClick(intent.button)) return true;
-    this.logger?.error('resume-click-replay-failed', {
-      source: intent.source,
-      reason: 'original-button-unavailable'
-    });
-    return false;
-  }
-
-  private tryResumeByClick(intent: InternalSubmitIntent): boolean {
-    if (this.resumeByClick(this.resolveSendButton())) return true;
-    this.logger?.error('resume-click-replay-failed', {
-      source: intent.source,
-      reason: 'send-button-unavailable'
-    });
-    return false;
-  }
-
-  private resumeByClick(button: HTMLButtonElement | null): boolean {
-    if (!(button instanceof HTMLButtonElement)) return false;
-    if (!button.isConnected) return false;
-    if (this.isDisabled(button)) return false;
-    this.withSynchronousReplayAllowance('send_button', button, () => {
-      button.click();
-    });
-    return true;
   }
 
   private getComposerText(composer: HTMLElement): string {

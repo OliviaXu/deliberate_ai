@@ -131,7 +131,7 @@ describe('GeminiSendInterceptor', () => {
     expect(handler).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith('resume-click-replay-failed', {
       source: 'enter_key',
-      reason: 'send-button-unavailable'
+      reason: 'replay-button-unavailable'
     });
 
     interceptor.stop();
@@ -165,6 +165,7 @@ describe('GeminiSendInterceptor', () => {
     if (!intent) throw new Error('Expected interception intent');
 
     expect(interceptor.resume(intent)).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(1);
     expect(clickCount).toBe(1);
     expect(state.textContent).toBe('sent-click');
 
@@ -264,7 +265,7 @@ describe('GeminiSendInterceptor', () => {
     expect(state.textContent).toBe('idle');
     expect(logger.error).toHaveBeenCalledWith('resume-click-replay-failed', {
       source: 'send_button',
-      reason: 'original-button-unavailable'
+      reason: 'replay-button-unavailable'
     });
 
     interceptor.stop();
