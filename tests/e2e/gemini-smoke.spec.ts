@@ -340,6 +340,29 @@ async function waitForResolvedThread(
   return null;
 }
 
+async function submitDelegationAfterEnterIntercept(
+  context: import('@playwright/test').BrowserContext,
+  page: import('@playwright/test').Page,
+  prompt: string
+): Promise<{ threadUrl: string; record: LearningCycleRecord }> {
+  await openModalViaEnter(page, prompt);
+  await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
+
+  await expect
+    .poll(async () => (await readRecords(context)).length, {
+      timeout: 30_000,
+      message: 'Expected the Enter-origin Gemini resume path to append a learning cycle record.'
+    })
+    .toBe(1);
+
+  const resolved = await waitForResolvedThread(context, page, 30_000);
+  if (!resolved) {
+    throw new Error('Gemini resumed the Enter-origin send, but the run never reached a concrete thread URL.');
+  }
+
+  return resolved;
+}
+
 async function createResolvedDelegationThread(context: import('@playwright/test').BrowserContext): Promise<{
   threadUrl: string;
   record: LearningCycleRecord;
@@ -351,20 +374,8 @@ async function createResolvedDelegationThread(context: import('@playwright/test'
 
     try {
       const prompt = `${makePrompt(`delegation-first-attempt-${attempt}`)} Reply with exactly OK.`;
-      await openModalViaEnter(page, prompt);
-      await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
-
-      await expect
-        .poll(async () => (await readRecords(context)).length, {
-          timeout: 30_000,
-          message: 'Expected the first live Gemini send to append a learning cycle record.'
-        })
-        .toBe(1);
-
-      const resolved = await waitForResolvedThread(context, page, 30_000);
-      if (resolved) {
-        return { ...resolved, prompt };
-      }
+      const resolved = await submitDelegationAfterEnterIntercept(context, page, prompt);
+      return { ...resolved, prompt };
     } finally {
       if (!page.isClosed()) await page.close();
     }
@@ -473,7 +484,7 @@ test('renders the learning note flow on the live Gemini modal', async () => {
   }
 });
 
-test('records a live Gemini send and resolves the placeholder thread id', async () => {
+test('resumes an Enter-intercepted Gemini send into a real thread', async () => {
   test.setTimeout(180_000);
   const context = await connectToGeminiContext();
   if (!context) return;
