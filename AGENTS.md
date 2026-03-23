@@ -17,6 +17,10 @@
 - Separate persisted facts from transient session heuristics; keep the persisted shape canonical and derive phase-specific behavior at the edge.
 - Prefer abstractions that match the current invariant and current phase; defer future-model indirection until a second concrete representation actually exists.
 - Treat missing-data caching as a separate policy decision from caching real records; do not conflate "no data yet" with canonical persisted truth.
+- If there is only one current invariant bridge, model that bridge directly; do not add extra ids or join keys for hypothetical future multiplicity.
+- Persist only canonical outcomes; compute UI suppression, session gating, and phase-specific visibility from those facts at the edge.
+- Do not cache "no record" in the same shape as a real persisted record unless the product explicitly needs negative caching semantics.
+- Inline simple branching where the caller already has the necessary context; add a helper only when it names a reusable domain concept.
 
 ## Gemini E2E Rule
 - Before running Gemini E2E tests, run `npm run gemini:reload-extension` unless you are absolutely sure there have been no code changes since the last Gemini E2E run and the loaded extension still matches the current build.
