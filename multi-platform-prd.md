@@ -256,11 +256,33 @@ Observed directly on a signed-in `chatgpt.com` session on March 22, 2026.
 5. `/Users/koala/Fun/deliberate_ai/tests/unit/gemini-composer.test.ts`
 
 ## Phase Plan
+### Discovery: ChatGPT Probe Baseline
+This is discovery work, not the first implementation milestone.
+
+1. Attach Playwright over CDP to a signed-in `chatgpt.com` session.
+2. Verify current URL and thread-link patterns.
+3. Verify live composer, fallback textarea, and send-button behavior.
+4. Record findings in this document before implementation starts.
+
+E2E tracer bullet:
+- Attach to a signed-in `chatgpt.com` session and assert the current surface assumptions only:
+  - `/` is the new-chat state
+  - `/c/<id>` links exist
+  - visible `div.ProseMirror[role="textbox"]` exists
+  - hidden `textarea[name="prompt-textarea"]` exists
+  - `button[data-testid="send-button"]` appears once draft text exists
+
+Outcome:
+ChatGPT implementation starts from observed site behavior, not guesses.
+
 ### Phase 1: Extract Gemini into the platform layer without behavior changes
 1. Add `PlatformId` and the platform registry.
 2. Move Gemini thread and composer logic under `src/platforms/gemini/`.
 3. Update content boot to resolve the current platform from the registry.
 4. Keep Gemini as the only active platform during this phase.
+
+E2E tracer bullet:
+- The existing Gemini smoke still passes, but content boot and host matching now resolve through the platform registry instead of direct Gemini-specific imports.
 
 Outcome:
 The architecture changes, but user-visible behavior stays the same.
@@ -271,22 +293,54 @@ The architecture changes, but user-visible behavior stays the same.
 3. Update `LearningCycleStore` queries and background resolution to use platform-aware identity.
 4. Remove Gemini-only placeholder assumptions from shared code.
 
+E2E tracer bullet:
+- A Gemini prompt that starts in the placeholder thread state still resolves to a concrete thread and later bypasses the mode modal correctly, but all cache and store lookups now use platform-aware identity.
+
 Outcome:
 Shared code no longer assumes a single platform.
 
-### Phase 3: Add ChatGPT support
+### Phase 3: Add ChatGPT Interception Thin Slice
 1. Add `src/platforms/chatgpt/` with URL and composer behavior.
 2. Add `chatgpt.com` to the platform registry.
-3. Add ChatGPT harness fixtures and unit tests.
-4. Add a ChatGPT smoke or manual verification path.
+3. Inject the extension on ChatGPT and wire interception through the shared content flow.
+4. Add ChatGPT harness fixtures and thin-slice unit tests.
+
+E2E tracer bullet:
+- On `chatgpt.com`, the extension injects, intercepts Enter or send from the ProseMirror composer, opens the mode modal, and resumes the native send.
 
 Outcome:
-The extension runs against both Gemini and ChatGPT with the same core feature flow.
+The extension can interrupt and resume ChatGPT prompt submission through the shared platform seam.
 
-### Phase 4: Normalize tooling for future platforms
+### Phase 4: Add ChatGPT Persistence And Thread Resolution
+1. Persist ChatGPT learning-cycle records using platform-aware thread identity.
+2. Treat `/` as pending new-chat state.
+3. Resolve records to `/c/<id>` after native send completes and the thread URL materializes.
+4. Extend ChatGPT smoke coverage to assert thread resolution behavior.
+
+E2E tracer bullet:
+- On ChatGPT, a new conversation starts at `/`, the learning-cycle record is captured as pending, and after submit the stored record resolves to `/c/<id>`.
+
+Outcome:
+ChatGPT reaches parity with Gemini for learning-cycle capture and concrete thread resolution.
+
+### Phase 5: Add ChatGPT Reflection Parity
+1. Anchor the reflection hint near the ChatGPT composer.
+2. Reuse the shared reflection modal and runtime messaging.
+3. Verify due-state visibility and reflection completion behavior on ChatGPT threads.
+
+E2E tracer bullet:
+- On a ChatGPT thread with an eligible learning-cycle record, the reflection hint anchors near the composer, opens the reflection modal, and completion persists and hides the hint.
+
+Outcome:
+ChatGPT reaches parity with Gemini for reflection behavior.
+
+### Phase 6: Normalize Tooling For Future Platforms
 1. Rename or regroup Gemini-only scripts under a platform-aware pattern.
 2. Split tests into shared behavior tests plus per-platform fixture tests.
 3. Update README sections to describe platform-specific setup more cleanly.
+
+E2E tracer bullet:
+- Gemini and ChatGPT can both be exercised through parallel smoke flows and per-platform harnesses, without changing shared feature code to add another platform.
 
 Outcome:
 Adding a third platform is mostly additive and operationally clear.
@@ -373,9 +427,12 @@ Use shared helpers for cross-platform behavior assertions, but keep each platfor
 4. Should dev scripts move immediately to generic names, or stay Gemini-specific until ChatGPT live testing exists?
 
 ## Recommendation
-Start with the smallest architecture move that creates a real seam:
+Treat the ChatGPT probe as discovery input, not the first implementation milestone.
+
+Implementation should start with the smallest architecture moves that create a real seam:
 1. extract Gemini into `src/platforms/gemini`
 2. introduce the platform registry
 3. make thread lookup platform-aware
+4. add the ChatGPT thin slice only after those seams are in place
 
-That gets the repo ready for ChatGPT without prematurely building a large framework.
+That gets the repo ready for ChatGPT without prematurely building a large framework or adding ChatGPT as another one-off integration.
