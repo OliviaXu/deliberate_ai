@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReflectionHint } from '../../src/content/reflection-hint';
+import { geminiPlatform } from '../../src/platforms/gemini/definition';
 
 function setupGeminiComposer(): HTMLDivElement {
   document.body.innerHTML = `
@@ -37,7 +38,7 @@ function setupGeminiComposer(): HTMLDivElement {
 describe('ReflectionHint', () => {
   it('shows and hides the hint based on the computed due state for the current thread', () => {
     setupGeminiComposer();
-    const hint = new ReflectionHint();
+    const hint = new ReflectionHint({ platform: geminiPlatform });
 
     hint.updateVisibilityForThread('/app/threads/thread-a', false);
     expect(document.querySelector('[data-testid="deliberate-reflection-hint"]')).toBeNull();
@@ -51,7 +52,7 @@ describe('ReflectionHint', () => {
 
   it('anchors the hint as a floating overlay inside the composer shell', () => {
     const composer = setupGeminiComposer();
-    const hint = new ReflectionHint();
+    const hint = new ReflectionHint({ platform: geminiPlatform });
 
     hint.updateVisibilityForThread('/app/thread-a', true);
 
@@ -69,7 +70,7 @@ describe('ReflectionHint', () => {
 
   it('prefers the real Gemini input-area shell over inner wrappers and broader page containers', () => {
     const composer = setupGeminiComposer();
-    const hint = new ReflectionHint();
+    const hint = new ReflectionHint({ platform: geminiPlatform });
 
     hint.updateVisibilityForThread('/app/thread-a', true);
 
@@ -90,7 +91,7 @@ describe('ReflectionHint', () => {
   it('logs review interaction without hiding hint', () => {
     setupGeminiComposer();
     const onReview = vi.fn();
-    const hint = new ReflectionHint({ onReview });
+    const hint = new ReflectionHint({ platform: geminiPlatform, onReview });
 
     hint.updateVisibilityForThread('/app/thread-a', true);
 

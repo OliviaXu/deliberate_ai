@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GeminiSendInterceptor } from '../../src/content/send-interceptor';
+import { geminiPlatform } from '../../src/platforms/gemini/definition';
+import { SendInterceptor } from '../../src/content/send-interceptor';
 
 function setupGeminiHarness(options: { includeSendButton?: boolean; includeComposer?: boolean } = {}): {
   composer: HTMLDivElement | null;
@@ -55,7 +56,7 @@ function setupGeminiHarness(options: { includeSendButton?: boolean; includeCompo
   };
 }
 
-function triggerTrustedEnter(interceptor: GeminiSendInterceptor, composer: HTMLElement): void {
+function triggerTrustedEnter(interceptor: SendInterceptor, composer: HTMLElement): void {
   (interceptor as unknown as { onKeyDown: (event: KeyboardEvent) => void }).onKeyDown({
     key: 'Enter',
     shiftKey: false,
@@ -70,7 +71,7 @@ function triggerTrustedEnter(interceptor: GeminiSendInterceptor, composer: HTMLE
   } as unknown as KeyboardEvent);
 }
 
-function triggerTrustedClick(interceptor: GeminiSendInterceptor, button: HTMLButtonElement): void {
+function triggerTrustedClick(interceptor: SendInterceptor, button: HTMLButtonElement): void {
   (interceptor as unknown as { onClick: (event: MouseEvent) => void }).onClick({
     isTrusted: true,
     target: button,
@@ -79,7 +80,7 @@ function triggerTrustedClick(interceptor: GeminiSendInterceptor, button: HTMLBut
   } as unknown as MouseEvent);
 }
 
-describe('GeminiSendInterceptor', () => {
+describe('SendInterceptor', () => {
   it('blocks Enter submit and emits an interception intent', () => {
     const { composer, state } = setupGeminiHarness({ includeSendButton: false });
     if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
@@ -90,7 +91,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -117,7 +118,7 @@ describe('GeminiSendInterceptor', () => {
     });
 
     const logger = { debug: vi.fn(), info: vi.fn(), error: vi.fn() };
-    const interceptor = new GeminiSendInterceptor(logger);
+    const interceptor = new SendInterceptor(geminiPlatform, logger);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -155,7 +156,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent-click';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -194,7 +195,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'secondary-sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -225,10 +226,11 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
+    button.focus();
 
     triggerTrustedClick(interceptor, button);
     const intent = handler.mock.calls[0]?.[0];
@@ -250,7 +252,7 @@ describe('GeminiSendInterceptor', () => {
     });
 
     const logger = { debug: vi.fn(), info: vi.fn(), error: vi.fn() };
-    const interceptor = new GeminiSendInterceptor(logger);
+    const interceptor = new SendInterceptor(geminiPlatform, logger);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -279,7 +281,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -296,6 +298,45 @@ describe('GeminiSendInterceptor', () => {
     interceptor.stop();
   });
 
+  it('does not do a document-wide composer fallback after active and nearby lookup miss', () => {
+    const { button, state } = setupGeminiHarness({ includeComposer: false });
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected send button');
+
+    const unrelatedComposer = document.createElement('div');
+    unrelatedComposer.className = 'ql-editor textarea new-input-ui';
+    unrelatedComposer.setAttribute('contenteditable', 'true');
+    unrelatedComposer.setAttribute('role', 'textbox');
+    unrelatedComposer.setAttribute('aria-label', 'Enter a prompt for Gemini');
+    unrelatedComposer.textContent = 'unrelated draft';
+    document.body.appendChild(unrelatedComposer);
+
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent';
+    });
+
+    const platform = {
+      ...geminiPlatform,
+      findComposer: (root: ParentNode = document) => (root === document ? unrelatedComposer : null),
+      resolveComposerNear: () => null
+    };
+
+    const interceptor = new SendInterceptor(platform);
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedClick(interceptor, button);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const firstIntent = handler.mock.calls[0]?.[0];
+    if (!firstIntent) throw new Error('Expected interception intent');
+    expect(firstIntent.prompt).toBe('');
+    expect(state.textContent).toBe('idle');
+
+    interceptor.stop();
+  });
+
   it('does not intercept Enter pressed inside the mode modal detail textarea', () => {
     document.body.innerHTML = `
       <div class="ql-editor textarea new-input-ui" contenteditable="true" role="textbox" aria-label="Enter a prompt for Gemini">draft</div>
@@ -305,7 +346,7 @@ describe('GeminiSendInterceptor', () => {
     `;
     const modalInput = document.querySelector('[data-testid="deliberate-mode-detail-input"]') as HTMLTextAreaElement;
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -333,7 +374,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'modal-clicked';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -342,6 +383,28 @@ describe('GeminiSendInterceptor', () => {
 
     expect(handler).not.toHaveBeenCalled();
     expect(state.textContent).toBe('modal-clicked');
+
+    interceptor.stop();
+  });
+
+  it('relies on resolveComposerNear when the event target is already the composer', () => {
+    const { composer } = setupGeminiHarness({ includeSendButton: false });
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+
+    const platform = {
+      ...geminiPlatform,
+      resolveComposerNear: (element: Element | null) => (element === composer ? composer : null)
+    };
+
+    const interceptor = new SendInterceptor(platform);
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedEnter(interceptor, composer);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0]?.[0]?.prompt).toBe('draft');
 
     interceptor.stop();
   });
@@ -356,7 +419,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();
@@ -378,7 +441,7 @@ describe('GeminiSendInterceptor', () => {
       state.textContent = 'sent';
     });
 
-    const interceptor = new GeminiSendInterceptor();
+    const interceptor = new SendInterceptor(geminiPlatform);
     const handler = vi.fn();
     interceptor.onIntercept(handler);
     interceptor.start();

@@ -24,6 +24,17 @@ let interceptHandler: ((intent: InterceptedSubmitIntent) => void) | null = null;
 let intervalCallback: (() => void) | null = null;
 let reviewHandler: ((threadId: string) => Promise<void> | void) | null = null;
 const runtimeSendMessage = vi.fn<(message: unknown) => Promise<unknown>>(async () => ({ record: null }));
+const mockPlatform = {
+  id: 'gemini' as const,
+  resolveThreadId: (url: string) => {
+    try {
+      return new URL(url).pathname || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  },
+  isConcreteThreadId: (threadId: string) => threadId.startsWith('/app/') && threadId.length > '/app/'.length
+};
 
 function getRuntimeMessages(): Array<{ type?: string; threadId?: string }> {
   return runtimeSendMessage.mock.calls.map(([message]) => message as { type?: string; threadId?: string });
@@ -65,7 +76,7 @@ vi.mock('../../src/shared/logger', () => ({
 }));
 
 vi.mock('../../src/content/send-interceptor', () => ({
-  GeminiSendInterceptor: class {
+  SendInterceptor: class {
     onIntercept(handler: (intent: InterceptedSubmitIntent) => void): void {
       interceptHandler = handler;
     }
@@ -76,6 +87,11 @@ vi.mock('../../src/content/send-interceptor', () => ({
       return true;
     }
   }
+}));
+
+vi.mock('../../src/platforms', () => ({
+  getActivePlatforms: () => [mockPlatform],
+  resolvePlatformFromUrl: () => mockPlatform
 }));
 
 vi.mock('../../src/content/mode-modal', () => ({

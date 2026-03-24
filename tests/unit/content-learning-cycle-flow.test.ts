@@ -85,6 +85,32 @@ describe('handleModeSubmission', () => {
     expect(randomUuid).toHaveBeenCalledOnce();
   });
 
+  it('resolves thread ids from the active platform instead of URL host matching', async () => {
+    const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
+    const resume = vi.fn(() => true);
+    const randomUuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111');
+
+    await handleModeSubmission({
+      intent: {
+        ...baseIntent,
+        url: 'https://deliberate-harness.test/app/threads/test-thread'
+      },
+      submission: { mode: 'delegation' },
+      sendMessage,
+      resume,
+      logger: { info: vi.fn(), error: vi.fn() }
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'learning-cycle:append',
+      record: expect.objectContaining({
+        id: '11111111-1111-4111-8111-111111111111',
+        threadId: '/app/threads/test-thread'
+      })
+    });
+    expect(randomUuid).toHaveBeenCalledOnce();
+  });
+
   it('reports append failure when runtime response is not ok', async () => {
     const result = await handleModeSubmission({
       intent: baseIntent,

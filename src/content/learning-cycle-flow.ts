@@ -1,11 +1,11 @@
 import { INTERACTION_MODES } from '../shared/types';
+import { resolvePlatformById } from '../platforms';
 import type {
   InterceptedSubmitIntent,
   LearningCycleRecord,
   LearningCycleRuntimeMessage,
   LearningCycleSubmission
 } from '../shared/types';
-import { resolveThreadId } from '../shared/thread-id';
 
 type ResumeFn = (intent: InterceptedSubmitIntent) => boolean;
 type SendMessageFn = (message: LearningCycleRuntimeMessage) => Promise<unknown> | unknown;
@@ -30,11 +30,12 @@ interface HandleModeSubmissionResult {
 }
 
 function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: LearningCycleSubmission): LearningCycleRecord {
+  const platform = resolvePlatformById(intent.platform);
   const base = {
     id: globalThis.crypto.randomUUID(),
     timestamp: intent.timestamp,
     platform: intent.platform,
-    threadId: resolveThreadId(intent.url),
+    threadId: platform?.resolveThreadId(intent.url) ?? 'unknown',
     prompt: intent.prompt
   } as const;
 

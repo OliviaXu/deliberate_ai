@@ -1,4 +1,4 @@
-import { PLACEHOLDER_GEMINI_THREAD_ID, resolveConcreteGeminiThreadId } from '../shared/thread-id';
+import { PLACEHOLDER_GEMINI_THREAD_ID, resolveConcreteGeminiThreadId } from '../platforms/gemini/thread';
 import type { LearningCycleStore } from '../shared/learning-cycle-store';
 
 interface TabsChangeInfo {

@@ -5,7 +5,7 @@ export function findGeminiComposer(root: ParentNode = document): HTMLElement | n
   return root.querySelector<HTMLElement>(GEMINI_COMPOSER_SELECTOR);
 }
 
-export function isGeminiComposerElement(element: Element | null): element is HTMLElement {
+function isGeminiComposerElement(element: Element | null): element is HTMLElement {
   return element instanceof HTMLElement && element.matches(GEMINI_COMPOSER_SELECTOR);
 }
 
@@ -30,6 +30,38 @@ export function findGeminiComposerAnchor(composer: HTMLElement): HTMLElement | n
   }
 
   return composer.parentElement;
+}
+
+export function isGeminiSendButton(button: HTMLButtonElement): boolean {
+  if (button.matches('button.send-button, button.submit, #send')) return true;
+
+  const icon = button.querySelector('mat-icon[fonticon="send"], .send-button-icon');
+  if (icon) return true;
+
+  const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
+  const testId = (button.getAttribute('data-test-id') || '').toLowerCase();
+  const classes = button.className.toLowerCase();
+  const text = (button.textContent || '').toLowerCase().trim();
+
+  return (
+    ariaLabel.includes('send') ||
+    testId.includes('send') ||
+    classes.includes('send-button') ||
+    classes.includes('submit') ||
+    text === 'send'
+  );
+}
+
+export function readGeminiPrompt(composer: HTMLElement): string {
+  if (composer instanceof HTMLTextAreaElement) {
+    return composer.value;
+  }
+
+  if (composer.matches('[contenteditable="true"][role="textbox"]')) {
+    return composer.textContent || '';
+  }
+
+  return '';
 }
 
 export { GEMINI_ANCHOR_SELECTORS, GEMINI_COMPOSER_SELECTOR };

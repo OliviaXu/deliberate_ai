@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { geminiPlatform } from '../../src/platforms/gemini/definition';
 
 const bootContentApp = vi.fn();
 const readHarnessNowMs = vi.fn(() => 1234);
@@ -28,6 +29,9 @@ describe('content bootstrap entry modules', () => {
     await import('../../src/content/harness');
 
     expect(bootContentApp).toHaveBeenCalledOnce();
-    expect(bootContentApp).toHaveBeenCalledWith({ now: readHarnessNowMs });
+    expect(bootContentApp).toHaveBeenCalledWith({
+      now: readHarnessNowMs,
+      platform: expect.objectContaining({ id: geminiPlatform.id })
+    });
   });
 });

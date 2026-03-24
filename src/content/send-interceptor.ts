@@ -1,6 +1,6 @@
-import type { InterceptedSubmitIntent, SubmitSource, Unsubscribe } from '../shared/types';
 import type { Logger } from '../shared/logger';
-import { findGeminiComposer, isGeminiComposerElement, resolveGeminiComposerNear } from './gemini-composer';
+import type { InterceptedSubmitIntent, SubmitSource, Unsubscribe } from '../shared/types';
+import type { PlatformDefinition } from '../platforms';
 
 interface InternalSubmitIntent extends InterceptedSubmitIntent {
   button: HTMLButtonElement | null;
@@ -12,10 +12,16 @@ interface ResumableSubmitIntent {
   replayIntent: InternalSubmitIntent;
 }
 
+type SendInterceptorPlatform = Pick<
+  PlatformDefinition,
+  'findComposer' | 'id' | 'isSendButton' | 'readPrompt' | 'resolveComposerNear'
+>;
+
 const DELIBERATE_MODAL_ROOT_SELECTOR = '#deliberate-mode-modal-root, #deliberate-reflection-modal-root';
 
-export class GeminiSendInterceptor {
+export class SendInterceptor {
   constructor(
+    private readonly platform: SendInterceptorPlatform,
     private readonly logger?: Pick<Logger, 'debug' | 'info' | 'error'>,
     private readonly now: () => number = Date.now
   ) {}
@@ -115,12 +121,12 @@ export class GeminiSendInterceptor {
     composer: HTMLElement | null,
     button: HTMLButtonElement | null
   ): InternalSubmitIntent {
-    const prompt = composer ? this.getComposerText(composer) : '';
+    const prompt = composer ? this.platform.readPrompt(composer) : '';
     return {
       source,
       timestamp: this.now(),
       url: window.location.href,
-      platform: 'gemini',
+      platform: this.platform.id,
       prompt,
       button,
       composer
@@ -145,18 +151,6 @@ export class GeminiSendInterceptor {
   private resolveIntentForResume(intent: InterceptedSubmitIntent): InternalSubmitIntent | null {
     if (this.lastResumableIntent?.emittedIntent !== intent) return null;
     return this.lastResumableIntent.replayIntent;
-  }
-
-  private getComposerText(composer: HTMLElement): string {
-    if (composer instanceof HTMLTextAreaElement) {
-      return composer.value;
-    }
-
-    if (composer.matches('[contenteditable="true"][role="textbox"]')) {
-      return composer.textContent || '';
-    }
-
-    return '';
   }
 
   private isSubmitKeyEvent(event: KeyboardEvent): boolean {
@@ -196,16 +190,11 @@ export class GeminiSendInterceptor {
 
     const nearbyComposer = this.resolveComposerNear(button);
     if (nearbyComposer) return nearbyComposer;
-
-    const firstComposer = findGeminiComposer();
-    if (firstComposer) return firstComposer;
-
     return null;
   }
 
   private resolveComposerNear(element: HTMLElement): HTMLElement | null {
-    if (isGeminiComposerElement(element)) return element;
-    return resolveGeminiComposerNear(element);
+    return this.platform.resolveComposerNear(element);
   }
 
   private resolveSendButton(): HTMLButtonElement | null {
@@ -226,22 +215,6 @@ export class GeminiSendInterceptor {
   }
 
   private isSendButton(button: HTMLButtonElement): boolean {
-    if (button.matches('button.send-button, button.submit, #send')) return true;
-
-    const icon = button.querySelector('mat-icon[fonticon="send"], .send-button-icon');
-    if (icon) return true;
-
-    const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-    const testId = (button.getAttribute('data-test-id') || '').toLowerCase();
-    const classes = button.className.toLowerCase();
-    const text = (button.textContent || '').toLowerCase().trim();
-
-    return (
-      ariaLabel.includes('send') ||
-      testId.includes('send') ||
-      classes.includes('send-button') ||
-      classes.includes('submit') ||
-      text === 'send'
-    );
+    return this.platform.isSendButton(button);
   }
 }

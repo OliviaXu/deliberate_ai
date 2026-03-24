@@ -5,9 +5,9 @@ import {
   PLACEHOLDER_GEMINI_THREAD_ID,
   isConcreteGeminiThreadId,
   isPlaceholderGeminiThreadId,
-  resolveConcreteGeminiThreadId,
-  resolveThreadId
-} from '../../src/shared/thread-id';
+  resolveConcreteGeminiThreadId
+} from '../../src/platforms/gemini/thread';
+import { geminiPlatform } from '../../src/platforms/gemini/definition';
 
 describe('resolveThreadId', () => {
   it('exports Gemini thread identity constants', () => {
@@ -17,11 +17,11 @@ describe('resolveThreadId', () => {
   });
 
   it('uses URL pathname for Gemini thread identity', () => {
-    expect(resolveThreadId('https://gemini.google.com/app/threads/123?hl=en')).toBe('/app/threads/123');
+    expect(geminiPlatform.resolveThreadId('https://gemini.google.com/app/threads/123?hl=en')).toBe('/app/threads/123');
   });
 
   it('falls back to unknown for invalid urls', () => {
-    expect(resolveThreadId('not-a-url')).toBe('unknown');
+    expect(geminiPlatform.resolveThreadId('not-a-url')).toBe('unknown');
   });
 
   it('resolves concrete Gemini thread ids from full URLs', () => {

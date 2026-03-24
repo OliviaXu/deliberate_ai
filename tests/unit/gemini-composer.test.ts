@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   findGeminiComposer,
   findGeminiComposerAnchor,
-  isGeminiComposerElement,
   resolveGeminiComposerNear
-} from '../../src/content/gemini-composer';
+} from '../../src/platforms/gemini/composer';
 
 function setupGeminiComposer(): HTMLDivElement {
   document.body.innerHTML = `
@@ -49,7 +48,7 @@ describe('gemini-composer helpers', () => {
     const composer = setupGeminiComposer();
 
     expect(findGeminiComposer()).toBe(composer);
-    expect(isGeminiComposerElement(composer)).toBe(true);
+    expect(resolveGeminiComposerNear(composer)).toBe(composer);
   });
 
   it('resolves the input-area shell as the preferred anchor', () => {

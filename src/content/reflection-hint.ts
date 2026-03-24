@@ -1,16 +1,19 @@
-import { findGeminiComposer, findGeminiComposerAnchor } from './gemini-composer';
+import type { PlatformDefinition } from '../platforms';
 
 interface ReflectionHintOptions {
   onReview?: (threadId: string) => Promise<void> | void;
+  platform: Pick<PlatformDefinition, 'findComposer' | 'findComposerAnchor'>;
 }
 
 export class ReflectionHint {
   private root: HTMLDivElement | null = null;
   private anchor: HTMLElement | null = null;
   private currentThreadId = 'unknown';
+  private readonly platform: Pick<PlatformDefinition, 'findComposer' | 'findComposerAnchor'>;
   private readonly onReview: (threadId: string) => Promise<void> | void;
 
-  constructor(options: ReflectionHintOptions = {}) {
+  constructor(options: ReflectionHintOptions) {
+    this.platform = options.platform;
     this.onReview =
       options.onReview ||
       ((threadId) => {
@@ -32,8 +35,8 @@ export class ReflectionHint {
     const root = this.getOrCreateRoot();
     root.setAttribute('data-deliberate-thread-id', threadId);
 
-    const composer = findGeminiComposer();
-    const anchor = composer ? findGeminiComposerAnchor(composer) : null;
+    const composer = this.platform.findComposer();
+    const anchor = composer ? this.platform.findComposerAnchor(composer) : null;
     if (anchor) {
       if (this.anchor && this.anchor !== anchor) {
         this.anchor.classList.remove('deliberate-reflection-hint-anchor');

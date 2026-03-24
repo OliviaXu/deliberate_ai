@@ -1,5 +1,5 @@
 import type { LearningCycleStore } from '../shared/learning-cycle-store';
-import { isPlaceholderGeminiThreadId } from '../shared/thread-id';
+import { isPlaceholderGeminiThreadId } from '../platforms/gemini/thread';
 import type { LearningCycleRuntimeMessage } from '../shared/types';
 import { createPendingThreadResolutionTracker, type PendingThreadResolutionTracker, type TabsApi } from './pending-thread-resolution';
 

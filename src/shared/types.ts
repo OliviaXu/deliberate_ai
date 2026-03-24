@@ -1,3 +1,5 @@
+import type { PlatformId } from './platform-id';
+
 export type SubmitSource = 'enter_key' | 'send_button';
 export const INTERACTION_MODES = {
   DELEGATION: 'delegation',
@@ -19,7 +21,7 @@ export interface SubmitSignal {
   source: SubmitSource;
   timestamp: number;
   url: string;
-  platform: 'gemini';
+  platform: PlatformId;
 }
 
 export interface InterceptedSubmitIntent extends SubmitSignal {
@@ -36,7 +38,7 @@ export interface DebugConfig {
 interface LearningCycleBase {
   id: string;
   timestamp: number;
-  platform: 'gemini';
+  platform: PlatformId;
   threadId: string;
   prompt: string;
 }

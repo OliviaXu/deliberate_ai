@@ -1,6 +1,5 @@
 import { loadDebugConfig } from '../shared/debug-config';
 import { Logger } from '../shared/logger';
-import { isConcreteGeminiThreadId, resolveThreadId } from '../shared/thread-id';
 import type {
   BackgroundRuntimeMessage,
   InterceptedSubmitIntent,
@@ -10,12 +9,13 @@ import type {
   ReflectionSubmission
 } from '../shared/types';
 import { isReflectionEligibleMode, isReflectionEligibleRecord } from '../shared/types';
+import type { PlatformDefinition } from '../platforms';
 import { handleModeSubmission } from './learning-cycle-flow';
 import { ReflectionEligibilityTracker } from './reflection-eligibility';
 import { ReflectionHint } from './reflection-hint';
 import { ReflectionModal } from './reflection-modal';
 import { ModeSelectionModal } from './mode-modal';
-import { GeminiSendInterceptor } from './send-interceptor';
+import { SendInterceptor } from './send-interceptor';
 
 const DUE_AFTER_MS = 5 * 60 * 1000;
 const ACTIVE_FOLLOW_UP_THRESHOLD = 3;
@@ -30,14 +30,15 @@ interface CachedThreadState {
 
 export interface ContentAppDependencies {
   now: () => number;
+  platform: PlatformDefinition;
 }
 
-export async function startContentApp({ now }: ContentAppDependencies): Promise<void> {
+export async function startContentApp({ now, platform }: ContentAppDependencies): Promise<void> {
   const logger = new Logger(loadDebugConfig());
-  const interceptor = new GeminiSendInterceptor(logger, now);
+  const interceptor = new SendInterceptor(platform, logger, now);
   const modeModal = new ModeSelectionModal();
   const reflectionModal = new ReflectionModal();
-  const reflectionHint = new ReflectionHint({ onReview: (threadId) => handleReflectionReview(threadId) });
+  const reflectionHint = new ReflectionHint({ platform, onReview: (threadId) => handleReflectionReview(threadId) });
   const reflectionEligibility = new ReflectionEligibilityTracker();
   const threadStateCache = new Map<string, CachedThreadState>();
   const pendingLearningCycleRecordChecks = new Map<string, Promise<LearningCycleRecord | null>>();
@@ -61,7 +62,7 @@ export async function startContentApp({ now }: ContentAppDependencies): Promise<
       busyDropCount += 1;
       logger.info('submit-intent-dropped-while-busy', {
         busyDropCount,
-        threadId: resolveThreadId(intent.url)
+        threadId: platform.resolveThreadId(intent.url)
       });
       setDomState(interceptionCount, modalOpen, busyDropCount);
       return;
@@ -77,7 +78,7 @@ export async function startContentApp({ now }: ContentAppDependencies): Promise<
   }
 
   async function handleIntercept(intent: InterceptedSubmitIntent): Promise<void> {
-    const threadId = resolveThreadId(intent.url);
+    const threadId = platform.resolveThreadId(intent.url);
     const learningCycleRecord = await resolveLearningCycleRecord(threadId);
     if (learningCycleRecord) {
       if (!maybeStartActiveCandidateFromNewThread(threadId, learningCycleRecord)) {
@@ -111,7 +112,7 @@ export async function startContentApp({ now }: ContentAppDependencies): Promise<
         awaitingNewThreadFollowUp = true;
       }
 
-      if (isThreadIdCacheable(threadId)) {
+      if (platform.isConcreteThreadId(threadId)) {
         setCachedLearningCycleRecord(threadId, result.record);
         if (isReflectionEligibleMode(result.record.mode)) {
           setCachedReflectionCompletion(result.record.id, threadId, false);
@@ -139,7 +140,7 @@ export async function startContentApp({ now }: ContentAppDependencies): Promise<
   }
 
   async function refreshReflectionHintForCurrentThread(): Promise<void> {
-    await refreshReflectionHintForThread(resolveThreadId(window.location.href));
+    await refreshReflectionHintForThread(platform.resolveThreadId(window.location.href));
   }
 
   async function refreshReflectionHintForThread(threadId: string): Promise<void> {
@@ -231,7 +232,7 @@ export async function startContentApp({ now }: ContentAppDependencies): Promise<
   }
 
   async function resolveLearningCycleRecord(threadId: string): Promise<LearningCycleRecord | null> {
-    if (!isThreadIdCacheable(threadId)) {
+    if (!platform.isConcreteThreadId(threadId)) {
       return null;
     }
 
@@ -330,8 +331,4 @@ function sendRuntimeMessage(message: BackgroundRuntimeMessage): Promise<unknown>
   const send = chromeApi?.runtime?.sendMessage;
   if (!send) return undefined;
   return Promise.resolve(send(message));
-}
-
-function isThreadIdCacheable(threadId: string): boolean {
-  return isConcreteGeminiThreadId(threadId);
 }
