@@ -16,6 +16,7 @@ A browser assistant for the AI era that nudges you to think first, then builds s
 4. Turn on **Developer mode**.
 5. Click **Load unpacked** and select:
    `<repo-root>/.output/chrome-mv3` (for example, `deliberate_ai/.output/chrome-mv3`)
+   > **macOS tip:** `.output` is a hidden folder. If you don't see it in the file picker, press **Cmd + Shift + .** (period) to toggle hidden files visible.
 6. Open `https://gemini.google.com` and test.
 
 After code changes, run `npm run build` again, then click **Reload** on the extension card in `chrome://extensions`.
