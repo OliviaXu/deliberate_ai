@@ -23,7 +23,7 @@ describe('createPendingThreadResolutionTracker', () => {
     const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
     if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
 
-    tracker.trackPlaceholder('record-1', 101);
+    tracker.trackPlaceholder('record-1', 101, { platform: 'gemini', threadId: '/app' });
     tabsUpdatedListener(
       101,
       { url: 'https://gemini.google.com/app/532b342f83b8e91e', status: 'complete' },
@@ -31,7 +31,7 @@ describe('createPendingThreadResolutionTracker', () => {
     );
 
     await vi.waitFor(() => {
-      expect(resolveThreadIdForRecord).toHaveBeenCalledWith('record-1', '/app', '/app/532b342f83b8e91e');
+      expect(resolveThreadIdForRecord).toHaveBeenCalledWith('record-1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e');
     });
   });
 
@@ -57,7 +57,7 @@ describe('createPendingThreadResolutionTracker', () => {
     const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
     if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
 
-    tracker.trackPlaceholder('record-2', 202);
+    tracker.trackPlaceholder('record-2', 202, { platform: 'gemini', threadId: '/app' });
     tabsUpdatedListener(202, { url: 'https://gemini.google.com/app/xyz', status: 'loading' }, { id: 202 });
     tabsUpdatedListener(202, { url: 'https://gemini.google.com/app/xyz', status: 'complete' }, { id: 202 });
     expect(resolveThreadIdForRecord).toHaveBeenCalledTimes(1);
@@ -84,8 +84,8 @@ describe('createPendingThreadResolutionTracker', () => {
     const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
     if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
 
-    tracker.trackPlaceholder('record-old', 707);
-    tracker.trackPlaceholder('record-new', 707);
+    tracker.trackPlaceholder('record-old', 707, { platform: 'gemini', threadId: '/app' });
+    tracker.trackPlaceholder('record-new', 707, { platform: 'gemini', threadId: '/app' });
 
     tabsUpdatedListener(
       707,
@@ -95,7 +95,11 @@ describe('createPendingThreadResolutionTracker', () => {
 
     await vi.waitFor(() => {
       expect(resolveThreadIdForRecord).toHaveBeenCalledTimes(1);
-      expect(resolveThreadIdForRecord).toHaveBeenCalledWith('record-new', '/app', '/app/threads/latest');
+      expect(resolveThreadIdForRecord).toHaveBeenCalledWith(
+        'record-new',
+        { platform: 'gemini', threadId: '/app' },
+        '/app/threads/latest'
+      );
     });
   });
 
@@ -117,7 +121,7 @@ describe('createPendingThreadResolutionTracker', () => {
     const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
     if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
 
-    tracker.trackPlaceholder('record-3', 303);
+    tracker.trackPlaceholder('record-3', 303, { platform: 'gemini', threadId: '/app' });
     await vi.advanceTimersByTimeAsync(51);
     tabsUpdatedListener(303, { url: 'https://gemini.google.com/app/late-thread', status: 'complete' }, { id: 303 });
 
@@ -145,7 +149,7 @@ describe('createPendingThreadResolutionTracker', () => {
     const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
     if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
 
-    tracker.trackPlaceholder('record-4', 404);
+    tracker.trackPlaceholder('record-4', 404, { platform: 'gemini', threadId: '/app' });
     tabsUpdatedListener(404, { url: 'https://gemini.google.com/app/abc', status: 'complete' }, { id: 404 });
 
     await vi.waitFor(() => {

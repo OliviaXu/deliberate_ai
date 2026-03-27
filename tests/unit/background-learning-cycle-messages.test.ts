@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/shared/thread-id';
+import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/thread';
 import type { LearningCycleRecord } from '../../src/shared/types';
 import { registerLearningCycleMessageHandlers } from '../../src/background/learning-cycle-messages';
 
@@ -74,11 +74,11 @@ describe('registerLearningCycleMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) => {
-        listener({ type: 'learning-cycle:thread-record', threadId: '/app/thread' }, {}, resolve);
+        listener({ type: 'learning-cycle:thread-record', platform: 'gemini', threadId: '/app/thread' }, {}, resolve);
       })
     ).resolves.toEqual({ record });
 
-    expect(getLatestForThread).toHaveBeenCalledWith('/app/thread');
+    expect(getLatestForThread).toHaveBeenCalledWith({ platform: 'gemini', threadId: '/app/thread' });
     expect(append).not.toHaveBeenCalled();
     expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
   });
@@ -105,11 +105,11 @@ describe('registerLearningCycleMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) => {
-        listener({ type: 'learning-cycle:thread-record', threadId: '/app/thread' }, {}, resolve);
+        listener({ type: 'learning-cycle:thread-record', platform: 'gemini', threadId: '/app/thread' }, {}, resolve);
       })
     ).resolves.toEqual({ record: null });
 
-    expect(getLatestForThread).toHaveBeenCalledWith('/app/thread');
+    expect(getLatestForThread).toHaveBeenCalledWith({ platform: 'gemini', threadId: '/app/thread' });
   });
 
   it('tracks placeholder records through pending tracker when sender tab is present', async () => {
@@ -146,7 +146,10 @@ describe('registerLearningCycleMessageHandlers', () => {
     ).resolves.toEqual({ ok: true });
 
     expect(trackerFactory).toHaveBeenCalledOnce();
-    expect(trackPlaceholder).toHaveBeenCalledWith('record-1', 101);
+    expect(trackPlaceholder).toHaveBeenCalledWith('record-1', 101, {
+      platform: 'gemini',
+      threadId: PLACEHOLDER_GEMINI_THREAD_ID
+    });
   });
 
   it('does not track placeholder records without sender tab id', async () => {

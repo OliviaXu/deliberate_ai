@@ -75,8 +75,8 @@ describe('LearningCycleStore', () => {
     await store.append(makeRecord({ id: '1', threadId: '/app/threads/one' }));
     await store.append(makeRecord({ id: '2', threadId: '/app/threads/two' }));
 
-    await expect(store.getLatestForThread('/app/threads/one')).resolves.toMatchObject({ id: '1' });
-    await expect(store.getLatestForThread('/app/threads/missing')).resolves.toBeNull();
+    await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/app/threads/one' })).resolves.toMatchObject({ id: '1' });
+    await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/app/threads/missing' })).resolves.toBeNull();
   });
 
   it('lists all stored records', async () => {
@@ -95,7 +95,9 @@ describe('LearningCycleStore', () => {
     await store.append(makeRecord({ id: '1', threadId: '/app' }));
     await store.append(makeRecord({ id: '2', threadId: '/app/threads/other' }));
 
-    await expect(store.resolveThreadIdForRecord('1', '/app', '/app/532b342f83b8e91e')).resolves.toBe(true);
+    await expect(
+      store.resolveThreadIdForRecord('1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e')
+    ).resolves.toBe(true);
 
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records[0]?.threadId).toBe('/app/532b342f83b8e91e');
@@ -106,7 +108,9 @@ describe('LearningCycleStore', () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1', threadId: '/app/threads/already-final' }));
 
-    await expect(store.resolveThreadIdForRecord('1', '/app', '/app/532b342f83b8e91e')).resolves.toBe(false);
+    await expect(
+      store.resolveThreadIdForRecord('1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e')
+    ).resolves.toBe(false);
   });
 
   it('returns the latest learning-cycle interaction for a thread regardless of mode', async () => {
@@ -123,10 +127,25 @@ describe('LearningCycleStore', () => {
       })
     );
 
-    await expect(store.getLatestForThread('/app/threads/one')).resolves.toMatchObject({
+    await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/app/threads/one' })).resolves.toMatchObject({
       id: 'delegation-1',
       mode: 'delegation'
     });
-    await expect(store.getLatestForThread('/app/threads/missing')).resolves.toBeNull();
+    await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/app/threads/missing' })).resolves.toBeNull();
+  });
+
+  it('isolates thread lookups when two platforms share the same raw thread id', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({ id: 'gemini-record', platform: 'gemini', threadId: '/shared/thread', timestamp: 10 }));
+    await store.append(makeRecord({ id: 'chatgpt-record', platform: 'chatgpt', threadId: '/shared/thread', timestamp: 20 }));
+
+    await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/shared/thread' })).resolves.toMatchObject({
+      id: 'gemini-record',
+      platform: 'gemini'
+    });
+    await expect(store.getLatestForThread({ platform: 'chatgpt', threadId: '/shared/thread' })).resolves.toMatchObject({
+      id: 'chatgpt-record',
+      platform: 'chatgpt'
+    });
   });
 });

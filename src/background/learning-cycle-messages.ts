@@ -1,6 +1,6 @@
 import type { LearningCycleStore } from '../shared/learning-cycle-store';
-import { isPlaceholderGeminiThreadId } from '../platforms/gemini/thread';
-import type { LearningCycleRuntimeMessage } from '../shared/types';
+import { resolvePlatformById } from '../platforms';
+import type { LearningCycleRuntimeMessage, PlatformThreadIdentity } from '../shared/types';
 import { createPendingThreadResolutionTracker, type PendingThreadResolutionTracker, type TabsApi } from './pending-thread-resolution';
 
 interface RuntimeApi {
@@ -52,7 +52,7 @@ export function registerLearningCycleMessageHandlers(
     sendResponse: (response: unknown) => void
   ): boolean => {
     void store
-      .getLatestForThread(message.threadId)
+      .getLatestForThread({ platform: message.platform, threadId: message.threadId })
       .then((record) => sendResponse({ record }))
       .catch((error) => sendResponse({ error: String(error) }));
     return true;
@@ -103,13 +103,24 @@ function trackPendingPlaceholderFromSender(
   sender: unknown,
   pendingTracker: Pick<PendingThreadResolutionTracker, 'trackPlaceholder'>
 ): void {
-  if (!isPlaceholderGeminiThreadId(message.record.threadId)) return;
+  const thread = getRecordThreadIdentity(message);
+  const platform = resolvePlatformById(thread.platform);
+  if (!platform?.isPlaceholderThreadId(thread.threadId)) return;
   if (!sender || typeof sender !== 'object') return;
   const tabId = (sender as { tab?: { id?: unknown } }).tab?.id;
   if (!isInteger(tabId)) return;
-  pendingTracker.trackPlaceholder(message.record.id, tabId);
+  pendingTracker.trackPlaceholder(message.record.id, tabId, thread);
 }
 
 function isInteger(value: unknown): value is number {
   return Number.isInteger(value);
+}
+
+function getRecordThreadIdentity(
+  message: Extract<LearningCycleRuntimeMessage, { type: 'learning-cycle:append' }>
+): PlatformThreadIdentity {
+  return {
+    platform: message.record.platform,
+    threadId: message.record.threadId
+  };
 }

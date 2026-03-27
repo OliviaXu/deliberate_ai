@@ -37,7 +37,7 @@ const mockPlatform = {
 };
 
 function getRuntimeMessages(): Array<{ type?: string; threadId?: string }> {
-  return runtimeSendMessage.mock.calls.map(([message]) => message as { type?: string; threadId?: string });
+  return runtimeSendMessage.mock.calls.map(([message]) => message as { type?: string; platform?: string; threadId?: string });
 }
 
 function expectNoClockBootstrapMessage(): void {
@@ -193,8 +193,12 @@ describe('content reflection hint refresh', () => {
 
   it('starts active tracking on the first bypassed concrete-thread submit using the persisted thread record timestamp', async () => {
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
-      if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
+      const payload = message as { type?: string; platform?: string; threadId?: string; learningCycleRecordId?: string };
+      if (
+        payload.type === 'learning-cycle:thread-record' &&
+        payload.platform === 'gemini' &&
+        payload.threadId === '/app/threads/thread-a'
+      ) {
         return {
           record: {
             id: 'record-1',
@@ -233,6 +237,13 @@ describe('content reflection hint refresh', () => {
 
     await flushAsyncWork();
 
+    expect(runtimeSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'learning-cycle:thread-record',
+        platform: 'gemini',
+        threadId: '/app/threads/thread-a'
+      })
+    );
     expect(startTrackingThread).toHaveBeenCalledWith('/app/threads/thread-a');
   });
 

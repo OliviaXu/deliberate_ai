@@ -1,5 +1,6 @@
-import { PLACEHOLDER_GEMINI_THREAD_ID, resolveConcreteGeminiThreadId } from '../platforms/gemini/thread';
+import { resolvePlatformById } from '../platforms';
 import type { LearningCycleStore } from '../shared/learning-cycle-store';
+import type { PlatformThreadIdentity } from '../shared/types';
 
 interface TabsChangeInfo {
   url?: string;
@@ -20,13 +21,14 @@ export interface TabsApi {
 
 interface PendingResolution {
   recordId: string;
+  platform: PlatformThreadIdentity['platform'];
   fromThreadId: string;
   timeoutId: ReturnType<typeof setTimeout>;
   resolving: boolean;
 }
 
 export interface PendingThreadResolutionTracker {
-  trackPlaceholder(recordId: string, tabId: number): void;
+  trackPlaceholder(recordId: string, tabId: number, thread: PlatformThreadIdentity): void;
   dispose(): void;
 }
 
@@ -71,6 +73,7 @@ export function createPendingThreadResolutionTracker(
   const buildResolutionLogMeta = (tabId: number, pending: PendingResolution, toThreadId: string) => ({
     tabId,
     recordId: pending.recordId,
+    platform: pending.platform,
     fromThreadId: pending.fromThreadId,
     toThreadId
   });
@@ -93,11 +96,10 @@ export function createPendingThreadResolutionTracker(
   };
 
   const handleTabsUpdated = (tabId: number, changeInfo: TabsChangeInfo, tab: TabLike): void => {
-    const toThreadId = resolveConcreteGeminiThreadId(changeInfo.url ?? tab.url);
-    if (!toThreadId) return;
-
     const pending = readPending(tabId);
     if (!pending) return;
+    const toThreadId = resolvePlatformById(pending.platform)?.resolveConcreteThreadId(changeInfo.url ?? tab.url);
+    if (!toThreadId) return;
 
     logTabsEvent(tabId, toThreadId, changeInfo, tab);
 
@@ -108,7 +110,11 @@ export function createPendingThreadResolutionTracker(
     logger.debug('thread-id-resolution-attempt', resolutionMeta);
 
     void store
-      .resolveThreadIdForRecord(pending.recordId, pending.fromThreadId, toThreadId)
+      .resolveThreadIdForRecord(
+        pending.recordId,
+        { platform: pending.platform, threadId: pending.fromThreadId },
+        toThreadId
+      )
       .then((updated) => {
         logResolutionResult(updated, resolutionMeta);
         removePending(tabId, pending.recordId);
@@ -125,7 +131,7 @@ export function createPendingThreadResolutionTracker(
   tabs?.onUpdated?.addListener(handleTabsUpdated);
 
   return {
-    trackPlaceholder(recordId: string, tabId: number): void {
+    trackPlaceholder(recordId: string, tabId: number, thread: PlatformThreadIdentity): void {
       const existing = pendingByTab.get(tabId);
       if (existing) {
         removePending(tabId, existing.recordId);
@@ -137,14 +143,16 @@ export function createPendingThreadResolutionTracker(
         logger.info('thread-id-resolution-timeout', {
           tabId,
           recordId,
-          fromThreadId: PLACEHOLDER_GEMINI_THREAD_ID,
+          platform: thread.platform,
+          fromThreadId: thread.threadId,
           timeoutMs: pendingResolutionTimeoutMs
         });
       }, pendingResolutionTimeoutMs);
 
       pendingByTab.set(tabId, {
         recordId,
-        fromThreadId: PLACEHOLDER_GEMINI_THREAD_ID,
+        platform: thread.platform,
+        fromThreadId: thread.threadId,
         timeoutId,
         resolving: false
       });

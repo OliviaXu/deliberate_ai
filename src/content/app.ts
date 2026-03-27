@@ -249,6 +249,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     const check = Promise.resolve(
       sendRuntimeMessage({
         type: 'learning-cycle:thread-record',
+        platform: platform.id,
         threadId
       })
     )

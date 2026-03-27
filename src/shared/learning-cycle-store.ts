@@ -1,5 +1,5 @@
 import { StorageClient } from './storage';
-import type { LearningCycleRecord } from './types';
+import type { LearningCycleRecord, PlatformThreadIdentity } from './types';
 
 export const LEARNING_CYCLES_STORAGE_KEY = 'deliberate.learningCycles.v1';
 
@@ -20,12 +20,15 @@ export class LearningCycleStore {
     await this.writeQueue;
   }
 
-  async resolveThreadIdForRecord(recordId: string, fromThreadId: string, toThreadId: string): Promise<boolean> {
+  async resolveThreadIdForRecord(recordId: string, fromThread: PlatformThreadIdentity, toThreadId: string): Promise<boolean> {
     let updated = false;
 
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.listRaw();
-      const index = current.findIndex((record) => record.id === recordId && record.threadId === fromThreadId);
+      const index = current.findIndex(
+        (record) =>
+          record.id === recordId && record.platform === fromThread.platform && record.threadId === fromThread.threadId
+      );
       if (index < 0) return;
 
       const next = [...current];
@@ -38,10 +41,10 @@ export class LearningCycleStore {
     return updated;
   }
 
-  async getLatestForThread(threadId: string): Promise<LearningCycleRecord | null> {
+  async getLatestForThread(thread: PlatformThreadIdentity): Promise<LearningCycleRecord | null> {
     const current = await this.listRaw();
     const matches = current
-      .filter((record) => record.threadId === threadId)
+      .filter((record) => record.platform === thread.platform && record.threadId === thread.threadId)
       .sort((a, b) => b.timestamp - a.timestamp);
 
     return matches[0] ?? null;

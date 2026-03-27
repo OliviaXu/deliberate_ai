@@ -28,6 +28,11 @@ export interface InterceptedSubmitIntent extends SubmitSignal {
   prompt: string;
 }
 
+export interface PlatformThreadIdentity {
+  platform: PlatformId;
+  threadId: string;
+}
+
 export type LogLevel = 'off' | 'error' | 'info' | 'debug';
 
 export interface DebugConfig {
@@ -35,11 +40,9 @@ export interface DebugConfig {
   level: LogLevel;
 }
 
-interface LearningCycleBase {
+interface LearningCycleBase extends PlatformThreadIdentity {
   id: string;
   timestamp: number;
-  platform: PlatformId;
-  threadId: string;
   prompt: string;
 }
 
@@ -98,9 +101,8 @@ export interface LearningCycleAppendMessage {
   record: LearningCycleRecord;
 }
 
-export interface LearningCycleThreadRecordMessage {
+export interface LearningCycleThreadRecordMessage extends PlatformThreadIdentity {
   type: 'learning-cycle:thread-record';
-  threadId: string;
 }
 
 interface ReflectionBase {
