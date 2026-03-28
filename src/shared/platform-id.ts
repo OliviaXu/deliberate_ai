@@ -1,1 +1,1 @@
-export type PlatformId = 'gemini' | 'chatgpt';
+export type PlatformId = 'gemini' | 'chatgpt' | 'claude';

@@ -24,6 +24,11 @@ export default defineConfig({
       name: 'chromium-chatgpt-smoke',
       testMatch: /chatgpt-smoke\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'chromium-claude-smoke',
+      testMatch: /claude-smoke\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] }
     }
   ]
 });

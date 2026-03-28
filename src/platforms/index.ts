@@ -1,9 +1,10 @@
 import type { PlatformDefinition } from './types';
 import type { PlatformId } from '../shared/platform-id';
+import { claudePlatform } from './claude/definition';
 import { chatgptPlatform } from './chatgpt/definition';
 import { geminiPlatform } from './gemini/definition';
 
-const ACTIVE_PLATFORMS = [geminiPlatform, chatgptPlatform] as const satisfies readonly PlatformDefinition[];
+const ACTIVE_PLATFORMS = [geminiPlatform, chatgptPlatform, claudePlatform] as const satisfies readonly PlatformDefinition[];
 
 export const ACTIVE_PLATFORM_IDS = ACTIVE_PLATFORMS.map((platform) => platform.id);
 export const ACTIVE_PLATFORM_MATCH_PATTERNS = ACTIVE_PLATFORMS.flatMap((platform) => [...platform.matches]);
@@ -23,4 +24,5 @@ export function resolvePlatformFromUrl(url: string): PlatformDefinition | null {
 
 export { geminiPlatform };
 export { chatgptPlatform };
+export { claudePlatform };
 export type { PlatformDefinition } from './types';

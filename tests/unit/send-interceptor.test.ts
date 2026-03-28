@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { claudePlatform } from '../../src/platforms/claude/definition';
 import { chatgptPlatform } from '../../src/platforms/chatgpt/definition';
 import { geminiPlatform } from '../../src/platforms/gemini/definition';
 import { SendInterceptor } from '../../src/content/send-interceptor';
@@ -114,6 +115,54 @@ function setupChatGPTHarness(options: { includeSendButton?: boolean; includeComp
 
   const composer = document.querySelector('.ProseMirror');
   const button = document.querySelector('button[data-testid="send-button"]');
+  const state = document.querySelector('#state');
+  if (!(state instanceof HTMLParagraphElement)) throw new Error('Expected state element');
+
+  return {
+    composer: composer instanceof HTMLDivElement ? composer : null,
+    button: button instanceof HTMLButtonElement ? button : null,
+    state
+  };
+}
+
+function setupClaudeHarness(options: { includeSendButton?: boolean; includeComposer?: boolean } = {}): {
+  composer: HTMLDivElement | null;
+  button: HTMLButtonElement | null;
+  state: HTMLParagraphElement;
+} {
+  const { includeSendButton = true, includeComposer = true } = options;
+  document.body.innerHTML = `
+    <fieldset class="flex w-full min-w-0 flex-col">
+      <div class="rounded-5xl border border-border-300 bg-bg-000">
+        ${
+          includeComposer
+            ? `
+          <div
+            class="tiptap ProseMirror"
+            contenteditable="true"
+            role="textbox"
+            data-testid="chat-input"
+            aria-label="Write your prompt to Claude"
+          >
+            <p>draft</p>
+          </div>
+        `
+            : ''
+        }
+        ${
+          includeSendButton
+            ? `
+          <button type="button" aria-label="Send message">Send</button>
+        `
+            : ''
+        }
+      </div>
+    </fieldset>
+    <p id="state">idle</p>
+  `;
+
+  const composer = document.querySelector('[data-testid="chat-input"]');
+  const button = document.querySelector('button[aria-label="Send message"]');
   const state = document.querySelector('#state');
   if (!(state instanceof HTMLParagraphElement)) throw new Error('Expected state element');
 
@@ -519,6 +568,34 @@ describe('SendInterceptor', () => {
     expect(state.textContent).toBe('idle');
     const intent = handler.mock.calls[0]?.[0];
     expect(intent?.platform).toBe('chatgpt');
+    expect(intent?.prompt).toBe('draft');
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(state.textContent).toBe('sent-click');
+
+    interceptor.stop();
+  });
+
+  it('intercepts Claude ProseMirror Enter submits and resumes through the native send button', () => {
+    const { composer, button, state } = setupClaudeHarness();
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Claude composer');
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected Claude send button');
+
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent-click';
+    });
+
+    const interceptor = new SendInterceptor(claudePlatform);
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedEnter(interceptor, composer);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.textContent).toBe('idle');
+    const intent = handler.mock.calls[0]?.[0];
+    expect(intent?.platform).toBe('claude');
     expect(intent?.prompt).toBe('draft');
     expect(interceptor.resume(intent)).toBe(true);
     expect(state.textContent).toBe('sent-click');

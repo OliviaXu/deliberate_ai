@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLAUDE_HOST,
+  CLAUDE_THREAD_PREFIX,
+  PLACEHOLDER_CLAUDE_THREAD_ID,
+  claudePlatform
+} from '../../src/platforms/claude/definition';
+import {
   CHATGPT_HOST,
   CHATGPT_THREAD_PREFIX,
   PLACEHOLDER_CHATGPT_THREAD_ID,
@@ -78,5 +84,36 @@ describe('resolveThreadId', () => {
     expect(chatgptPlatform.isConcreteThreadId('/c/abc123')).toBe(true);
     expect(chatgptPlatform.isConcreteThreadId('/')).toBe(false);
     expect(chatgptPlatform.isConcreteThreadId('unknown')).toBe(false);
+  });
+
+  it('exports Claude thread identity constants', () => {
+    expect(PLACEHOLDER_CLAUDE_THREAD_ID).toBe('/new');
+    expect(CLAUDE_HOST).toBe('claude.ai');
+    expect(CLAUDE_THREAD_PREFIX).toBe('/chat/');
+  });
+
+  it('uses URL pathname for Claude thread identity', () => {
+    expect(claudePlatform.resolveThreadId('https://claude.ai/chat/abc123?model=sonnet')).toBe('/chat/abc123');
+  });
+
+  it('resolves concrete Claude thread ids from full URLs', () => {
+    expect(claudePlatform.resolveConcreteThreadId('https://claude.ai/chat/abc123')).toBe('/chat/abc123');
+    expect(claudePlatform.resolveConcreteThreadId('https://claude.ai/chat/abc123?model=sonnet')).toBe('/chat/abc123');
+  });
+
+  it('does not resolve concrete Claude thread ids for placeholder or non-Claude URLs', () => {
+    expect(claudePlatform.resolveConcreteThreadId('https://claude.ai/new')).toBeUndefined();
+    expect(claudePlatform.resolveConcreteThreadId('https://example.com/chat/abc123')).toBeUndefined();
+    expect(claudePlatform.resolveConcreteThreadId('bad-url')).toBeUndefined();
+  });
+
+  it('classifies placeholder and concrete Claude thread ids', () => {
+    expect(claudePlatform.isPlaceholderThreadId('/new')).toBe(true);
+    expect(claudePlatform.isPlaceholderThreadId('/chat/abc123')).toBe(false);
+    expect(claudePlatform.isPlaceholderThreadId('unknown')).toBe(false);
+
+    expect(claudePlatform.isConcreteThreadId('/chat/abc123')).toBe(true);
+    expect(claudePlatform.isConcreteThreadId('/new')).toBe(false);
+    expect(claudePlatform.isConcreteThreadId('unknown')).toBe(false);
   });
 });
