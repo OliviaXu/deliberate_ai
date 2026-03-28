@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { chatgptPlatform } from '../../src/platforms/chatgpt/definition';
 import { geminiPlatform } from '../../src/platforms/gemini/definition';
 import { SendInterceptor } from '../../src/content/send-interceptor';
 
@@ -78,6 +79,49 @@ function triggerTrustedClick(interceptor: SendInterceptor, button: HTMLButtonEle
     preventDefault: vi.fn(),
     stopImmediatePropagation: vi.fn()
   } as unknown as MouseEvent);
+}
+
+function setupChatGPTHarness(options: { includeSendButton?: boolean; includeComposer?: boolean } = {}): {
+  composer: HTMLDivElement | null;
+  button: HTMLButtonElement | null;
+  state: HTMLParagraphElement;
+} {
+  const { includeSendButton = true, includeComposer = true } = options;
+  document.body.innerHTML = `
+    <form class="group composer">
+      <div class="composer-shell">
+        ${
+          includeComposer
+            ? `
+          <div class="composer-input">
+            <div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Ask anything"><p>draft</p></div>
+            <textarea name="prompt-textarea" placeholder="Ask anything" hidden>fallback prompt</textarea>
+          </div>
+        `
+            : ''
+        }
+        ${
+          includeSendButton
+            ? `
+          <button type="button" data-testid="send-button" aria-label="Send prompt">Send</button>
+        `
+            : ''
+        }
+      </div>
+    </form>
+    <p id="state">idle</p>
+  `;
+
+  const composer = document.querySelector('.ProseMirror');
+  const button = document.querySelector('button[data-testid="send-button"]');
+  const state = document.querySelector('#state');
+  if (!(state instanceof HTMLParagraphElement)) throw new Error('Expected state element');
+
+  return {
+    composer: composer instanceof HTMLDivElement ? composer : null,
+    button: button instanceof HTMLButtonElement ? button : null,
+    state
+  };
 }
 
 describe('SendInterceptor', () => {
@@ -450,6 +494,34 @@ describe('SendInterceptor', () => {
 
     expect(handler).not.toHaveBeenCalled();
     expect(state.textContent).toBe('sent');
+
+    interceptor.stop();
+  });
+
+  it('intercepts ChatGPT ProseMirror Enter submits and resumes through the native send button', () => {
+    const { composer, button, state } = setupChatGPTHarness();
+    if (!(composer instanceof HTMLDivElement)) throw new Error('Expected ChatGPT composer');
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Expected ChatGPT send button');
+
+    button.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      state.textContent = 'sent-click';
+    });
+
+    const interceptor = new SendInterceptor(chatgptPlatform);
+    const handler = vi.fn();
+    interceptor.onIntercept(handler);
+    interceptor.start();
+
+    triggerTrustedEnter(interceptor, composer);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(state.textContent).toBe('idle');
+    const intent = handler.mock.calls[0]?.[0];
+    expect(intent?.platform).toBe('chatgpt');
+    expect(intent?.prompt).toBe('draft');
+    expect(interceptor.resume(intent)).toBe(true);
+    expect(state.textContent).toBe('sent-click');
 
     interceptor.stop();
   });

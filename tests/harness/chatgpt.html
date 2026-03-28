@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deliberate ChatGPT Harness</title>
+  </head>
+  <body>
+    <h1>ChatGPT Submit Harness</h1>
+    <form class="group composer">
+      <div class="composer-shell">
+        <div class="composer-input">
+          <div class="ProseMirror" contenteditable="true" role="textbox" aria-label="Ask anything"><p>draft prompt</p></div>
+          <textarea name="prompt-textarea" placeholder="Ask anything" hidden>draft prompt</textarea>
+        </div>
+        <button type="button" data-testid="send-button" aria-label="Send prompt">Send</button>
+      </div>
+    </form>
+    <p id="native-send-state">idle</p>
+    <script>
+      const state = document.getElementById('native-send-state');
+      const composer = document.querySelector('.ProseMirror');
+      const send = document.querySelector('button[data-testid="send-button"]');
+
+      const markSent = () => {
+        state.textContent = 'sent';
+      };
+
+      composer.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.defaultPrevented) return;
+          markSent();
+        }
+      });
+
+      send.addEventListener('click', (event) => {
+        if (event.defaultPrevented) return;
+        markSent();
+      });
+    </script>
+  </body>
+</html>

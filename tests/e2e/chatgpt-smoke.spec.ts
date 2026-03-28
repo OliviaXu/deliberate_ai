@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
+import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/thread';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const CHATGPT_APP_URL = 'https://chatgpt.com/';
@@ -11,7 +12,7 @@ function expectExtensionBuilt(): void {
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 }
 
-async function connectToChatGptContext(): Promise<import('@playwright/test').BrowserContext | null> {
+async function connectToChatGPTContext(): Promise<import('@playwright/test').BrowserContext | null> {
   expectExtensionBuilt();
 
   const cdpPort = process.env.CHATGPT_CDP_PORT || '9223';
@@ -71,7 +72,7 @@ async function openPageWithRetries(
   throw new Error(`Failed to open the expected page for ${url} in the attached Chrome context.`);
 }
 
-async function openChatGptPage(
+async function openChatGPTPage(
   context: import('@playwright/test').BrowserContext,
   url: string = CHATGPT_APP_URL
 ): Promise<import('@playwright/test').Page> {
@@ -84,70 +85,193 @@ async function openChatGptPage(
   });
 
   await expect(page).toHaveURL(/chatgpt\.com/, { timeout: 15_000 });
+  await expect(await getComposer(page)).toBeVisible({ timeout: 15_000 });
+  await expectDeliberateActive(page);
   return page;
 }
 
-async function collectChatGptSurface(page: import('@playwright/test').Page): Promise<{
-  title: string;
-  url: string;
-  inputCandidates: Array<Record<string, unknown>>;
-  sendButtonCandidates: Array<Record<string, unknown>>;
-}> {
-  return page.evaluate(() => {
-    const describeElement = (element: Element) => ({
-      tagName: element.tagName.toLowerCase(),
-      role: element.getAttribute('role'),
-      ariaLabel: element.getAttribute('aria-label'),
-      placeholder: element.getAttribute('placeholder'),
-      testId: element.getAttribute('data-testid'),
-      name: element.getAttribute('name'),
-      classes: element instanceof HTMLElement ? element.className : element.getAttribute('class'),
-      text: (element.textContent || '').trim().slice(0, 120)
-    });
+async function getComposer(page: import('@playwright/test').Page): Promise<import('@playwright/test').Locator> {
+  const proseMirror = page.locator('div.ProseMirror[role="textbox"]').first();
+  if ((await proseMirror.count()) > 0) {
+    return proseMirror;
+  }
 
-    const inputCandidates = Array.from(
-      document.querySelectorAll('textarea, [role="textbox"], [contenteditable="true"]')
+  return page.locator('textarea[name="prompt-textarea"]').first();
+}
+
+function getSendButton(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.locator('button[data-testid="send-button"], button[aria-label="Send prompt"]').first();
+}
+
+function getModal(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.locator('[data-testid="deliberate-mode-modal"]');
+}
+
+function makePrompt(label: string): string {
+  return `Deliberate AI ChatGPT E2E ${label} ${Date.now()} Reply with exactly OK.`;
+}
+
+function getPromptToken(prompt: string): string {
+  return prompt.match(/\d{13}/)?.[0] ?? prompt;
+}
+
+function resolveConcreteChatGPTUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.host !== 'chatgpt.com') return null;
+    if (parsed.pathname === PLACEHOLDER_CHATGPT_THREAD_ID) return null;
+    if (!parsed.pathname.startsWith('/c/')) return null;
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+async function expectDeliberateActive(page: import('@playwright/test').Page): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => ({
+          active: document.documentElement.getAttribute('data-deliberate-active'),
+          count: document.documentElement.getAttribute('data-deliberate-signal-count')
+        })),
+      {
+        timeout: 15_000,
+        message: 'Expected the Deliberate AI content script to mark the ChatGPT page as active.'
+      }
     )
-      .slice(0, 12)
-      .map((element: Element) => describeElement(element));
+    .toMatchObject({ active: 'true' });
+}
 
-    const sendButtonCandidates = Array.from(document.querySelectorAll('button'))
-      .filter((element: Element) => {
-        const label = `${element.getAttribute('aria-label') || ''} ${(element.textContent || '').trim()}`.toLowerCase();
-        return label.includes('send');
-      })
-      .slice(0, 12)
-      .map((element: Element) => describeElement(element));
-
-    return {
-      title: document.title,
-      url: window.location.href,
-      inputCandidates,
-      sendButtonCandidates
-    };
+async function getSignalCount(page: import('@playwright/test').Page): Promise<number> {
+  return page.evaluate(() => {
+    const raw = document.documentElement.getAttribute('data-deliberate-signal-count');
+    return Number(raw || 0);
   });
 }
 
-test('chatgpt probe reports candidate composer controls from a signed-in session', async () => {
-  const context = await connectToChatGptContext();
-  test.skip(!context, 'ChatGPT context not available');
-  if (!context) return;
-
-  const page = await openChatGptPage(context);
-
+async function waitForSignalIncrement(page: import('@playwright/test').Page, beforeCount: number, source: string): Promise<void> {
   await expect
     .poll(
-      async () => {
-        const surface = await collectChatGptSurface(page);
-        return surface.inputCandidates.length;
-      },
+      async () => getSignalCount(page),
       {
         timeout: 15_000,
-        message: 'Expected ChatGPT to expose at least one textbox, textarea, or contenteditable candidate.'
+        message: `Expected the ChatGPT submit interception counter to increase after ${source}.`
       }
     )
-    .toBeGreaterThan(0);
+    .toBeGreaterThan(beforeCount);
+}
 
-  const surface = await collectChatGptSurface(page);
-  console.log(`CHATGPT_SURFACE ${JSON.stringify(surface, null, 2)}`);
+async function readComposerText(page: import('@playwright/test').Page): Promise<string> {
+  return page.evaluate(() => {
+    const proseMirror = document.querySelector('div.ProseMirror[role="textbox"]');
+    if (proseMirror?.textContent) return proseMirror.textContent;
+
+    const textarea = document.querySelector('textarea[name="prompt-textarea"]');
+    if (textarea instanceof HTMLTextAreaElement && textarea.value) return textarea.value;
+    return '';
+  });
+}
+
+async function clearComposer(page: import('@playwright/test').Page): Promise<void> {
+  const composer = await getComposer(page);
+  await composer.click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.press('Backspace');
+}
+
+async function typePrompt(page: import('@playwright/test').Page, prompt: string): Promise<void> {
+  const composer = await getComposer(page);
+  await clearComposer(page);
+  await composer.click();
+  await page.keyboard.type(prompt, { delay: 20 });
+  await expect.poll(async () => readComposerText(page), { timeout: 10_000 }).toContain(getPromptToken(prompt));
+}
+
+async function expectModalOpen(page: import('@playwright/test').Page): Promise<void> {
+  await expect(getModal(page)).toBeVisible({ timeout: 10_000 });
+  await expect
+    .poll(
+      async () => page.evaluate(() => document.documentElement.getAttribute('data-deliberate-modal-open')),
+      {
+        timeout: 10_000,
+        message: 'Expected the Deliberate AI modal to open after intercepting the ChatGPT submit.'
+      }
+    )
+    .toBe('true');
+}
+
+async function openModalViaSendButton(page: import('@playwright/test').Page, prompt: string): Promise<void> {
+  const beforeCount = await getSignalCount(page);
+  await typePrompt(page, prompt);
+  const sendButton = getSendButton(page);
+  await expect(sendButton).toBeVisible({ timeout: 10_000 });
+  await expect(sendButton).toBeEnabled({ timeout: 10_000 });
+  await sendButton.click();
+  await waitForSignalIncrement(page, beforeCount, 'clicking the ChatGPT send button');
+  await expectModalOpen(page);
+}
+
+async function expectNativeSendBlocked(page: import('@playwright/test').Page, prompt: string): Promise<void> {
+  await expect(getModal(page)).toBeVisible({ timeout: 10_000 });
+  await expect.poll(async () => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(PLACEHOLDER_CHATGPT_THREAD_ID);
+  await expect.poll(async () => readComposerText(page), { timeout: 10_000 }).toContain(getPromptToken(prompt));
+}
+
+async function waitForResolvedThread(page: import('@playwright/test').Page, timeoutMs: number): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const concreteUrl = resolveConcreteChatGPTUrl(page.url());
+
+    if (concreteUrl) {
+      return concreteUrl;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  return null;
+}
+
+test('ChatGPT injects on the live page and intercepts the real send button before native submission', async () => {
+  test.setTimeout(60_000);
+  const context = await connectToChatGPTContext();
+  if (!context) return;
+
+  const page = await openChatGPTPage(context);
+  try {
+    const prompt = makePrompt('send-button');
+    await openModalViaSendButton(page, prompt);
+    await expectNativeSendBlocked(page, prompt);
+
+    await expect(page.locator('[data-testid="deliberate-mode-option-delegation"]')).toBeVisible();
+    await expect(page.locator('[data-testid="deliberate-mode-option-problem_solving"]')).toBeVisible();
+    await expect(page.locator('[data-testid="deliberate-mode-option-learning"]')).toBeVisible();
+  } finally {
+    await page.close();
+  }
+});
+
+test('ChatGPT resumes the intercepted send into a concrete thread after mode selection', async () => {
+  test.setTimeout(180_000);
+  const context = await connectToChatGPTContext();
+  if (!context) return;
+
+  const page = await openChatGPTPage(context);
+  try {
+    const prompt = makePrompt('delegation-resume');
+    await openModalViaSendButton(page, prompt);
+    await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
+
+    const resolvedThreadUrl = await waitForResolvedThread(page, 60_000);
+    if (!resolvedThreadUrl) {
+      throw new Error('ChatGPT resumed the intercepted send, but the run never reached a concrete /c/<id> thread URL.');
+    }
+
+    await expect(getModal(page)).toHaveCount(0, { timeout: 15_000 });
+    expect(new URL(resolvedThreadUrl).pathname).toMatch(/^\/c\/.+/);
+  } finally {
+    await page.close();
+  }
 });
