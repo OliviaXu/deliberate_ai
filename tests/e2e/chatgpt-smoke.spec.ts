@@ -3,7 +3,8 @@ import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/definition';
 import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
-import type { LearningCycleRecord } from '../../src/shared/types';
+import { REFLECTIONS_STORAGE_KEY } from '../../src/shared/reflection-store';
+import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const CHATGPT_APP_URL = 'https://chatgpt.com/';
@@ -112,6 +113,14 @@ function getSendButton(page: import('@playwright/test').Page): import('@playwrig
 
 function getModal(page: import('@playwright/test').Page): import('@playwright/test').Locator {
   return page.locator('[data-testid="deliberate-mode-modal"]');
+}
+
+function getReflectionHint(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.locator('[data-testid="deliberate-reflection-hint"]');
+}
+
+function getReflectionModal(page: import('@playwright/test').Page): import('@playwright/test').Locator {
+  return page.locator('[data-testid="deliberate-reflection-modal"]');
 }
 
 function makePrompt(label: string): string {
@@ -294,8 +303,53 @@ async function writeRecords(context: import('@playwright/test').BrowserContext, 
   }
 }
 
+async function readReflections(context: import('@playwright/test').BrowserContext): Promise<ReflectionRecord[]> {
+  const extensionId = await getExtensionId(context);
+  const page = await openPageWithRetries(
+    context,
+    `chrome-extension://${extensionId}/thinking-journal.html`,
+    (actualUrl) => actualUrl.startsWith(`chrome-extension://${extensionId}/`)
+  );
+  try {
+    const records = await page.evaluate(async (storageKey) => {
+      const chromeApi = (globalThis as {
+        chrome?: { storage?: { local?: { get: (key: string) => Promise<Record<string, unknown>> } } };
+      }).chrome;
+      const raw = (await chromeApi?.storage?.local?.get(storageKey)) || {};
+      const value = raw[storageKey];
+      return Array.isArray(value) ? value : [];
+    }, REFLECTIONS_STORAGE_KEY);
+    return records as ReflectionRecord[];
+  } finally {
+    await page.close();
+  }
+}
+
+async function writeReflections(context: import('@playwright/test').BrowserContext, records: ReflectionRecord[]): Promise<void> {
+  const extensionId = await getExtensionId(context);
+  const page = await openPageWithRetries(
+    context,
+    `chrome-extension://${extensionId}/thinking-journal.html`,
+    (actualUrl) => actualUrl.startsWith(`chrome-extension://${extensionId}/`)
+  );
+  try {
+    await page.evaluate(
+      async ({ storageKey, nextRecords }) => {
+        const chromeApi = (globalThis as {
+          chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } };
+        }).chrome;
+        await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+      },
+      { storageKey: REFLECTIONS_STORAGE_KEY, nextRecords: records }
+    );
+  } finally {
+    await page.close();
+  }
+}
+
 async function clearRecords(context: import('@playwright/test').BrowserContext): Promise<void> {
   await writeRecords(context, []);
+  await writeReflections(context, []);
 }
 
 test('ChatGPT injects on the live page and intercepts the real send button before native submission', async () => {
@@ -362,6 +416,100 @@ test('ChatGPT resumes the intercepted send into a concrete thread after mode sel
     await expect(getModal(page)).toHaveCount(0, { timeout: 15_000 });
     expect(new URL(resolvedThreadUrl).pathname).toMatch(/^\/c\/.+/);
   } finally {
+    await page.close();
+  }
+});
+
+test('ChatGPT shows a due reflection hint, opens the shared modal, and hides the hint after completion persists', async () => {
+  test.setTimeout(120_000);
+  const context = await connectToChatGPTContext();
+  if (!context) return;
+
+  const nowMs = Date.now();
+  const prompt = makePrompt('reflection-parity');
+  const notes = 'I should compare tradeoffs before I commit to a recommendation.';
+  const priorKnowledgeNote = 'I know the basics of staged rollouts.';
+
+  const page = await openChatGPTPage(context);
+  try {
+    await clearRecords(context);
+    await openModalViaSendButton(page, prompt);
+    await page.locator('[data-testid="deliberate-mode-option-learning"]').click();
+    await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(priorKnowledgeNote);
+    await page.locator('[data-testid="deliberate-mode-continue"]').click();
+
+    const resolvedThreadUrl = await waitForResolvedThread(page, 60_000);
+    if (!resolvedThreadUrl) {
+      throw new Error('ChatGPT resumed the seeded reflection flow, but the run never reached a concrete /c/<id> thread URL.');
+    }
+
+    const seededThreadPath = new URL(resolvedThreadUrl).pathname;
+    await writeRecords(context, [
+      {
+        id: 'chatgpt-reflection-record',
+        timestamp: nowMs - 6 * 60 * 1000,
+        platform: 'chatgpt',
+        threadId: seededThreadPath,
+        mode: 'learning',
+        prompt,
+        priorKnowledgeNote
+      }
+    ]);
+    await writeReflections(context, []);
+
+    await page.goto(resolvedThreadUrl, { waitUntil: 'domcontentloaded' });
+    await expect(await getComposer(page)).toBeVisible({ timeout: 15_000 });
+    await expectDeliberateActive(page);
+
+    await expect(getReflectionHint(page)).toBeVisible({ timeout: 15_000 });
+
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => {
+          const hint = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+          const anchor = hint?.parentElement;
+          const composer = document.querySelector('div.ProseMirror[role="textbox"]');
+          return {
+            anchored: anchor?.classList.contains('deliberate-reflection-hint-anchor') ?? false,
+            tagName: anchor?.tagName ?? null,
+            containsComposer: Boolean(anchor && composer && anchor.contains(composer))
+          };
+        });
+      })
+      .toMatchObject({
+        anchored: true,
+        containsComposer: true
+      });
+
+    await page.locator('[data-testid="deliberate-reflection-hint-review"]').click();
+    await expect(getReflectionModal(page)).toBeVisible({ timeout: 10_000 });
+    await page.locator('[data-testid="deliberate-reflection-scale-input"]').fill('75');
+    await page.locator('[data-testid="deliberate-reflection-notes"]').fill(notes);
+    await page.locator('[data-testid="deliberate-reflection-submit"]').click();
+    await expect(getReflectionModal(page)).toHaveCount(0, { timeout: 10_000 });
+    await expect(getReflectionHint(page)).toHaveCount(0, { timeout: 15_000 });
+
+    await expect
+      .poll(async () => await readReflections(context), {
+        timeout: 15_000,
+        message: 'Expected ChatGPT reflection completion to persist after submitting the shared reflection modal.'
+      })
+      .toEqual([
+        expect.objectContaining({
+          threadId: seededThreadPath,
+          learningCycleRecordId: 'chatgpt-reflection-record',
+          status: 'completed',
+          score: 75,
+          notes
+        })
+      ]);
+
+    await page.goto(resolvedThreadUrl, { waitUntil: 'domcontentloaded' });
+    await expect(await getComposer(page)).toBeVisible({ timeout: 15_000 });
+    await expectDeliberateActive(page);
+    await expect(getReflectionHint(page)).toHaveCount(0, { timeout: 15_000 });
+  } finally {
+    await clearRecords(context);
     await page.close();
   }
 });

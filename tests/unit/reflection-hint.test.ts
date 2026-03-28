@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReflectionHint } from '../../src/content/reflection-hint';
+import { chatgptPlatform } from '../../src/platforms/chatgpt/definition';
 import { geminiPlatform } from '../../src/platforms/gemini/definition';
 
 function setupGeminiComposer(): HTMLDivElement {
@@ -32,6 +33,34 @@ function setupGeminiComposer(): HTMLDivElement {
 
   const composer = document.querySelector('.ql-editor.textarea.new-input-ui');
   if (!(composer instanceof HTMLDivElement)) throw new Error('Expected Gemini composer');
+  return composer;
+}
+
+function setupChatGPTComposer(): HTMLDivElement {
+  document.body.innerHTML = `
+    <main>
+      <section class="conversation-shell">
+        <form class="group composer">
+          <div class="composer-shell">
+            <div class="composer-input">
+              <div
+                class="ProseMirror"
+                contenteditable="true"
+                role="textbox"
+                aria-label="Ask anything"
+              >
+                <p>draft prompt</p>
+              </div>
+            </div>
+            <button type="button" data-testid="send-button" aria-label="Send prompt">Send</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  `;
+
+  const composer = document.querySelector('.ProseMirror');
+  if (!(composer instanceof HTMLDivElement)) throw new Error('Expected ChatGPT composer');
   return composer;
 }
 
@@ -86,6 +115,24 @@ describe('ReflectionHint', () => {
     expect(shell.classList.contains('deliberate-reflection-hint-anchor')).toBe(true);
     expect(root.parentElement).not.toBe(composer.parentElement);
     expect(root.parentElement).not.toBe(outerContainer);
+  });
+
+  it('anchors the hint to the ChatGPT composer form shell', () => {
+    const composer = setupChatGPTComposer();
+    const hint = new ReflectionHint({ platform: chatgptPlatform });
+
+    hint.updateVisibilityForThread('/c/thread-a', true);
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+    if (!(root instanceof HTMLDivElement)) throw new Error('Expected hint root');
+
+    const shell = document.querySelector('form.group.composer');
+    if (!(shell instanceof HTMLElement)) throw new Error('Expected ChatGPT composer shell');
+
+    expect(root.classList.contains('deliberate-reflection-hint--floaty')).toBe(true);
+    expect(root.parentElement).toBe(shell);
+    expect(shell.classList.contains('deliberate-reflection-hint-anchor')).toBe(true);
+    expect(root.parentElement).not.toBe(composer.parentElement);
   });
 
   it('logs review interaction without hiding hint', () => {
