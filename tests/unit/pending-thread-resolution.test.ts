@@ -35,6 +35,38 @@ describe('createPendingThreadResolutionTracker', () => {
     });
   });
 
+  it('resolves pending / records from tabs.onUpdated concrete ChatGPT URL', async () => {
+    const resolveThreadIdForRecord = vi.fn(async () => true);
+    const addListener = vi.fn();
+
+    const tracker = createPendingThreadResolutionTracker({
+      store: { resolveThreadIdForRecord },
+      tabs: {
+        onUpdated: {
+          addListener
+        }
+      }
+    });
+
+    const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
+    if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
+
+    tracker.trackPlaceholder('record-chatgpt-1', 111, { platform: 'chatgpt', threadId: '/' });
+    tabsUpdatedListener(
+      111,
+      { url: 'https://chatgpt.com/c/thread-123?model=gpt-5', status: 'complete' },
+      { id: 111, url: 'https://chatgpt.com/c/thread-123?model=gpt-5' }
+    );
+
+    await vi.waitFor(() => {
+      expect(resolveThreadIdForRecord).toHaveBeenCalledWith(
+        'record-chatgpt-1',
+        { platform: 'chatgpt', threadId: '/' },
+        '/c/thread-123'
+      );
+    });
+  });
+
   it('dedupes duplicate tabs.onUpdated events while resolution is in-flight', async () => {
     let release: ((value: boolean) => void) | undefined;
     const resolveThreadIdForRecord = vi.fn(

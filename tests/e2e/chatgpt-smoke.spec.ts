@@ -2,9 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/definition';
+import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
+import type { LearningCycleRecord } from '../../src/shared/types';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const CHATGPT_APP_URL = 'https://chatgpt.com/';
+let cachedExtensionId: string | null = null;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -230,6 +233,71 @@ async function waitForResolvedThread(page: import('@playwright/test').Page, time
   return null;
 }
 
+async function getExtensionId(context: import('@playwright/test').BrowserContext): Promise<string> {
+  if (cachedExtensionId) return cachedExtensionId;
+  const deadline = Date.now() + 45_000;
+
+  while (Date.now() < deadline) {
+    const contexts = context.browser()?.contexts() ?? [context];
+    const serviceWorker = contexts.flatMap((candidate) => candidate.serviceWorkers())[0];
+    if (serviceWorker) {
+      cachedExtensionId = new URL(serviceWorker.url()).host;
+      return cachedExtensionId;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error('Timed out waiting for the Deliberate AI extension service worker over CDP.');
+}
+
+async function readRecords(context: import('@playwright/test').BrowserContext): Promise<LearningCycleRecord[]> {
+  const extensionId = await getExtensionId(context);
+  const page = await openPageWithRetries(
+    context,
+    `chrome-extension://${extensionId}/thinking-journal.html`,
+    (actualUrl) => actualUrl.startsWith(`chrome-extension://${extensionId}/`)
+  );
+  try {
+    const records = await page.evaluate(async (storageKey) => {
+      const chromeApi = (globalThis as {
+        chrome?: { storage?: { local?: { get: (key: string) => Promise<Record<string, unknown>> } } };
+      }).chrome;
+      const raw = (await chromeApi?.storage?.local?.get(storageKey)) || {};
+      const value = raw[storageKey];
+      return Array.isArray(value) ? value : [];
+    }, LEARNING_CYCLES_STORAGE_KEY);
+    return records as LearningCycleRecord[];
+  } finally {
+    await page.close();
+  }
+}
+
+async function writeRecords(context: import('@playwright/test').BrowserContext, records: LearningCycleRecord[]): Promise<void> {
+  const extensionId = await getExtensionId(context);
+  const page = await openPageWithRetries(
+    context,
+    `chrome-extension://${extensionId}/thinking-journal.html`,
+    (actualUrl) => actualUrl.startsWith(`chrome-extension://${extensionId}/`)
+  );
+  try {
+    await page.evaluate(
+      async ({ storageKey, nextRecords }) => {
+        const chromeApi = (globalThis as {
+          chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } };
+        }).chrome;
+        await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+      },
+      { storageKey: LEARNING_CYCLES_STORAGE_KEY, nextRecords: records }
+    );
+  } finally {
+    await page.close();
+  }
+}
+
+async function clearRecords(context: import('@playwright/test').BrowserContext): Promise<void> {
+  await writeRecords(context, []);
+}
+
 test('ChatGPT injects on the live page and intercepts the real send button before native submission', async () => {
   test.setTimeout(60_000);
   const context = await connectToChatGPTContext();
@@ -256,14 +324,40 @@ test('ChatGPT resumes the intercepted send into a concrete thread after mode sel
 
   const page = await openChatGPTPage(context);
   try {
+    await clearRecords(context);
     const prompt = makePrompt('delegation-resume');
     await openModalViaSendButton(page, prompt);
+    await expect.poll(async () => (await readRecords(context)).length, { timeout: 10_000 }).toBe(0);
     await page.locator('[data-testid="deliberate-mode-option-delegation"]').click();
+
+    await expect
+      .poll(async () => (await readRecords(context))[0] ?? null, {
+        timeout: 30_000,
+        message: 'Expected ChatGPT to append a learning-cycle record after the resumed send starts.'
+      })
+      .toMatchObject({
+        platform: 'chatgpt',
+        threadId: PLACEHOLDER_CHATGPT_THREAD_ID,
+        mode: 'delegation',
+        prompt
+      });
 
     const resolvedThreadUrl = await waitForResolvedThread(page, 60_000);
     if (!resolvedThreadUrl) {
       throw new Error('ChatGPT resumed the intercepted send, but the run never reached a concrete /c/<id> thread URL.');
     }
+
+    const resolvedRecord = await expect
+      .poll(async () => (await readRecords(context))[0] ?? null, {
+        timeout: 60_000,
+        message: 'Expected the stored ChatGPT learning-cycle record to resolve to the concrete /c/<id> thread.'
+      })
+      .toMatchObject({
+        platform: 'chatgpt',
+        threadId: new URL(resolvedThreadUrl).pathname,
+        mode: 'delegation',
+        prompt
+      });
 
     await expect(getModal(page)).toHaveCount(0, { timeout: 15_000 });
     expect(new URL(resolvedThreadUrl).pathname).toMatch(/^\/c\/.+/);

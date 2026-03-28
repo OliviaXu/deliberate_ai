@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/definition';
 import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/definition';
 import type { LearningCycleRecord } from '../../src/shared/types';
 import { registerLearningCycleMessageHandlers } from '../../src/background/learning-cycle-messages';
@@ -149,6 +150,52 @@ describe('registerLearningCycleMessageHandlers', () => {
     expect(trackPlaceholder).toHaveBeenCalledWith('record-1', 101, {
       platform: 'gemini',
       threadId: PLACEHOLDER_GEMINI_THREAD_ID
+    });
+  });
+
+  it('tracks ChatGPT placeholder records through pending tracker when sender tab is present', async () => {
+    const append = vi.fn(async () => undefined);
+    const resolveThreadIdForRecord = vi.fn(async () => false);
+    const getLatestForThread = vi.fn(async () => null);
+    const onMessage = vi.fn();
+    const trackPlaceholder = vi.fn();
+    const trackerFactory = vi.fn(() => ({ trackPlaceholder, dispose: vi.fn() }));
+
+    registerLearningCycleMessageHandlers(
+      { append, resolveThreadIdForRecord, getLatestForThread },
+      {
+        runtime: {
+          onMessage: {
+            addListener: onMessage
+          }
+        }
+      },
+      { trackerFactory }
+    );
+
+    const messageListener = onMessage.mock.calls[0]?.[0];
+    if (!messageListener) throw new Error('Expected listener');
+
+    await expect(
+      new Promise((resolve) => {
+        messageListener(
+          {
+            type: 'learning-cycle:append',
+            record: makeRecord({
+              id: 'record-chatgpt-1',
+              platform: 'chatgpt',
+              threadId: PLACEHOLDER_CHATGPT_THREAD_ID
+            })
+          },
+          { tab: { id: 303 } },
+          resolve
+        );
+      })
+    ).resolves.toEqual({ ok: true });
+
+    expect(trackPlaceholder).toHaveBeenCalledWith('record-chatgpt-1', 303, {
+      platform: 'chatgpt',
+      threadId: PLACEHOLDER_CHATGPT_THREAD_ID
     });
   });
 
