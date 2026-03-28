@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
-import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/thread';
+import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/definition';
 import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
 import type { LearningCycleRecord } from '../../src/shared/types';
 

@@ -6,12 +6,8 @@ export function findChatGPTComposer(root: ParentNode = document): HTMLElement | 
   return root.querySelector<HTMLElement>(CHATGPT_COMPOSER_SELECTOR);
 }
 
-function isChatGPTComposerElement(element: Element | null): element is HTMLElement {
-  return element instanceof HTMLElement && element.matches(CHATGPT_COMPOSER_SELECTOR);
-}
-
 export function resolveChatGPTComposerNear(element: Element | null): HTMLElement | null {
-  if (isChatGPTComposerElement(element)) return element;
+  if (element instanceof HTMLElement && element.matches(CHATGPT_COMPOSER_SELECTOR)) return element;
 
   let current = element instanceof HTMLElement ? element : null;
   while (current) {

@@ -5,12 +5,8 @@ export function findGeminiComposer(root: ParentNode = document): HTMLElement | n
   return root.querySelector<HTMLElement>(GEMINI_COMPOSER_SELECTOR);
 }
 
-function isGeminiComposerElement(element: Element | null): element is HTMLElement {
-  return element instanceof HTMLElement && element.matches(GEMINI_COMPOSER_SELECTOR);
-}
-
 export function resolveGeminiComposerNear(element: Element | null): HTMLElement | null {
-  if (isGeminiComposerElement(element)) return element;
+  if (element instanceof HTMLElement && element.matches(GEMINI_COMPOSER_SELECTOR)) return element;
 
   let current = element instanceof HTMLElement ? element : null;
   while (current) {

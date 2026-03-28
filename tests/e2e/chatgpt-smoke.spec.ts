@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
-import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/thread';
+import { PLACEHOLDER_CHATGPT_THREAD_ID } from '../../src/platforms/chatgpt/definition';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const CHATGPT_APP_URL = 'https://chatgpt.com/';
@@ -76,27 +76,31 @@ async function openChatGPTPage(
   context: import('@playwright/test').BrowserContext,
   url: string = CHATGPT_APP_URL
 ): Promise<import('@playwright/test').Page> {
-  const page = await openPageWithRetries(context, url, (actualUrl) => {
-    try {
-      return new URL(actualUrl).host === 'chatgpt.com';
-    } catch {
-      return false;
-    }
-  });
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const page = await openPageWithRetries(context, url, (actualUrl) => {
+      try {
+        return new URL(actualUrl).host === 'chatgpt.com';
+      } catch {
+        return false;
+      }
+    });
 
-  await expect(page).toHaveURL(/chatgpt\.com/, { timeout: 15_000 });
-  await expect(await getComposer(page)).toBeVisible({ timeout: 15_000 });
-  await expectDeliberateActive(page);
-  return page;
+    try {
+      await expect(page).toHaveURL(/chatgpt\.com/, { timeout: 15_000 });
+      await expect(await getComposer(page)).toBeVisible({ timeout: 15_000 });
+      await expectDeliberateActive(page);
+      return page;
+    } catch (error) {
+      if (!page.isClosed()) await page.close();
+      if (attempt === 5) throw error;
+    }
+  }
+
+  throw new Error('Failed to open a ChatGPT page with the Deliberate AI content script attached.');
 }
 
 async function getComposer(page: import('@playwright/test').Page): Promise<import('@playwright/test').Locator> {
-  const proseMirror = page.locator('div.ProseMirror[role="textbox"]').first();
-  if ((await proseMirror.count()) > 0) {
-    return proseMirror;
-  }
-
-  return page.locator('textarea[name="prompt-textarea"]').first();
+  return page.locator('div.ProseMirror[role="textbox"]').first();
 }
 
 function getSendButton(page: import('@playwright/test').Page): import('@playwright/test').Locator {
@@ -173,16 +177,8 @@ async function readComposerText(page: import('@playwright/test').Page): Promise<
   });
 }
 
-async function clearComposer(page: import('@playwright/test').Page): Promise<void> {
-  const composer = await getComposer(page);
-  await composer.click();
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
-  await page.keyboard.press('Backspace');
-}
-
 async function typePrompt(page: import('@playwright/test').Page, prompt: string): Promise<void> {
   const composer = await getComposer(page);
-  await clearComposer(page);
   await composer.click();
   await page.keyboard.type(prompt, { delay: 20 });
   await expect.poll(async () => readComposerText(page), { timeout: 10_000 }).toContain(getPromptToken(prompt));

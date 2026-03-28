@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/thread';
+import { PLACEHOLDER_GEMINI_THREAD_ID } from '../../src/platforms/gemini/definition';
 import type { LearningCycleRecord } from '../../src/shared/types';
 import { registerLearningCycleMessageHandlers } from '../../src/background/learning-cycle-messages';
 
