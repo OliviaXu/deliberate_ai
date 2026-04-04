@@ -1,11 +1,10 @@
 import {
   INTERACTION_MODES,
-  isReflectionEligibleRecord,
   type InteractionMode,
-  type LearningCycleRecord,
-  type ReflectionRecord,
   type ReflectionScore
 } from '../../shared/types';
+import { buildThinkingJournalHistoryRows, problemSolvingStartingPointFallback, type ThinkingJournalHistoryReflection, type ThinkingJournalHistoryRow } from './history';
+import type { LearningCycleRecord, ReflectionRecord } from '../../shared/types';
 
 const JOURNAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const LONG_PROMPT_CHAR_THRESHOLD = 220;
@@ -43,12 +42,9 @@ export function buildThinkingJournalEntries(
   nowMs: number
 ): ThinkingJournalEntry[] {
   const cutoffMs = nowMs - JOURNAL_WINDOW_MS;
-  const windowedRecords = records
-    .filter((record) => typeof record.timestamp === 'number' && record.timestamp >= cutoffMs)
-    .sort((a, b) => b.timestamp - a.timestamp);
-  const reflectionsByRecordId = buildReflectionMap(windowedRecords, reflections);
-
-  return windowedRecords.map((record) => toThinkingJournalEntry(record, reflectionsByRecordId.get(record.id)));
+  return buildThinkingJournalHistoryRows(records, reflections)
+    .filter((row) => row.timestamp >= cutoffMs)
+    .map((row) => toThinkingJournalEntry(row));
 }
 
 export function filterThinkingJournalEntries(
@@ -70,81 +66,42 @@ export function formatJournalTimestamp(timestamp: number, locale = 'en-US', time
   return dateFormatter.format(timestamp);
 }
 
-function buildReflectionMap(
-  records: LearningCycleRecord[],
-  reflections: ReflectionRecord[]
-): Map<string, ReflectionRecord> {
-  const eligibleRecordIds = new Set(records.filter(isReflectionEligibleRecord).map((record) => record.id));
-  const reflectionsByRecordId = new Map<string, ReflectionRecord>();
-
-  for (const reflection of reflections) {
-    const directRecordId = resolveDirectRecordId(reflection, eligibleRecordIds);
-    if (!directRecordId) continue;
-    setLatestReflectionForRecord(reflectionsByRecordId, directRecordId, reflection);
-  }
-
-  return reflectionsByRecordId;
-}
-
-function resolveDirectRecordId(
-  reflection: ReflectionRecord,
-  eligibleRecordIds: Set<string>
-): string | null {
-  const directRecordId = reflection.learningCycleRecordId?.trim();
-  if (!directRecordId) return null;
-  return eligibleRecordIds.has(directRecordId) ? directRecordId : null;
-}
-
-function setLatestReflectionForRecord(
-  reflectionsByRecordId: Map<string, ReflectionRecord>,
-  recordId: string,
-  reflection: ReflectionRecord
-): void {
-  const existing = reflectionsByRecordId.get(recordId);
-  if (!existing || reflection.timestamp > existing.timestamp) {
-    reflectionsByRecordId.set(recordId, reflection);
-  }
-}
-
-function toThinkingJournalEntry(record: LearningCycleRecord, reflection?: ReflectionRecord): ThinkingJournalEntry {
+function toThinkingJournalEntry(row: ThinkingJournalHistoryRow): ThinkingJournalEntry {
   const base: ThinkingJournalEntry = {
-    id: record.id,
-    timestamp: record.timestamp,
-    dateLabel: formatJournalTimestamp(record.timestamp),
-    mode: record.mode,
-    modeLabel: modeLabel(record.mode),
-    modeEmoji: modeEmoji(record.mode),
-    prompt: record.prompt,
-    promptIsLong: record.prompt.length > LONG_PROMPT_CHAR_THRESHOLD,
-    ...(reflection ? { reflection: toThinkingJournalReflection(reflection) } : {})
+    id: row.id,
+    timestamp: row.timestamp,
+    dateLabel: formatJournalTimestamp(row.timestamp),
+    mode: row.mode,
+    modeLabel: modeLabel(row.mode),
+    modeEmoji: modeEmoji(row.mode),
+    prompt: row.prompt,
+    promptIsLong: row.prompt.length > LONG_PROMPT_CHAR_THRESHOLD,
+    ...(row.reflection ? { reflection: toThinkingJournalReflection(row.reflection) } : {})
   };
 
-  if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
-    const prediction = record.prediction?.trim();
+  if (row.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
     return {
       ...base,
-      hypothesis: prediction || 'No hypothesis recorded.'
+      hypothesis: row.startingPoint || problemSolvingStartingPointFallback()
     };
   }
 
-  if (record.mode === INTERACTION_MODES.LEARNING) {
-    const initialContext = record.priorKnowledgeNote?.trim();
+  if (row.mode === INTERACTION_MODES.LEARNING) {
     return {
       ...base,
-      ...(initialContext ? { initialContext } : {})
+      ...(row.startingPoint ? { initialContext: row.startingPoint } : {})
     };
   }
 
   return base;
 }
 
-function toThinkingJournalReflection(reflection: ReflectionRecord): ThinkingJournalReflection {
-  const notes = reflection.notes?.trim();
+function toThinkingJournalReflection(reflection: ThinkingJournalHistoryReflection): ThinkingJournalReflection {
   return {
     timestamp: reflection.timestamp,
     dateLabel: formatJournalTimestamp(reflection.timestamp),
     score: reflection.score,
-    ...(notes ? { notes } : {})
+    ...(reflection.notes ? { notes: reflection.notes } : {})
   };
 }
 

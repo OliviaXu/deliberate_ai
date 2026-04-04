@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThinkingJournalApp } from '../../src/thinking-journal/ThinkingJournalApp';
 import * as thinkingJournalStore from '../../src/thinking-journal/thinking-journal-store';
 import type { ThinkingJournalEntry } from '../../src/thinking-journal/utils/entries';
+import type { ThinkingJournalHistoryRow } from '../../src/thinking-journal/utils/history';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -58,12 +59,38 @@ function makeEntries(): ThinkingJournalEntry[] {
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function render(entries: ThinkingJournalEntry[]): void {
+function makeExportRows(): ThinkingJournalHistoryRow[] {
+  return [
+    {
+      id: 'history-a',
+      timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+      mode: 'problem_solving',
+      prompt: 'Investigate the auth outage',
+      startingPoint: 'Tokens might be expired.',
+      reflection: {
+        timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
+        score: 75,
+        notes: 'It was token expiry.'
+      }
+    },
+    {
+      id: 'history-b',
+      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      mode: 'delegation',
+      prompt: 'Draft this status update.'
+    }
+  ];
+}
+
+function render(
+  entries: ThinkingJournalEntry[],
+  props: Partial<React.ComponentProps<typeof ThinkingJournalApp>> = {}
+): void {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   act(() => {
-    root?.render(<ThinkingJournalApp preloadedEntries={entries} />);
+    root?.render(<ThinkingJournalApp preloadedEntries={entries} {...props} />);
   });
 }
 
@@ -290,5 +317,77 @@ describe('ThinkingJournalApp', () => {
     expect(loadSpy).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain('Loading entries...');
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
+  });
+
+  it('renders the end-of-list CSV export action in the default non-empty feed', () => {
+    render(makeEntries());
+
+    expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
+  });
+
+  it('renders the CSV export action when only historical entries exist outside the 7-day feed', async () => {
+    render([], { loadExportRows: async () => makeExportRows() });
+
+    expect(document.body.textContent).toContain('No entries in the last 7 days.');
+    await act(async () => {});
+    expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
+  });
+
+  it('hides the end-of-list CSV export action outside the default feed state', () => {
+    render(makeEntries());
+
+    const learningFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Learning'));
+    const reflectionOnlyFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'With reflection');
+
+    act(() => {
+      learningFilter?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.body.textContent).not.toContain('Download full history as CSV');
+
+    act(() => {
+      const allFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All');
+      allFilter?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      reflectionOnlyFilter?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.body.textContent).not.toContain('Download full history as CSV');
+  });
+
+  it('downloads a CSV built from full stored history instead of the visible cards', async () => {
+    const exportRows = makeExportRows();
+    const loadExportRows = vi.fn(async () => exportRows);
+    const createObjectURL = vi.fn((blob: Blob) => {
+      Object.assign(globalThis, { __lastExportBlob: blob });
+      return 'blob:journal-export';
+    });
+    const revokeObjectURL = vi.fn();
+    const clickSpy = vi.fn();
+    const anchorClick = HTMLAnchorElement.prototype.click;
+
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    HTMLAnchorElement.prototype.click = clickSpy;
+
+    try {
+      render(makeEntries(), { loadExportRows });
+
+      const downloadButton = Array.from(document.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Download full history as CSV'
+      );
+
+      await act(async () => {
+        downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      expect(loadExportRows).toHaveBeenCalledOnce();
+      expect(createObjectURL).toHaveBeenCalledOnce();
+      expect(clickSpy).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:journal-export');
+
+      const exportedBlob = (globalThis as { __lastExportBlob?: Blob }).__lastExportBlob;
+      expect(exportedBlob).toBeTruthy();
+      expect(exportedBlob?.type).toBe('text/csv;charset=utf-8');
+    } finally {
+      HTMLAnchorElement.prototype.click = anchorClick;
+      delete (globalThis as { __lastExportBlob?: Blob }).__lastExportBlob;
+    }
   });
 });

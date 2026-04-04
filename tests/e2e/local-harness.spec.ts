@@ -619,11 +619,89 @@ test('thinking journal renders seeded entries and supports mode filters', async 
     await expect(page.getByText('No hypothesis recorded.')).toBeVisible();
     await expect(page.getByText('Starting Point')).toBeVisible();
     await expect(page.getByText('I already know OAuth basics')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download full history as CSV' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Learning' }).click();
     await expect(page.locator('[data-testid="thinking-journal-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]')).toHaveText('Learning');
     await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]').getByText('Problem-Solving')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download full history as CSV' })).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('thinking journal exports full history as csv', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-thinking-journal-export-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    await writeRecords(context, [
+      {
+        id: 'recent-learning',
+        timestamp: now - dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/test-thread',
+        mode: 'learning',
+        prompt: 'Explain OAuth PKCE simply',
+        priorKnowledgeNote: 'I already know OAuth basics'
+      },
+      {
+        id: 'old-problem',
+        timestamp: now - 10 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/old-thread',
+        mode: 'problem_solving',
+        prompt: 'Diagnose the auth outage',
+        prediction: 'Tokens might be expired'
+      }
+    ]);
+
+    const sw = await getServiceWorker(context);
+    await sw.evaluate(
+      async ({ storageKey, nextRecords }) => {
+        const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } }).chrome;
+        await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+      },
+      {
+        storageKey: REFLECTIONS_STORAGE_KEY,
+        nextRecords: [
+          {
+            id: 'reflection-1',
+            timestamp: now - dayMs / 2,
+            threadId: '/app/threads/old-thread',
+            learningCycleRecordId: 'old-problem',
+            status: 'completed',
+            score: 75,
+            notes: 'It was token expiry.'
+          }
+        ]
+      }
+    );
+
+    const extensionId = await getExtensionId(context);
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/thinking-journal.html`, { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByText('Diagnose the auth outage')).toHaveCount(0);
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download full history as CSV' }).click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    const csv = downloadPath ? fs.readFileSync(downloadPath, 'utf8') : '';
+
+    expect(await download.suggestedFilename()).toMatch(/^thinking-journal-history-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(csv).toContain('entry_timestamp_iso,mode,prompt,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes');
+    expect(csv).toContain('Explain OAuth PKCE simply');
+    expect(csv).toContain('Diagnose the auth outage');
+    expect(csv).toContain('Tokens might be expired');
+    expect(csv).toContain('It was token expiry.');
   } finally {
     await context.close();
   }

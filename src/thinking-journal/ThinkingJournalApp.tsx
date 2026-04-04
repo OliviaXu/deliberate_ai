@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { INTERACTION_MODES, type ReflectionScore } from '../shared/types';
-import { loadThinkingJournalEntries } from './thinking-journal-store';
+import { loadThinkingJournalEntries, loadThinkingJournalExportRows } from './thinking-journal-store';
+import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } from './utils/export';
 import { filterThinkingJournalEntries, type ThinkingJournalEntry, type ThinkingJournalFilter } from './utils/entries';
+import type { ThinkingJournalHistoryRow } from './utils/history';
 
 interface ThinkingJournalAppProps {
   preloadedEntries?: ThinkingJournalEntry[];
+  loadExportRows?: () => Promise<ThinkingJournalHistoryRow[]>;
 }
 
 const FILTERS: Array<{ value: ThinkingJournalFilter; label: string; emoji?: string }> = [
@@ -34,12 +37,14 @@ const CHIP_EMOJI_SELECTED_CLASS = 'text-[0.88rem] leading-none opacity-100 [filt
 const METADATA_TAG_CLASS =
   'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
-export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps): JSX.Element {
+export function ThinkingJournalApp({ preloadedEntries, loadExportRows = loadThinkingJournalExportRows }: ThinkingJournalAppProps): JSX.Element {
   const [entries, setEntries] = useState<ThinkingJournalEntry[]>(preloadedEntries ?? []);
   const [filter, setFilter] = useState<ThinkingJournalFilter>('all');
   const [withReflectionOnly, setWithReflectionOnly] = useState(false);
   const [expandedPromptIds, setExpandedPromptIds] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(preloadedEntries === undefined);
+  const [isExporting, setIsExporting] = useState(false);
+  const [hasStoredHistory, setHasStoredHistory] = useState((preloadedEntries?.length ?? 0) > 0);
 
   useEffect(() => {
     if (preloadedEntries !== undefined) return;
@@ -60,6 +65,29 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
     };
   }, [preloadedEntries]);
 
+  useEffect(() => {
+    if (entries.length > 0) {
+      setHasStoredHistory(true);
+      return;
+    }
+
+    let active = true;
+
+    void loadExportRows()
+      .then((rows) => {
+        if (!active) return;
+        setHasStoredHistory(rows.length > 0);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHasStoredHistory(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [entries.length, loadExportRows]);
+
   const filteredEntries = useMemo(
     () =>
       filterThinkingJournalEntries(entries, {
@@ -68,6 +96,7 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
       }),
     [entries, filter, withReflectionOnly]
   );
+  const showExportAction = !loading && filter === 'all' && !withReflectionOnly && hasStoredHistory;
 
   return (
     <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
@@ -242,9 +271,42 @@ export function ThinkingJournalApp({ preloadedEntries }: ThinkingJournalAppProps
               </article>
             );
           })}
+        {showExportAction && (
+          <div className="mt-5 flex flex-col items-center gap-2.5 pt-4 text-center" data-testid="thinking-journal-export-footer">
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-[0.9rem] text-[#9aa4af] transition-colors duration-100 hover:text-[#71808f] disabled:cursor-default disabled:text-[#9aa4af]"
+              onClick={() => void handleExportClick(loadExportRows, setIsExporting)}
+              disabled={isExporting}
+            >
+              Download full history as CSV
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );
+}
+
+async function handleExportClick(
+  loadExportRows: () => Promise<ThinkingJournalHistoryRow[]>,
+  setIsExporting: React.Dispatch<React.SetStateAction<boolean>>
+): Promise<void> {
+  setIsExporting(true);
+
+  try {
+    const rows = await loadExportRows();
+    const csv = buildThinkingJournalExportCsv(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = buildThinkingJournalExportFilename();
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
+  } finally {
+    setIsExporting(false);
+  }
 }
 
 function toReflectionVisualLevel(score: ReflectionScore): ReflectionVisualLevel {
