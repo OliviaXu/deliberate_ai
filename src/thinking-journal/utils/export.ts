@@ -1,4 +1,4 @@
-import type { ThinkingJournalEntryRecord } from './history';
+import type { ThinkingJournalEntryRecord } from './entry-record';
 
 const CSV_HEADER = [
   'entry_timestamp_iso',

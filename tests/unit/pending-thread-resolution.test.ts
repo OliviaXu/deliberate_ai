@@ -31,7 +31,12 @@ describe('createPendingThreadResolutionTracker', () => {
     );
 
     await vi.waitFor(() => {
-      expect(resolveThreadIdForRecord).toHaveBeenCalledWith('record-1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e');
+      expect(resolveThreadIdForRecord).toHaveBeenCalledWith(
+        'record-1',
+        { platform: 'gemini', threadId: '/app' },
+        '/app/532b342f83b8e91e',
+        'https://gemini.google.com/app/532b342f83b8e91e'
+      );
     });
   });
 
@@ -62,7 +67,8 @@ describe('createPendingThreadResolutionTracker', () => {
       expect(resolveThreadIdForRecord).toHaveBeenCalledWith(
         'record-chatgpt-1',
         { platform: 'chatgpt', threadId: '/' },
-        '/c/thread-123'
+        '/c/thread-123',
+        'https://chatgpt.com/c/thread-123?model=gpt-5'
       );
     });
   });
@@ -100,6 +106,34 @@ describe('createPendingThreadResolutionTracker', () => {
     });
   });
 
+  it('ignores status-only tabs.onUpdated events even when tab.url is concrete', async () => {
+    const resolveThreadIdForRecord = vi.fn(async () => true);
+    const addListener = vi.fn();
+
+    const tracker = createPendingThreadResolutionTracker({
+      store: { resolveThreadIdForRecord },
+      tabs: {
+        onUpdated: {
+          addListener
+        }
+      }
+    });
+
+    const tabsUpdatedListener = addListener.mock.calls[0]?.[0];
+    if (!tabsUpdatedListener) throw new Error('Expected tabs listener');
+
+    tracker.trackPlaceholder('record-status-only', 303, { platform: 'gemini', threadId: '/app' });
+    tabsUpdatedListener(
+      303,
+      { status: 'complete' },
+      { id: 303, url: 'https://gemini.google.com/app/from-tab-snapshot' }
+    );
+
+    await vi.waitFor(() => {
+      expect(resolveThreadIdForRecord).not.toHaveBeenCalled();
+    });
+  });
+
   it('tracks only the latest pending placeholder per tab', async () => {
     const resolveThreadIdForRecord = vi.fn(async () => true);
     const addListener = vi.fn();
@@ -130,7 +164,8 @@ describe('createPendingThreadResolutionTracker', () => {
       expect(resolveThreadIdForRecord).toHaveBeenCalledWith(
         'record-new',
         { platform: 'gemini', threadId: '/app' },
-        '/app/threads/latest'
+        '/app/threads/latest',
+        'https://gemini.google.com/app/threads/latest'
       );
     });
   });

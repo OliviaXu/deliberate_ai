@@ -79,6 +79,7 @@ describe('handleModeSubmission', () => {
         mode: 'problem_solving',
         prediction: 'x'.repeat(100),
         prompt: 'What is the best rollout sequence?',
+        url: 'https://gemini.google.com/app/threads/123',
         threadId: '/app/threads/123'
       }
     });
@@ -105,10 +106,40 @@ describe('handleModeSubmission', () => {
       type: 'learning-cycle:append',
       record: expect.objectContaining({
         id: '11111111-1111-4111-8111-111111111111',
+        url: 'https://deliberate-harness.test/app/threads/test-thread',
         threadId: '/app/threads/test-thread'
       })
     });
     expect(randomUuid).toHaveBeenCalledOnce();
+  });
+
+  it('does not persist placeholder URLs before the thread is concrete', async () => {
+    const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
+    const resume = vi.fn(() => true);
+
+    await handleModeSubmission({
+      intent: {
+        ...baseIntent,
+        url: 'https://gemini.google.com/app'
+      },
+      submission: { mode: 'delegation' },
+      sendMessage,
+      resume,
+      logger: { info: vi.fn(), error: vi.fn() }
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'learning-cycle:append',
+      record: expect.not.objectContaining({
+        url: 'https://gemini.google.com/app'
+      })
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'learning-cycle:append',
+      record: expect.objectContaining({
+        threadId: '/app'
+      })
+    });
   });
 
   it('reports append failure when runtime response is not ok', async () => {

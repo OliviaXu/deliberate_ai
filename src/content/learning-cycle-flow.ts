@@ -31,11 +31,13 @@ interface HandleModeSubmissionResult {
 
 function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: LearningCycleSubmission): LearningCycleRecord {
   const platform = resolvePlatformById(intent.platform);
+  const threadId = platform?.resolveThreadId(intent.url) ?? 'unknown';
   const base = {
     id: globalThis.crypto.randomUUID(),
     timestamp: intent.timestamp,
     platform: intent.platform,
-    threadId: platform?.resolveThreadId(intent.url) ?? 'unknown',
+    ...(platform?.isConcreteThreadId(threadId) ? { url: intent.url } : {}),
+    threadId,
     prompt: intent.prompt
   } as const;
 

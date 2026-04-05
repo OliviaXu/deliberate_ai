@@ -98,7 +98,9 @@ export function createPendingThreadResolutionTracker(
   const handleTabsUpdated = (tabId: number, changeInfo: TabsChangeInfo, tab: TabLike): void => {
     const pending = readPending(tabId);
     if (!pending) return;
-    const toThreadId = resolvePlatformById(pending.platform)?.resolveConcreteThreadId(changeInfo.url ?? tab.url);
+    if (!changeInfo.url) return;
+
+    const toThreadId = resolvePlatformById(pending.platform)?.resolveConcreteThreadId(changeInfo.url);
     if (!toThreadId) return;
 
     logTabsEvent(tabId, toThreadId, changeInfo, tab);
@@ -113,7 +115,8 @@ export function createPendingThreadResolutionTracker(
       .resolveThreadIdForRecord(
         pending.recordId,
         { platform: pending.platform, threadId: pending.fromThreadId },
-        toThreadId
+        toThreadId,
+        changeInfo.url
       )
       .then((updated) => {
         logResolutionResult(updated, resolutionMeta);

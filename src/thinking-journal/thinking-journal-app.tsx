@@ -8,7 +8,7 @@ import {
   type ThinkingJournalEntryView,
   type ThinkingJournalEntryViewFilter
 } from './utils/entry-view';
-import type { ThinkingJournalEntryRecord } from './utils/history';
+import type { ThinkingJournalEntryRecord } from './utils/entry-record';
 
 interface ThinkingJournalAppProps {
   preloadedEntries?: ThinkingJournalEntryView[];
@@ -183,10 +183,30 @@ export function ThinkingJournalApp({
                 <div className="flex flex-col gap-1">
                   <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-card-header">
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <p className="m-0 shrink-0 text-[1rem] text-[#707b88]" data-testid="thinking-journal-date-title">
-                          {entry.dateLabel}
-                        </p>
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex shrink-0 items-center gap-1.5">
+                          <p className="m-0 text-[1rem] text-[#707b88]" data-testid="thinking-journal-date-title">
+                            {entry.dateLabel}
+                          </p>
+                          {entry.url ? (
+                            <a
+                              href={entry.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="group inline-flex items-center no-underline text-[#8a98a8] transition-colors duration-100 hover:text-[#5f7182] hover:no-underline"
+                              aria-label={`Open chat from ${entry.dateLabel}`}
+                              data-testid="thinking-journal-entry-link"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="text-[0.82rem] leading-none"
+                                data-testid="thinking-journal-entry-link-icon"
+                              >
+                                ↗
+                              </span>
+                            </a>
+                          ) : null}
+                        </span>
                         <p
                           className={`m-0 min-w-0 whitespace-pre-wrap text-[1rem] leading-[1.45] text-[#213040] ${
                             entry.promptIsLong && !isExpanded

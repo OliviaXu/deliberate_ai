@@ -1,7 +1,7 @@
 import { LearningCycleStore } from '../shared/learning-cycle-store';
 import { ReflectionStore } from '../shared/reflection-store';
 import type { LearningCycleRecord, ReflectionRecord } from '../shared/types';
-import { buildThinkingJournalEntryRecords, type ThinkingJournalEntryRecord } from './utils/history';
+import { buildThinkingJournalEntryRecords, type ThinkingJournalEntryRecord } from './utils/entry-record';
 
 interface ThinkingJournalStoreDependencies {
   learningCycleStore?: Pick<LearningCycleStore, 'listAll'>;

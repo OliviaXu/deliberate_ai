@@ -1,4 +1,5 @@
 import { INTERACTION_MODES, isReflectionEligibleRecord, type InteractionMode, type LearningCycleRecord, type ReflectionRecord, type ReflectionScore } from '../../shared/types';
+import { resolveLearningCycleRecordUrl } from './record-url';
 
 const PROBLEM_SOLVING_STARTING_POINT_FALLBACK = 'No hypothesis recorded.';
 
@@ -12,6 +13,7 @@ export interface ThinkingJournalEntryRecord {
   id: string;
   timestamp: number;
   mode: InteractionMode;
+  url?: string;
   prompt: string;
   startingPoint?: string;
   reflection?: ThinkingJournalEntryRecordReflection;
@@ -57,10 +59,13 @@ function toThinkingJournalEntryRecord(
   record: LearningCycleRecord,
   reflection?: ReflectionRecord
 ): ThinkingJournalEntryRecord {
+  const url = resolveLearningCycleRecordUrl(record);
+
   return {
     id: record.id,
     timestamp: record.timestamp,
     mode: record.mode,
+    ...(url ? { url } : {}),
     prompt: record.prompt,
     ...toStartingPoint(record),
     ...(reflection ? { reflection: toThinkingJournalEntryRecordReflection(reflection) } : {})

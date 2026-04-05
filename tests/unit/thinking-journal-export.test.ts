@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/entry-record';
 import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } from '../../src/thinking-journal/utils/export';
 
 function makeRow(overrides: Partial<ThinkingJournalEntryRecord> = {}): ThinkingJournalEntryRecord {

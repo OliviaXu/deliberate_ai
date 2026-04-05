@@ -43,6 +43,7 @@ export interface DebugConfig {
 interface LearningCycleBase extends PlatformThreadIdentity {
   id: string;
   timestamp: number;
+  url?: string;
   prompt: string;
 }
 

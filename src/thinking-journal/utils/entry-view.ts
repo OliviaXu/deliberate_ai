@@ -4,7 +4,7 @@ import {
   problemSolvingStartingPointFallback,
   type ThinkingJournalEntryRecord,
   type ThinkingJournalEntryRecordReflection
-} from './history';
+} from './entry-record';
 import type { LearningCycleRecord, ReflectionRecord } from '../../shared/types';
 
 const JOURNAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -30,6 +30,7 @@ export interface ThinkingJournalEntryView {
   mode: InteractionMode;
   modeLabel: string;
   modeEmoji: string;
+  url?: string;
   prompt: string;
   promptIsLong: boolean;
   hypothesis?: string;
@@ -81,6 +82,7 @@ function toThinkingJournalEntryView(entryRecord: ThinkingJournalEntryRecord): Th
     mode: entryRecord.mode,
     modeLabel: modeLabel(entryRecord.mode),
     modeEmoji: modeEmoji(entryRecord.mode),
+    ...(entryRecord.url ? { url: entryRecord.url } : {}),
     prompt: entryRecord.prompt,
     promptIsLong: entryRecord.prompt.length > LONG_PROMPT_CHAR_THRESHOLD,
     ...(entryRecord.reflection ? { reflection: toThinkingJournalEntryViewReflection(entryRecord.reflection) } : {})

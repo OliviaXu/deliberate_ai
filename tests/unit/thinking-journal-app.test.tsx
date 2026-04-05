@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThinkingJournalApp } from '../../src/thinking-journal/thinking-journal-app';
 import * as thinkingJournalStore from '../../src/thinking-journal/thinking-journal-store';
 import type { ThinkingJournalEntryView } from '../../src/thinking-journal/utils/entry-view';
-import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/entry-record';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -18,6 +18,7 @@ function makeEntries(): ThinkingJournalEntryView[] {
     {
       id: 'a',
       timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+      url: 'https://gemini.google.com/app/threads/problem-a',
       mode: 'problem_solving',
       modeLabel: 'Problem-Solving',
       modeEmoji: '🤔',
@@ -35,6 +36,7 @@ function makeEntries(): ThinkingJournalEntryView[] {
     {
       id: 'b',
       timestamp: Date.UTC(2026, 2, 2, 12, 0, 0),
+      url: 'https://gemini.google.com/app/threads/learning-b',
       mode: 'learning',
       modeLabel: 'Learning',
       modeEmoji: '🧑‍🎓',
@@ -236,6 +238,21 @@ describe('ThinkingJournalApp', () => {
     expect(reflectionNotes?.className).not.toContain('mt-1.5');
     expect(reflectionNotes?.className).not.toContain('text-[1rem]');
     expect(document.body.textContent).not.toContain('PromptExplain OAuth PKCE simply.');
+  });
+
+  it('renders the prompt as a link when an entry URL is available', () => {
+    render(makeEntries());
+
+    const promptLink = document.querySelector('[data-testid="thinking-journal-entry-link"]');
+    expect(promptLink).toBeTruthy();
+    expect(promptLink?.getAttribute('href')).toBe('https://gemini.google.com/app/threads/problem-a');
+    expect(promptLink?.getAttribute('target')).toBe('_blank');
+    expect(promptLink?.className).toContain('no-underline');
+    expect(promptLink?.getAttribute('aria-label')).toBe('Open chat from Mar 2');
+
+    const promptLinkIcon = document.querySelector('[data-testid="thinking-journal-entry-link-icon"]');
+    expect(promptLinkIcon).toBeTruthy();
+    expect(promptLinkIcon?.textContent).toBe('↗');
   });
 
   it('does not show a spark in the mode badge when there is no reflection', () => {

@@ -20,7 +20,12 @@ export class LearningCycleStore {
     await this.writeQueue;
   }
 
-  async resolveThreadIdForRecord(recordId: string, fromThread: PlatformThreadIdentity, toThreadId: string): Promise<boolean> {
+  async resolveThreadIdForRecord(
+    recordId: string,
+    fromThread: PlatformThreadIdentity,
+    toThreadId: string,
+    toUrl?: string
+  ): Promise<boolean> {
     let updated = false;
 
     this.writeQueue = this.writeQueue.then(async () => {
@@ -32,7 +37,11 @@ export class LearningCycleStore {
       if (index < 0) return;
 
       const next = [...current];
-      next[index] = { ...next[index], threadId: toThreadId } as LearningCycleRecord;
+      next[index] = {
+        ...next[index],
+        threadId: toThreadId,
+        ...(toUrl ? { url: toUrl } : {})
+      } as LearningCycleRecord;
       await this.storage.set(LEARNING_CYCLES_STORAGE_KEY, next);
       updated = true;
     });

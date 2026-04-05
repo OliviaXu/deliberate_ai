@@ -6,7 +6,7 @@ import {
   filterThinkingJournalEntryViews,
   formatJournalTimestamp
 } from '../../src/thinking-journal/utils/entry-view';
-import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/history';
+import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/entry-record';
 
 const NOW_MS = Date.UTC(2026, 2, 3, 12, 0, 0);
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -16,6 +16,7 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
     id: '1',
     timestamp: NOW_MS,
     platform: 'gemini',
+    url: 'https://gemini.google.com/app/threads/default',
     threadId: '/app/threads/default',
     mode: 'delegation',
     prompt: 'Draft a response for me'
@@ -74,6 +75,24 @@ describe('buildThinkingJournalEntryViews', () => {
     );
 
     expect(entries[0]?.initialContext).toBe('I know OAuth basics');
+  });
+
+  it('carries through the original thread URL when present', () => {
+    const entries = buildThinkingJournalEntryViews(
+      buildThinkingJournalEntryRecords(
+        [
+          makeRecord({
+            id: 'learning',
+            mode: 'learning',
+            url: 'https://gemini.google.com/app/threads/thread-123',
+            timestamp: NOW_MS
+          })
+        ],
+        []
+      )
+    );
+
+    expect(entries[0]?.url).toBe('https://gemini.google.com/app/threads/thread-123');
   });
 
   it('uses fallback hypothesis when problem-solving prediction is missing', () => {

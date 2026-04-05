@@ -4,7 +4,7 @@ import {
   loadRecentThinkingJournalEntries,
   loadThinkingJournalExportRows
 } from '../../src/thinking-journal/thinking-journal-store';
-import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/entry-record';
 
 afterEach(() => {
   vi.restoreAllMocks();

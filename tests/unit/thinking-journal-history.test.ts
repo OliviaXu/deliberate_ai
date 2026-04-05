@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
-import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/history';
+import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/entry-record';
 
 const NOW_MS = Date.UTC(2026, 2, 3, 12, 0, 0);
 const DAY_MS = 24 * 60 * 60 * 1000;

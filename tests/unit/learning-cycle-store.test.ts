@@ -7,6 +7,7 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
     id: '1',
     timestamp: 1,
     platform: 'gemini',
+    url: 'https://gemini.google.com/app/abc',
     threadId: '/app/abc',
     mode: 'delegation',
     prompt: 'draft prompt'
@@ -92,15 +93,21 @@ describe('LearningCycleStore', () => {
 
   it('resolves a placeholder thread id for a specific record', async () => {
     const store = new LearningCycleStore();
-    await store.append(makeRecord({ id: '1', threadId: '/app' }));
+    await store.append(makeRecord({ id: '1', url: 'https://gemini.google.com/app', threadId: '/app' }));
     await store.append(makeRecord({ id: '2', threadId: '/app/threads/other' }));
 
     await expect(
-      store.resolveThreadIdForRecord('1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e')
+      store.resolveThreadIdForRecord(
+        '1',
+        { platform: 'gemini', threadId: '/app' },
+        '/app/532b342f83b8e91e',
+        'https://gemini.google.com/app/532b342f83b8e91e'
+      )
     ).resolves.toBe(true);
 
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records[0]?.threadId).toBe('/app/532b342f83b8e91e');
+    expect(records[0]?.url).toBe('https://gemini.google.com/app/532b342f83b8e91e');
     expect(records[1]?.threadId).toBe('/app/threads/other');
   });
 
@@ -109,7 +116,12 @@ describe('LearningCycleStore', () => {
     await store.append(makeRecord({ id: '1', threadId: '/app/threads/already-final' }));
 
     await expect(
-      store.resolveThreadIdForRecord('1', { platform: 'gemini', threadId: '/app' }, '/app/532b342f83b8e91e')
+      store.resolveThreadIdForRecord(
+        '1',
+        { platform: 'gemini', threadId: '/app' },
+        '/app/532b342f83b8e91e',
+        'https://gemini.google.com/app/532b342f83b8e91e'
+      )
     ).resolves.toBe(false);
   });
 
