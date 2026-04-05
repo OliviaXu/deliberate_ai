@@ -263,7 +263,7 @@ export function ThinkingJournalApp({
             );
           })}
         {showExportAction && (
-          <div className="mt-5 flex flex-col items-center gap-2.5 pt-4 text-center" data-testid="thinking-journal-export-footer">
+          <div className="mt-3.5 flex flex-col items-center gap-2.5 pt-2.5 text-center" data-testid="thinking-journal-export-footer">
             <button
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 text-[0.9rem] text-[#9aa4af] transition-colors duration-100 hover:text-[#71808f] disabled:cursor-default disabled:text-[#9aa4af]"
