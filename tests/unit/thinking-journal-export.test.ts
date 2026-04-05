@@ -21,7 +21,7 @@ function makeRow(overrides: Partial<ThinkingJournalEntryRecord> = {}): ThinkingJ
 describe('buildThinkingJournalExportCsv', () => {
   it('emits the expected header and escapes CSV values', () => {
     const csv = buildThinkingJournalExportCsv([
-      makeRow(),
+      makeRow({ url: 'https://gemini.google.com/app/threads/thread-123' }),
       {
         id: 'row-2',
         timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
@@ -31,11 +31,12 @@ describe('buildThinkingJournalExportCsv', () => {
     ]);
 
     expect(csv).toContain(
-      'entry_timestamp_iso,mode,prompt,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes'
+      'entry_timestamp_iso,mode,prompt,url,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes'
     );
+    expect(csv).toContain('https://gemini.google.com/app/threads/thread-123');
     expect(csv).toContain('"I know ""basic"", OAuth"');
     expect(csv).toContain('"Line one\nLine ""two"", with comma"');
-    expect(csv).toContain('2026-03-02T16:42:00.000Z,delegation,Draft a short update,,,,');
+    expect(csv).toContain('2026-03-02T16:42:00.000Z,delegation,Draft a short update,,,,,');
   });
 });
 
