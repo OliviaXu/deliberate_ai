@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
-import { buildThinkingJournalHistoryRows } from '../../src/thinking-journal/utils/history';
+import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/history';
 
 const NOW_MS = Date.UTC(2026, 2, 3, 12, 0, 0);
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,9 +29,9 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   };
 }
 
-describe('buildThinkingJournalHistoryRows', () => {
+describe('buildThinkingJournalEntryRecords', () => {
   it('includes stored history outside the journal window and sorts newest first', () => {
-    const rows = buildThinkingJournalHistoryRows(
+    const rows = buildThinkingJournalEntryRecords(
       [
         makeRecord({ id: 'recent', timestamp: NOW_MS - DAY_MS }),
         makeRecord({ id: 'historical', timestamp: NOW_MS - 10 * DAY_MS, mode: 'learning', priorKnowledgeNote: 'Old context' })
@@ -64,7 +64,7 @@ describe('buildThinkingJournalHistoryRows', () => {
 
     delete (missingProblemPrediction as { prediction?: string }).prediction;
 
-    const rows = buildThinkingJournalHistoryRows([problem, learning, missingProblemPrediction], []);
+    const rows = buildThinkingJournalEntryRecords([problem, learning, missingProblemPrediction], []);
 
     expect(rows.find((row) => row.id === 'problem')?.startingPoint).toBe('Check auth first.');
     expect(rows.find((row) => row.id === 'learning')?.startingPoint).toBe('I know OAuth basics.');
@@ -72,7 +72,7 @@ describe('buildThinkingJournalHistoryRows', () => {
   });
 
   it('links only the latest valid reflection for eligible records', () => {
-    const rows = buildThinkingJournalHistoryRows(
+    const rows = buildThinkingJournalEntryRecords(
       [
         makeRecord({
           id: 'problem',

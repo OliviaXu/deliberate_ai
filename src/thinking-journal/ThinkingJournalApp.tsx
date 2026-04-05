@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { INTERACTION_MODES, type ReflectionScore } from '../shared/types';
-import { loadThinkingJournalEntries, loadThinkingJournalExportRows } from './thinking-journal-store';
+import { loadRecentThinkingJournalEntries, loadThinkingJournalExportRows } from './thinking-journal-store';
 import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } from './utils/export';
-import { filterThinkingJournalEntries, type ThinkingJournalEntry, type ThinkingJournalFilter } from './utils/entries';
-import type { ThinkingJournalHistoryRow } from './utils/history';
+import {
+  buildThinkingJournalEntryViews,
+  filterThinkingJournalEntryViews,
+  type ThinkingJournalEntryView,
+  type ThinkingJournalEntryViewFilter
+} from './utils/entry-view';
+import type { ThinkingJournalEntryRecord } from './utils/history';
 
 interface ThinkingJournalAppProps {
-  preloadedEntries?: ThinkingJournalEntry[];
-  loadExportRows?: () => Promise<ThinkingJournalHistoryRow[]>;
+  preloadedEntries?: ThinkingJournalEntryView[];
+  loadRecentEntries?: () => Promise<ThinkingJournalEntryRecord[]>;
+  loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
 }
 
-const FILTERS: Array<{ value: ThinkingJournalFilter; label: string; emoji?: string }> = [
+const FILTERS: Array<{ value: ThinkingJournalEntryViewFilter; label: string; emoji?: string }> = [
   { value: 'all', label: 'All' },
   { value: INTERACTION_MODES.PROBLEM_SOLVING, label: 'Problem-Solving', emoji: '🤔' },
   { value: INTERACTION_MODES.DELEGATION, label: 'Delegation', emoji: '😌' },
@@ -37,23 +43,26 @@ const CHIP_EMOJI_SELECTED_CLASS = 'text-[0.88rem] leading-none opacity-100 [filt
 const METADATA_TAG_CLASS =
   'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
-export function ThinkingJournalApp({ preloadedEntries, loadExportRows = loadThinkingJournalExportRows }: ThinkingJournalAppProps): JSX.Element {
-  const [entries, setEntries] = useState<ThinkingJournalEntry[]>(preloadedEntries ?? []);
-  const [filter, setFilter] = useState<ThinkingJournalFilter>('all');
+export function ThinkingJournalApp({
+  preloadedEntries,
+  loadRecentEntries = loadRecentThinkingJournalEntries,
+  loadExportRows = loadThinkingJournalExportRows
+}: ThinkingJournalAppProps): JSX.Element {
+  const [entryRecords, setEntryRecords] = useState<ThinkingJournalEntryRecord[]>([]);
+  const [filter, setFilter] = useState<ThinkingJournalEntryViewFilter>('all');
   const [withReflectionOnly, setWithReflectionOnly] = useState(false);
   const [expandedPromptIds, setExpandedPromptIds] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(preloadedEntries === undefined);
   const [isExporting, setIsExporting] = useState(false);
-  const [hasStoredHistory, setHasStoredHistory] = useState((preloadedEntries?.length ?? 0) > 0);
 
   useEffect(() => {
     if (preloadedEntries !== undefined) return;
     let active = true;
 
-    void loadThinkingJournalEntries()
-      .then((nextEntries) => {
+    void loadRecentEntries()
+      .then((nextEntryRecords) => {
         if (!active) return;
-        setEntries(nextEntries);
+        setEntryRecords(nextEntryRecords);
       })
       .finally(() => {
         if (!active) return;
@@ -63,40 +72,22 @@ export function ThinkingJournalApp({ preloadedEntries, loadExportRows = loadThin
     return () => {
       active = false;
     };
-  }, [preloadedEntries]);
+  }, [loadRecentEntries, preloadedEntries]);
 
-  useEffect(() => {
-    if (entries.length > 0) {
-      setHasStoredHistory(true);
-      return;
-    }
+  const entryViews = useMemo(
+    () => preloadedEntries ?? buildThinkingJournalEntryViews(entryRecords),
+    [entryRecords, preloadedEntries]
+  );
 
-    let active = true;
-
-    void loadExportRows()
-      .then((rows) => {
-        if (!active) return;
-        setHasStoredHistory(rows.length > 0);
-      })
-      .catch(() => {
-        if (!active) return;
-        setHasStoredHistory(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [entries.length, loadExportRows]);
-
-  const filteredEntries = useMemo(
+  const filteredEntryViews = useMemo(
     () =>
-      filterThinkingJournalEntries(entries, {
+      filterThinkingJournalEntryViews(entryViews, {
         mode: filter,
         withReflectionOnly
       }),
-    [entries, filter, withReflectionOnly]
+    [entryViews, filter, withReflectionOnly]
   );
-  const showExportAction = !loading && filter === 'all' && !withReflectionOnly && hasStoredHistory;
+  const showExportAction = !loading && filter === 'all' && !withReflectionOnly;
 
   return (
     <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
@@ -153,9 +144,9 @@ export function ThinkingJournalApp({ preloadedEntries, loadExportRows = loadThin
 
       <section className="mt-3 grid gap-2.5" aria-live="polite">
         {loading && <p className="mt-2 text-[#6a7786]">Loading entries...</p>}
-        {!loading && filteredEntries.length === 0 && <p className="mt-2 text-[#6a7786]">No entries in the last 7 days.</p>}
+        {!loading && filteredEntryViews.length === 0 && <p className="mt-2 text-[#6a7786]">No entries in the last 7 days.</p>}
         {!loading &&
-          filteredEntries.map((entry) => {
+          filteredEntryViews.map((entry) => {
             const isExpanded = Boolean(expandedPromptIds[entry.id]);
             const supportingContent = (
               <>
@@ -289,7 +280,7 @@ export function ThinkingJournalApp({ preloadedEntries, loadExportRows = loadThin
 }
 
 async function handleExportClick(
-  loadExportRows: () => Promise<ThinkingJournalHistoryRow[]>,
+  loadExportRows: () => Promise<ThinkingJournalEntryRecord[]>,
   setIsExporting: React.Dispatch<React.SetStateAction<boolean>>
 ): Promise<void> {
   setIsExporting(true);

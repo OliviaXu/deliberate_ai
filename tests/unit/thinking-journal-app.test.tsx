@@ -4,8 +4,8 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThinkingJournalApp } from '../../src/thinking-journal/ThinkingJournalApp';
 import * as thinkingJournalStore from '../../src/thinking-journal/thinking-journal-store';
-import type { ThinkingJournalEntry } from '../../src/thinking-journal/utils/entries';
-import type { ThinkingJournalHistoryRow } from '../../src/thinking-journal/utils/history';
+import type { ThinkingJournalEntryView } from '../../src/thinking-journal/utils/entry-view';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -13,7 +13,7 @@ function makeLongPrompt(): string {
   return 'This is a long prompt '.repeat(40).trim();
 }
 
-function makeEntries(): ThinkingJournalEntry[] {
+function makeEntries(): ThinkingJournalEntryView[] {
   return [
     {
       id: 'a',
@@ -59,7 +59,7 @@ function makeEntries(): ThinkingJournalEntry[] {
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function makeExportRows(): ThinkingJournalHistoryRow[] {
+function makeExportRows(): ThinkingJournalEntryRecord[] {
   return [
     {
       id: 'history-a',
@@ -83,7 +83,7 @@ function makeExportRows(): ThinkingJournalHistoryRow[] {
 }
 
 function render(
-  entries: ThinkingJournalEntry[],
+  entries: ThinkingJournalEntryView[],
   props: Partial<React.ComponentProps<typeof ThinkingJournalApp>> = {}
 ): void {
   container = document.createElement('div');
@@ -310,13 +310,16 @@ describe('ThinkingJournalApp', () => {
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
   });
 
-  it('does not fetch or show loading when preloaded entries are provided as an empty list', () => {
-    const loadSpy = vi.spyOn(thinkingJournalStore, 'loadThinkingJournalEntries');
-    render([]);
+  it('does not show loading when preloaded entries are provided as an empty list', async () => {
+    const loadRecentEntries = vi.fn(async () => []);
+    const loadExportRows = vi.fn(async () => []);
+    render([], { loadRecentEntries, loadExportRows });
 
-    expect(loadSpy).not.toHaveBeenCalled();
+    await act(async () => {});
     expect(document.body.textContent).not.toContain('Loading entries...');
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
+    expect(loadRecentEntries).not.toHaveBeenCalled();
+    expect(loadExportRows).not.toHaveBeenCalled();
   });
 
   it('renders the end-of-list CSV export action in the default non-empty feed', () => {
@@ -327,9 +330,25 @@ describe('ThinkingJournalApp', () => {
 
   it('renders the CSV export action when only historical entries exist outside the 7-day feed', async () => {
     render([], { loadExportRows: async () => makeExportRows() });
-
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
-    await act(async () => {});
+    expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
+  });
+
+  it('uses only the recent-entry load on mount and defers export history until click', async () => {
+    const loadRecentEntriesSpy = vi.spyOn(thinkingJournalStore, 'loadRecentThinkingJournalEntries').mockResolvedValue([]);
+    const loadExportRowsSpy = vi.spyOn(thinkingJournalStore, 'loadThinkingJournalExportRows').mockResolvedValue(makeExportRows());
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<ThinkingJournalApp />);
+    });
+
+    expect(loadRecentEntriesSpy).toHaveBeenCalledOnce();
+    expect(loadExportRowsSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('No entries in the last 7 days.');
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
   });
 

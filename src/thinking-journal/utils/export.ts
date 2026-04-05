@@ -1,4 +1,4 @@
-import type { ThinkingJournalHistoryRow } from './history';
+import type { ThinkingJournalEntryRecord } from './history';
 
 const CSV_HEADER = [
   'entry_timestamp_iso',
@@ -10,7 +10,7 @@ const CSV_HEADER = [
   'reflection_notes'
 ];
 
-export function buildThinkingJournalExportCsv(rows: ThinkingJournalHistoryRow[]): string {
+export function buildThinkingJournalExportCsv(rows: ThinkingJournalEntryRecord[]): string {
   const lines = [
     CSV_HEADER.join(','),
     ...rows.map((row) =>

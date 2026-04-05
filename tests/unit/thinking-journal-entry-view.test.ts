@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
-import { buildThinkingJournalEntries, filterThinkingJournalEntries, formatJournalTimestamp } from '../../src/thinking-journal/utils/entries';
+import {
+  buildThinkingJournalEntryViews,
+  buildRecentThinkingJournalEntryViews,
+  filterThinkingJournalEntryViews,
+  formatJournalTimestamp
+} from '../../src/thinking-journal/utils/entry-view';
+import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/history';
 
 const NOW_MS = Date.UTC(2026, 2, 3, 12, 0, 0);
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,7 +35,7 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   };
 }
 
-describe('buildThinkingJournalEntries', () => {
+describe('buildThinkingJournalEntryViews', () => {
   it('keeps only entries from the last 7 days and sorts newest first', () => {
     const records: LearningCycleRecord[] = [
       makeRecord({ id: 'newest', timestamp: NOW_MS - DAY_MS }),
@@ -48,12 +54,13 @@ describe('buildThinkingJournalEntries', () => {
       makeRecord({ id: 'old', timestamp: NOW_MS - 9 * DAY_MS })
     ];
 
-    const entries = buildThinkingJournalEntries(records, [], NOW_MS);
+    const entries = buildRecentThinkingJournalEntryViews(records, [], NOW_MS);
     expect(entries.map((entry) => entry.id)).toEqual(['newest', 'problem', 'learning']);
   });
 
   it('maps learning initial context when available', () => {
-    const entries = buildThinkingJournalEntries(
+    const entries = buildThinkingJournalEntryViews(
+      buildThinkingJournalEntryRecords(
       [
         makeRecord({
           id: 'learning',
@@ -62,8 +69,8 @@ describe('buildThinkingJournalEntries', () => {
           priorKnowledgeNote: 'I know OAuth basics'
         })
       ],
-      [],
-      NOW_MS
+      []
+      )
     );
 
     expect(entries[0]?.initialContext).toBe('I know OAuth basics');
@@ -78,14 +85,15 @@ describe('buildThinkingJournalEntries', () => {
 
     delete (record as { prediction?: string }).prediction;
 
-    const entries = buildThinkingJournalEntries([record], [], NOW_MS);
+    const entries = buildThinkingJournalEntryViews(buildThinkingJournalEntryRecords([record], []));
     expect(entries).toHaveLength(1);
     expect(entries[0]?.mode).toBe('problem_solving');
     expect(entries[0]?.hypothesis).toBe('No hypothesis recorded.');
   });
 
   it('attaches a completed reflection to the directly linked learning-cycle record', () => {
-    const entries = buildThinkingJournalEntries(
+    const entries = buildThinkingJournalEntryViews(
+      buildThinkingJournalEntryRecords(
       [
         makeRecord({
           id: 'problem-1',
@@ -104,8 +112,8 @@ describe('buildThinkingJournalEntries', () => {
           score: 50,
           notes: 'The issue was actually an expired token.'
         })
-      ],
-      NOW_MS
+      ]
+      )
     );
 
     expect(entries[0]?.reflection).toMatchObject({
@@ -117,7 +125,8 @@ describe('buildThinkingJournalEntries', () => {
   });
 
   it('matches reflections by learning-cycle foreign key even when other records share the thread', () => {
-    const entries = buildThinkingJournalEntries(
+    const entries = buildThinkingJournalEntryViews(
+      buildThinkingJournalEntryRecords(
       [
         makeRecord({
           id: 'problem-older',
@@ -143,8 +152,8 @@ describe('buildThinkingJournalEntries', () => {
           score: 100,
           notes: 'The cache was fine. The auth token was stale.'
         })
-      ],
-      NOW_MS
+      ]
+      )
     );
 
     expect(entries.find((entry) => entry.id === 'problem-older')?.reflection).toMatchObject({
@@ -155,7 +164,8 @@ describe('buildThinkingJournalEntries', () => {
   });
 
   it('keeps the learning-cycle timestamp as the sort anchor even when a matched reflection is newer', () => {
-    const entries = buildThinkingJournalEntries(
+    const entries = buildThinkingJournalEntryViews(
+      buildThinkingJournalEntryRecords(
       [
         makeRecord({
           id: 'newer-learning',
@@ -180,8 +190,8 @@ describe('buildThinkingJournalEntries', () => {
           timestamp: NOW_MS - 1000,
           score: 100
         })
-      ],
-      NOW_MS
+      ]
+      )
     );
 
     expect(entries.map((entry) => entry.id)).toEqual(['newer-learning', 'older-problem']);
@@ -189,7 +199,7 @@ describe('buildThinkingJournalEntries', () => {
   });
 
   it('drops reflections without a direct eligible record id and prefers the latest direct reflection per record', () => {
-    const entries = buildThinkingJournalEntries(
+    const entries = buildRecentThinkingJournalEntryViews(
       [
         makeRecord({
           id: 'delegation-1',
@@ -270,7 +280,8 @@ describe('buildThinkingJournalEntries', () => {
 });
 
 describe('filterThinkingJournalEntries', () => {
-  const entries = buildThinkingJournalEntries(
+  const entries = buildThinkingJournalEntryViews(
+    buildThinkingJournalEntryRecords(
     [
       makeRecord({ id: 'delegation', timestamp: NOW_MS, mode: 'delegation' }),
       makeRecord({
@@ -290,32 +301,32 @@ describe('filterThinkingJournalEntries', () => {
         score: 25
       })
     ],
-    NOW_MS
+    )
   );
 
   it('filters by each supported mode', () => {
-    expect(filterThinkingJournalEntries(entries, { mode: 'all', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'all', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
       'delegation',
       'problem',
       'learning'
     ]);
-    expect(filterThinkingJournalEntries(entries, { mode: 'problem_solving', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'problem_solving', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
       'problem'
     ]);
-    expect(filterThinkingJournalEntries(entries, { mode: 'delegation', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'delegation', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
       'delegation'
     ]);
-    expect(filterThinkingJournalEntries(entries, { mode: 'learning', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'learning', withReflectionOnly: false }).map((entry) => entry.id)).toEqual([
       'learning'
     ]);
   });
 
   it('can further restrict results to entries with matched reflections', () => {
-    expect(filterThinkingJournalEntries(entries, { mode: 'all', withReflectionOnly: true }).map((entry) => entry.id)).toEqual(['problem']);
-    expect(filterThinkingJournalEntries(entries, { mode: 'problem_solving', withReflectionOnly: true }).map((entry) => entry.id)).toEqual([
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'all', withReflectionOnly: true }).map((entry) => entry.id)).toEqual(['problem']);
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'problem_solving', withReflectionOnly: true }).map((entry) => entry.id)).toEqual([
       'problem'
     ]);
-    expect(filterThinkingJournalEntries(entries, { mode: 'learning', withReflectionOnly: true })).toEqual([]);
+    expect(filterThinkingJournalEntryViews(entries, { mode: 'learning', withReflectionOnly: true })).toEqual([]);
   });
 });
 

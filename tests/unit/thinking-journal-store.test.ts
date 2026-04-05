@@ -1,91 +1,187 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
-import { loadThinkingJournalEntries } from '../../src/thinking-journal/thinking-journal-store';
+import {
+  loadRecentThinkingJournalEntries,
+  loadThinkingJournalExportRows
+} from '../../src/thinking-journal/thinking-journal-store';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
 
-describe('loadThinkingJournalEntries', () => {
-  it('delegates loading to both stores and enriches matched reflections', async () => {
-    const nowMs = Date.UTC(2026, 2, 3, 12, 0, 0);
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('loadRecentThinkingJournalEntries', () => {
+  it('loads both stores and returns only entries from the last 7 days', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
     const dayMs = 24 * 60 * 60 * 1000;
     const listAll = vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
       {
-        id: 'problem',
+        id: 'recent-learning',
         timestamp: nowMs - dayMs,
         platform: 'gemini',
-        threadId: '/app/threads/abc',
+        threadId: '/app/threads/recent',
+        mode: 'learning',
+        prompt: 'Explain token refresh.',
+        priorKnowledgeNote: 'I know access tokens expire.'
+      },
+      {
+        id: 'old-problem',
+        timestamp: nowMs - 10 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/old',
         mode: 'problem_solving',
-        prompt: 'Investigate this production incident',
-        prediction: ''
+        prompt: 'Diagnose the auth outage',
+        prediction: 'Tokens might be expired.'
       }
     ]);
     const listAllReflections = vi.fn<() => Promise<ReflectionRecord[]>>(async () => [
       {
         id: 'reflection-1',
         timestamp: nowMs - dayMs / 2,
-        threadId: '/app/threads/abc',
-        learningCycleRecordId: 'problem',
+        threadId: '/app/threads/old',
+        learningCycleRecordId: 'old-problem',
         status: 'completed',
         score: 75,
-        notes: 'I should have checked the auth token path first.'
+        notes: 'It was token expiry.'
       }
     ]);
 
-    const entries = await loadThinkingJournalEntries(nowMs, {
+    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
       learningCycleStore: { listAll },
       reflectionStore: { listAll: listAllReflections }
     });
+
     expect(listAll).toHaveBeenCalledOnce();
     expect(listAllReflections).toHaveBeenCalledOnce();
+    expect(entries.map((entry) => entry.id)).toEqual(['recent-learning']);
+    expect(entries[0]).toMatchObject({
+      id: 'recent-learning',
+      startingPoint: 'I know access tokens expire.'
+    });
+  });
+
+  it('still attaches reflections for recent eligible records without materializing full export history', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
+      learningCycleStore: {
+        listAll: vi.fn(async () => [
+          {
+            id: 'recent-problem',
+            timestamp: nowMs - dayMs,
+            platform: 'gemini',
+            threadId: '/app/threads/recent',
+            mode: 'problem_solving',
+            prompt: 'Diagnose the auth outage',
+            prediction: 'Tokens might be expired.'
+          },
+          {
+            id: 'old-problem',
+            timestamp: nowMs - 10 * dayMs,
+            platform: 'gemini',
+            threadId: '/app/threads/old',
+            mode: 'problem_solving',
+            prompt: 'Investigate the older incident',
+            prediction: 'Maybe stale cache.'
+          }
+        ])
+      },
+      reflectionStore: {
+        listAll: vi.fn(async () => [
+          {
+            id: 'reflection-recent',
+            timestamp: nowMs - dayMs / 2,
+            threadId: '/app/threads/recent',
+            learningCycleRecordId: 'recent-problem',
+            status: 'completed',
+            score: 75,
+            notes: 'It was token expiry.'
+          },
+          {
+            id: 'reflection-old',
+            timestamp: nowMs - dayMs / 3,
+            threadId: '/app/threads/old',
+            learningCycleRecordId: 'old-problem',
+            status: 'completed',
+            score: 50,
+            notes: 'The older issue was stale cache.'
+          }
+        ])
+      }
+    });
+
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
-      id: 'problem',
-      mode: 'problem_solving',
-      hypothesis: 'No hypothesis recorded.',
+      id: 'recent-problem',
       reflection: {
         score: 75,
-        notes: 'I should have checked the auth token path first.'
+        notes: 'It was token expiry.'
       }
     });
   });
 
-  it('returns an empty list when the learning-cycle store returns an invalid value', async () => {
-    const nowMs = Date.UTC(2026, 2, 3, 12, 0, 0);
-    const listAll = vi.fn(async () => ({ nope: true } as unknown as LearningCycleRecord[]));
-    const listAllReflections = vi.fn(async () => [] as ReflectionRecord[]);
-
-    const entries = await loadThinkingJournalEntries(nowMs, {
-      learningCycleStore: { listAll },
-      reflectionStore: { listAll: listAllReflections }
+  it('returns an empty list when either store returns an invalid value', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
+    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
+      learningCycleStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as LearningCycleRecord[])) },
+      reflectionStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as ReflectionRecord[])) }
     });
+
     expect(entries).toEqual([]);
   });
+});
 
-  it('ignores invalid reflection-store results and still returns mapped learning-cycle entries', async () => {
-    const nowMs = Date.UTC(2026, 2, 3, 12, 0, 0);
+describe('loadThinkingJournalExportRows', () => {
+  it('loads the full normalized history for CSV export', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
     const dayMs = 24 * 60 * 60 * 1000;
-    const listAll = vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
-      {
-        id: 'learning',
-        timestamp: nowMs - dayMs,
-        platform: 'gemini',
-        threadId: '/app/threads/abc',
-        mode: 'learning',
-        prompt: 'Explain token refresh.',
-        priorKnowledgeNote: 'I know access tokens expire.'
+
+    const rows = await loadThinkingJournalExportRows({
+      learningCycleStore: {
+        listAll: vi.fn(async () => [
+          {
+            id: 'recent-learning',
+            timestamp: nowMs - dayMs,
+            platform: 'gemini',
+            threadId: '/app/threads/recent',
+            mode: 'learning',
+            prompt: 'Explain token refresh.',
+            priorKnowledgeNote: 'I know access tokens expire.'
+          },
+          {
+            id: 'old-problem',
+            timestamp: nowMs - 10 * dayMs,
+            platform: 'gemini',
+            threadId: '/app/threads/old',
+            mode: 'problem_solving',
+            prompt: 'Diagnose the auth outage',
+            prediction: 'Tokens might be expired.'
+          }
+        ])
+      },
+      reflectionStore: {
+        listAll: vi.fn(async () => [
+          {
+            id: 'reflection-1',
+            timestamp: nowMs - dayMs / 2,
+            threadId: '/app/threads/old',
+            learningCycleRecordId: 'old-problem',
+            status: 'completed',
+            score: 75,
+            notes: 'It was token expiry.'
+          }
+        ])
       }
-    ]);
-    const listAllReflections = vi.fn(async () => ({ nope: true } as unknown as ReflectionRecord[]));
-
-    const entries = await loadThinkingJournalEntries(nowMs, {
-      learningCycleStore: { listAll },
-      reflectionStore: { listAll: listAllReflections }
     });
 
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
-      id: 'learning',
-      mode: 'learning',
-      initialContext: 'I know access tokens expire.'
+    expect(rows.map((row) => row.id)).toEqual(['recent-learning', 'old-problem']);
+    expect(rows[1]).toMatchObject({
+      startingPoint: 'Tokens might be expired.',
+      reflection: {
+        score: 75,
+        notes: 'It was token expiry.'
+      }
     });
-    expect(entries[0]?.reflection).toBeUndefined();
   });
 });

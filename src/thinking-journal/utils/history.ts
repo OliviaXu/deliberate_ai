@@ -2,31 +2,31 @@ import { INTERACTION_MODES, isReflectionEligibleRecord, type InteractionMode, ty
 
 const PROBLEM_SOLVING_STARTING_POINT_FALLBACK = 'No hypothesis recorded.';
 
-export interface ThinkingJournalHistoryReflection {
+export interface ThinkingJournalEntryRecordReflection {
   timestamp: number;
   score: ReflectionScore;
   notes?: string;
 }
 
-export interface ThinkingJournalHistoryRow {
+export interface ThinkingJournalEntryRecord {
   id: string;
   timestamp: number;
   mode: InteractionMode;
   prompt: string;
   startingPoint?: string;
-  reflection?: ThinkingJournalHistoryReflection;
+  reflection?: ThinkingJournalEntryRecordReflection;
 }
 
-export function buildThinkingJournalHistoryRows(
+export function buildThinkingJournalEntryRecords(
   records: LearningCycleRecord[],
   reflections: ReflectionRecord[]
-): ThinkingJournalHistoryRow[] {
+): ThinkingJournalEntryRecord[] {
   const sortedRecords = records
     .filter((record) => typeof record.timestamp === 'number')
     .sort((a, b) => b.timestamp - a.timestamp);
   const reflectionsByRecordId = buildReflectionMap(sortedRecords, reflections);
 
-  return sortedRecords.map((record) => toThinkingJournalHistoryRow(record, reflectionsByRecordId.get(record.id)));
+  return sortedRecords.map((record) => toThinkingJournalEntryRecord(record, reflectionsByRecordId.get(record.id)));
 }
 
 export function problemSolvingStartingPointFallback(): string {
@@ -53,17 +53,17 @@ function buildReflectionMap(
   return reflectionsByRecordId;
 }
 
-function toThinkingJournalHistoryRow(
+function toThinkingJournalEntryRecord(
   record: LearningCycleRecord,
   reflection?: ReflectionRecord
-): ThinkingJournalHistoryRow {
+): ThinkingJournalEntryRecord {
   return {
     id: record.id,
     timestamp: record.timestamp,
     mode: record.mode,
     prompt: record.prompt,
     ...toStartingPoint(record),
-    ...(reflection ? { reflection: toThinkingJournalHistoryReflection(reflection) } : {})
+    ...(reflection ? { reflection: toThinkingJournalEntryRecordReflection(reflection) } : {})
   };
 }
 
@@ -81,7 +81,7 @@ function toStartingPoint(record: LearningCycleRecord): { startingPoint?: string 
   return {};
 }
 
-function toThinkingJournalHistoryReflection(reflection: ReflectionRecord): ThinkingJournalHistoryReflection {
+function toThinkingJournalEntryRecordReflection(reflection: ReflectionRecord): ThinkingJournalEntryRecordReflection {
   const notes = reflection.notes?.trim();
   return {
     timestamp: reflection.timestamp,

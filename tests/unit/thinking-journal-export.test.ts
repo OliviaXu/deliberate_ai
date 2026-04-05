@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ThinkingJournalHistoryRow } from '../../src/thinking-journal/utils/history';
+import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
 import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } from '../../src/thinking-journal/utils/export';
 
-function makeRow(overrides: Partial<ThinkingJournalHistoryRow> = {}): ThinkingJournalHistoryRow {
+function makeRow(overrides: Partial<ThinkingJournalEntryRecord> = {}): ThinkingJournalEntryRecord {
   return {
     id: 'row-1',
     timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
