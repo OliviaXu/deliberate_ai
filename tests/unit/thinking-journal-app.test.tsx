@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ThinkingJournalApp } from '../../src/thinking-journal/ThinkingJournalApp';
+import { ThinkingJournalApp } from '../../src/thinking-journal/thinking-journal-app';
 import * as thinkingJournalStore from '../../src/thinking-journal/thinking-journal-store';
 import type { ThinkingJournalEntryView } from '../../src/thinking-journal/utils/entry-view';
 import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/history';
