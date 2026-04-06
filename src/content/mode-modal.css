@@ -11,7 +11,7 @@
   }
 
   #deliberate-mode-modal-root .deliberate-panel {
-    @apply overflow-auto border backdrop-blur-sm;
+    @apply overflow-auto border;
     width: min(var(--deliberate-modal-max-width), calc(100vw - 24px));
     max-height: calc(100vh - 24px);
     border-radius: var(--deliberate-radius-modal);
@@ -68,6 +68,14 @@
   .deliberate-mode-button:focus-visible {
     @apply outline-none;
     box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
+  }
+
+  #deliberate-mode-modal-root[data-deliberate-platform-skin='claude'] .deliberate-mode-button {
+    box-shadow: none;
+  }
+
+  #deliberate-mode-modal-root[data-deliberate-platform-skin='claude'] .deliberate-mode-button:hover {
+    background: color-mix(in srgb, var(--deliberate-surface-2) 88%, var(--deliberate-panel-bg));
   }
 
   .deliberate-detail-card {
@@ -138,6 +146,10 @@
     box-shadow: 0 0 0 3px var(--deliberate-focus-ring);
   }
 
+  #deliberate-mode-modal-root[data-deliberate-platform-skin='claude'] .deliberate-continue {
+    box-shadow: none;
+  }
+  
   .deliberate-continue--enabled {
     @apply cursor-pointer;
     background: var(--deliberate-action-bg);

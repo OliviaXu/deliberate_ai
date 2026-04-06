@@ -85,4 +85,58 @@
     --deliberate-action-text: #e8edf6;
     --deliberate-focus-ring: rgba(96, 165, 250, 0.45);
   }
+
+  #deliberate-mode-modal-root[data-deliberate-platform-skin='claude'][data-deliberate-theme='light'],
+  #deliberate-reflection-modal-root[data-deliberate-platform-skin='claude'][data-deliberate-theme='light'] {
+    --deliberate-scrim: rgba(61, 51, 42, 0.18);
+    --deliberate-panel-bg: #f6efe6;
+    --deliberate-panel-border: rgba(94, 69, 46, 0.14);
+    --deliberate-panel-shadow: 0 10px 24px rgba(76, 58, 42, 0.12);
+    --deliberate-surface-1: #fffaf4;
+    --deliberate-surface-2: #f2e8dc;
+    --deliberate-surface-pressed: #eadfce;
+    --deliberate-surface-border: rgba(94, 69, 46, 0.12);
+    --deliberate-input-bg: #fbf5ed;
+    --deliberate-input-border: rgba(94, 69, 46, 0.1);
+    --deliberate-text-main: #2f2923;
+    --deliberate-text-secondary: #4a4037;
+    --deliberate-text-muted: #74685d;
+    --deliberate-count-color: rgba(74, 64, 55, 0.58);
+    --deliberate-placeholder: rgba(74, 64, 55, 0.48);
+    --deliberate-action-bg: #d06f45;
+    --deliberate-action-bg-hover: #db7a4f;
+    --deliberate-action-bg-pressed: #be623c;
+    --deliberate-action-border: rgba(208, 111, 69, 0.18);
+    --deliberate-action-text: #fff7f0;
+    --deliberate-focus-ring: rgba(208, 111, 69, 0.34);
+    --deliberate-radius-icon: 14px;
+    --deliberate-icon-size: 42px;
+  }
+
+  #deliberate-mode-modal-root[data-deliberate-platform-skin='claude'][data-deliberate-theme='dark'],
+  #deliberate-reflection-modal-root[data-deliberate-platform-skin='claude'][data-deliberate-theme='dark'] {
+    --deliberate-scrim: rgba(24, 22, 20, 0.58);
+    --deliberate-panel-bg: #2f2b27;
+    --deliberate-panel-border: rgba(243, 237, 228, 0.1);
+    --deliberate-panel-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    --deliberate-surface-1: #35312d;
+    --deliberate-surface-2: #3a3632;
+    --deliberate-surface-pressed: #2b2723;
+    --deliberate-surface-border: rgba(243, 237, 228, 0.09);
+    --deliberate-input-bg: #34302c;
+    --deliberate-input-border: rgba(243, 237, 228, 0.08);
+    --deliberate-text-main: #f3ede4;
+    --deliberate-text-secondary: #ddd3c7;
+    --deliberate-text-muted: #b2a798;
+    --deliberate-count-color: rgba(221, 211, 199, 0.55);
+    --deliberate-placeholder: rgba(221, 211, 199, 0.48);
+    --deliberate-action-bg: #d06f45;
+    --deliberate-action-bg-hover: #db7a4f;
+    --deliberate-action-bg-pressed: #be623c;
+    --deliberate-action-border: rgba(208, 111, 69, 0.18);
+    --deliberate-action-text: #fff7f0;
+    --deliberate-focus-ring: rgba(208, 111, 69, 0.34);
+    --deliberate-radius-icon: 14px;
+    --deliberate-icon-size: 42px;
+  }
 }

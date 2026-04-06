@@ -1,7 +1,14 @@
 import type { PlatformId } from '../shared/platform-id';
 
+export type PlatformSkin = 'default' | 'claude';
+
+export interface PlatformAppearance {
+  skin: PlatformSkin;
+}
+
 export interface PlatformDefinition {
   id: PlatformId;
+  appearance: PlatformAppearance;
   hosts: readonly string[];
   matches: readonly string[];
   resolveThreadId(url: string): string;

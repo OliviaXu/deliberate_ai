@@ -15,6 +15,7 @@ vi.mock('../../src/platforms', () => ({
 function createPlatformStub(): PlatformDefinition {
   return {
     id: 'gemini',
+    appearance: { skin: 'default' },
     hosts: ['gemini.google.com'],
     matches: ['https://gemini.google.com/*'],
     resolveThreadId: () => '/app/threads/stub',

@@ -19,6 +19,7 @@ export const GEMINI_APP_PREFIX = '/app/';
 
 export const geminiPlatform: PlatformDefinition = {
   id: 'gemini',
+  appearance: { skin: 'default' },
   hosts: [GEMINI_HOST],
   matches: ['https://gemini.google.com/*'],
   resolveThreadId: (url) => resolvePathThreadId(url, 'unknown'),

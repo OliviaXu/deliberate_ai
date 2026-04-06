@@ -19,6 +19,7 @@ export const CLAUDE_THREAD_PREFIX = '/chat/';
 
 export const claudePlatform: PlatformDefinition = {
   id: 'claude',
+  appearance: { skin: 'claude' },
   hosts: [CLAUDE_HOST],
   matches: ['https://claude.ai/*'],
   resolveThreadId: (url) => resolvePathThreadId(url, 'unknown'),

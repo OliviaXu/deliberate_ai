@@ -54,4 +54,26 @@ describe('reflection-modal styles', () => {
     expect(css).toContain('color: color-mix(in srgb, var(--deliberate-placeholder) 64%, transparent);');
     expect(css).toContain('font-size: 14px;');
   });
+
+  it('keeps Claude styling split by explicit light and dark theme selectors', () => {
+    const tokensCss = readFileSync(resolve(process.cwd(), 'src/content/mode-modal.tokens.css'), 'utf8');
+    const hintCss = readFileSync(resolve(process.cwd(), 'src/content/reflection-hint.css'), 'utf8');
+
+    expect(tokensCss).toContain("[data-deliberate-platform-skin='claude'][data-deliberate-theme='light']");
+    expect(tokensCss).toContain("[data-deliberate-platform-skin='claude'][data-deliberate-theme='dark']");
+    expect(hintCss).toContain(".deliberate-reflection-hint[data-deliberate-platform-skin='claude'][data-deliberate-theme='light']");
+    expect(hintCss).toContain(".deliberate-reflection-hint[data-deliberate-platform-skin='claude'][data-deliberate-theme='dark']");
+  });
+
+  it('routes textarea focus highlighting through deliberate tokens instead of host blue chrome', () => {
+    const modeCss = readFileSync(resolve(process.cwd(), 'src/content/mode-modal.css'), 'utf8');
+
+    expect(modeCss).toContain('.deliberate-input-shell:focus-within {');
+    expect(modeCss).toContain('border-color: var(--deliberate-action-bg);');
+    expect(modeCss).toContain('box-shadow: none;');
+    expect(modeCss).toContain('.deliberate-input:focus,');
+    expect(modeCss).toContain('.deliberate-input:focus-visible {');
+    expect(modeCss).toContain('outline: none;');
+    expect(modeCss).toContain('box-shadow: none;');
+  });
 });

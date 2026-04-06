@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { ModeSelectionModal } from '../../src/content/mode-modal';
 
 describe('ModeSelectionModal', () => {
+  it('marks the root with the Claude platform skin when requested', () => {
+    document.body.innerHTML = '';
+    const modal = new ModeSelectionModal({ platformSkin: 'claude' });
+
+    void modal.open();
+
+    const modalRoot = document.querySelector('[data-testid="deliberate-mode-modal"]');
+    expect(modalRoot?.getAttribute('data-deliberate-platform-skin')).toBe('claude');
+  });
+
   it('delegation resolves immediately on mode selection', async () => {
     document.body.innerHTML = '';
     const modal = new ModeSelectionModal();

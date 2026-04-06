@@ -12,6 +12,9 @@ describe('platform registry', () => {
     expect(resolvePlatformFromUrl('https://gemini.google.com/app')).toBe(geminiPlatform);
     expect(resolvePlatformFromUrl('https://chatgpt.com/')).toBe(chatgptPlatform);
     expect(resolvePlatformFromUrl('https://claude.ai/new')).toBe(claudePlatform);
+    expect(geminiPlatform.appearance.skin).toBe('default');
+    expect(chatgptPlatform.appearance.skin).toBe('default');
+    expect(claudePlatform.appearance.skin).toBe('claude');
   });
 
   it('does not expose getActivePlatforms from the registry module', () => {

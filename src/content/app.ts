@@ -36,8 +36,8 @@ export interface ContentAppDependencies {
 export async function startContentApp({ now, platform }: ContentAppDependencies): Promise<void> {
   const logger = new Logger(loadDebugConfig());
   const interceptor = new SendInterceptor(platform, logger, now);
-  const modeModal = new ModeSelectionModal();
-  const reflectionModal = new ReflectionModal();
+  const modeModal = new ModeSelectionModal({ platformSkin: platform.appearance.skin });
+  const reflectionModal = new ReflectionModal({ platformSkin: platform.appearance.skin });
   const reflectionHint = new ReflectionHint({ platform, onReview: (threadId) => handleReflectionReview(threadId) });
   const reflectionEligibility = new ReflectionEligibilityTracker();
   const threadStateCache = new Map<string, CachedThreadState>();

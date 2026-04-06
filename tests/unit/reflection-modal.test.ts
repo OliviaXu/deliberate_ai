@@ -18,6 +18,18 @@ function makeLearningCycleRecord(
 }
 
 describe('ReflectionModal', () => {
+  it('marks the root with the Claude platform skin when requested', async () => {
+    document.body.innerHTML = '';
+    const modal = new ReflectionModal({ platformSkin: 'claude' });
+    const pending = modal.open(makeLearningCycleRecord({ platform: 'claude' }));
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-modal"]');
+    expect(root?.getAttribute('data-deliberate-platform-skin')).toBe('claude');
+
+    (document.querySelector('[data-testid="deliberate-reflection-cancel"]') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBeNull();
+  });
+
   it('defaults the learning delta to 25 and includes optional notes', async () => {
     document.body.innerHTML = '';
     document.body.style.backgroundColor = 'rgb(255, 255, 255)';

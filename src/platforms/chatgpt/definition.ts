@@ -19,6 +19,7 @@ export const CHATGPT_THREAD_PREFIX = '/c/';
 
 export const chatgptPlatform: PlatformDefinition = {
   id: 'chatgpt',
+  appearance: { skin: 'default' },
   hosts: [CHATGPT_HOST],
   matches: ['https://chatgpt.com/*'],
   resolveThreadId: (url) => resolvePathThreadId(url, 'unknown'),

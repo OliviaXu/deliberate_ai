@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReflectionHint } from '../../src/content/reflection-hint';
+import { claudePlatform } from '../../src/platforms/claude/definition';
 import { chatgptPlatform } from '../../src/platforms/chatgpt/definition';
 import { geminiPlatform } from '../../src/platforms/gemini/definition';
 
@@ -65,6 +66,42 @@ function setupChatGPTComposer(): HTMLDivElement {
 }
 
 describe('ReflectionHint', () => {
+  it('marks the hint with the Claude platform skin when rendered on Claude', () => {
+    document.body.style.backgroundColor = 'rgb(255, 255, 255)';
+    document.body.innerHTML = `
+      <main>
+        <fieldset>
+          <div
+            class="tiptap ProseMirror"
+            contenteditable="true"
+            role="textbox"
+            data-testid="chat-input"
+          ></div>
+        </fieldset>
+      </main>
+    `;
+    const hint = new ReflectionHint({ platform: claudePlatform });
+
+    hint.updateVisibilityForThread('/chat/thread-a', true);
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+    expect(root?.getAttribute('data-deliberate-platform-skin')).toBe('claude');
+    expect(root?.getAttribute('data-deliberate-theme')).toBe('light');
+    document.body.style.backgroundColor = '';
+  });
+
+  it('uses dark theme styling for the hint when the page background is dark', () => {
+    document.body.style.backgroundColor = 'rgb(15, 23, 42)';
+    setupGeminiComposer();
+    const hint = new ReflectionHint({ platform: geminiPlatform });
+
+    hint.updateVisibilityForThread('/app/thread-a', true);
+
+    const root = document.querySelector('[data-testid="deliberate-reflection-hint"]');
+    expect(root?.getAttribute('data-deliberate-theme')).toBe('dark');
+    document.body.style.backgroundColor = '';
+  });
+
   it('shows and hides the hint based on the computed due state for the current thread', () => {
     setupGeminiComposer();
     const hint = new ReflectionHint({ platform: geminiPlatform });
