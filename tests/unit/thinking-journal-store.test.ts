@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LearningCycleRecord, ReflectionRecord } from '../../src/shared/types';
 import {
-  loadRecentThinkingJournalEntries,
+  loadThinkingJournalPage,
   loadThinkingJournalExportRows
 } from '../../src/thinking-journal/thinking-journal-store';
-import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/entry-record';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -35,7 +34,7 @@ function makeReflectionRecord(overrides: Partial<ReflectionRecord> = {}): Reflec
   };
 }
 
-describe('loadRecentThinkingJournalEntries', () => {
+describe('loadThinkingJournalPage recent entries', () => {
   it('loads both stores and returns only entries from the last 7 days', async () => {
     const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
     const dayMs = 24 * 60 * 60 * 1000;
@@ -71,7 +70,7 @@ describe('loadRecentThinkingJournalEntries', () => {
       }
     ]);
 
-    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
+    const { recentEntries: entries } = await loadThinkingJournalPage(undefined, nowMs, {
       learningCycleStore: { listAll },
       reflectionStore: { listAll: listAllReflections }
     });
@@ -89,7 +88,7 @@ describe('loadRecentThinkingJournalEntries', () => {
     const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
     const dayMs = 24 * 60 * 60 * 1000;
 
-    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
+    const { recentEntries: entries } = await loadThinkingJournalPage(undefined, nowMs, {
       learningCycleStore: {
         listAll: vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
           makeLearningCycleRecord({
@@ -144,7 +143,7 @@ describe('loadRecentThinkingJournalEntries', () => {
 
   it('returns an empty list when either store returns an invalid value', async () => {
     const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
-    const entries: ThinkingJournalEntryRecord[] = await loadRecentThinkingJournalEntries(nowMs, {
+    const { recentEntries: entries } = await loadThinkingJournalPage(undefined, nowMs, {
       learningCycleStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as LearningCycleRecord[])) },
       reflectionStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as ReflectionRecord[])) }
     });
@@ -201,5 +200,50 @@ describe('loadThinkingJournalExportRows', () => {
         notes: 'It was token expiry.'
       }
     });
+  });
+});
+
+describe('loadThinkingJournalPage', () => {
+  it('loads a historical featured entry and the recent feed from one store snapshot', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const listAll = vi.fn(async () => [
+      makeLearningCycleRecord({ id: 'recent', timestamp: nowMs - dayMs, prompt: 'Recent prompt' }),
+      makeLearningCycleRecord({
+        id: 'featured',
+        timestamp: nowMs - 10 * dayMs,
+        mode: 'learning',
+        priorKnowledgeNote: 'Historical context',
+        prompt: 'Historical prompt'
+      })
+    ]);
+    const listAllReflections = vi.fn(async () => [
+      makeReflectionRecord({ learningCycleRecordId: 'featured', notes: 'Historical reflection' })
+    ]);
+
+    const page = await loadThinkingJournalPage('featured', nowMs, {
+      learningCycleStore: { listAll },
+      reflectionStore: { listAll: listAllReflections }
+    });
+
+    expect(listAll).toHaveBeenCalledOnce();
+    expect(listAllReflections).toHaveBeenCalledOnce();
+    expect(page.recentEntries.map((entry) => entry.id)).toEqual(['recent']);
+    expect(page.featuredEntry).toMatchObject({
+      id: 'featured',
+      prompt: 'Historical prompt',
+      reflection: { notes: 'Historical reflection' }
+    });
+  });
+
+  it('keeps the recent feed and omits the feature when the requested id is invalid', async () => {
+    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
+    const page = await loadThinkingJournalPage('missing', nowMs, {
+      learningCycleStore: { listAll: vi.fn(async () => [makeLearningCycleRecord({ id: 'recent' })]) },
+      reflectionStore: { listAll: vi.fn(async () => []) }
+    });
+
+    expect(page.recentEntries).toHaveLength(1);
+    expect(page.featuredEntry).toBeUndefined();
   });
 });

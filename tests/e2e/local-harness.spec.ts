@@ -102,6 +102,17 @@ async function writeRecords(context: import('@playwright/test').BrowserContext, 
   );
 }
 
+async function writeReflectionRecords(context: import('@playwright/test').BrowserContext, records: unknown[]): Promise<void> {
+  const sw = await getServiceWorker(context);
+  await sw.evaluate(
+    async ({ storageKey, nextRecords }) => {
+      const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } }).chrome;
+      await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+    },
+    { storageKey: REFLECTIONS_STORAGE_KEY, nextRecords: records }
+  );
+}
+
 async function readReflectionRecords(context: import('@playwright/test').BrowserContext): Promise<unknown[]> {
   const sw = await getServiceWorker(context);
   const records = await sw.evaluate(async (storageKey) => {
@@ -626,6 +637,88 @@ test('thinking journal renders seeded entries and supports mode filters', async 
     await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]')).toHaveText('Learning');
     await expect(page.locator('[data-testid="thinking-journal-card-mode-badge-label"]').getByText('Problem-Solving')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Download full history as CSV' })).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('resurfacing glint opens its historical thought as a featured journal card', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-resurfacing-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    await writeRecords(context, [
+      {
+        id: 'returned-learning',
+        timestamp: now - 10 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/returned-learning',
+        mode: 'learning',
+        prompt: 'Explain why rollout experiments reveal organizational resistance',
+        priorKnowledgeNote: '  My original starting point  '
+      },
+      {
+        id: 'recent-learning',
+        timestamp: now - dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/recent-learning',
+        mode: 'learning',
+        prompt: 'Explain a recent topic',
+        priorKnowledgeNote: 'Recent context'
+      }
+    ]);
+    await writeReflectionRecords(context, [
+      {
+        id: 'written-reflection',
+        timestamp: now - 2 * dayMs,
+        threadId: '/app/threads/returned-learning',
+        learningCycleRecordId: 'returned-learning',
+        status: 'completed',
+        score: 75,
+        notes: '  Experiments expose resistance sooner  '
+      },
+      {
+        id: 'blank-newer-reflection',
+        timestamp: now - dayMs,
+        threadId: '/app/threads/returned-learning',
+        learningCycleRecordId: 'returned-learning',
+        status: 'completed',
+        score: 50,
+        notes: '   '
+      }
+    ]);
+
+    const page = await setupHarness(context, primaryThreadUrl);
+    const glint = page.locator('[data-testid="deliberate-resurfacing-glint"]');
+    await expect(glint).toBeVisible({ timeout: 5_000 });
+    await expect
+      .poll(async () => page.locator('[data-testid="deliberate-resurfacing-glint-excerpt"]').evaluate((node) => node.textContent))
+      .toBe('  Experiments expose resistance sooner  ');
+
+    const surfacedRecords = await readRecords(context) as Array<{ id?: string; resurfacing?: { lastSurfacedAt?: number } }>;
+    const surfacedAt = surfacedRecords.find((record) => record.id === 'returned-learning')?.resurfacing?.lastSurfacedAt;
+    expect(surfacedAt).toEqual(expect.any(Number));
+    await page.waitForTimeout(2_500);
+    const laterRecords = await readRecords(context) as Array<{ id?: string; resurfacing?: { lastSurfacedAt?: number } }>;
+    expect(laterRecords.find((record) => record.id === 'returned-learning')?.resurfacing?.lastSurfacedAt).toBe(surfacedAt);
+
+    const journalPagePromise = context.waitForEvent('page');
+    await glint.click();
+    const journalPage = await journalPagePromise;
+    await journalPage.waitForLoadState('domcontentloaded');
+
+    expect(journalPage.url()).toContain('thinking-journal.html?featured=returned-learning');
+    const featured = journalPage.locator('[data-testid="thinking-journal-featured"]');
+    const recent = journalPage.locator('[data-testid="thinking-journal-recent"]');
+    await expect(featured.getByText('A thought returned')).toBeVisible();
+    await expect(featured.getByText('Explain why rollout experiments reveal organizational resistance')).toBeVisible();
+    await expect(recent.getByText('Recent thinking — Last 7 days')).toBeVisible();
+    await expect(recent.getByText('Explain a recent topic')).toBeVisible();
+    await expect(journalPage.getByText('Another thought')).toHaveCount(0);
   } finally {
     await context.close();
   }

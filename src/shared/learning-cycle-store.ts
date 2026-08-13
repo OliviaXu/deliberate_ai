@@ -20,6 +20,27 @@ export class LearningCycleStore {
     await this.writeQueue;
   }
 
+  async markResurfaced(recordId: string, lastSurfacedAt: number): Promise<boolean> {
+    let updated = false;
+
+    this.writeQueue = this.writeQueue.then(async () => {
+      const current = await this.listRaw();
+      const index = current.findIndex((record) => record.id === recordId);
+      if (index < 0) return;
+
+      const next = [...current];
+      next[index] = {
+        ...next[index],
+        resurfacing: { lastSurfacedAt }
+      } as LearningCycleRecord;
+      await this.storage.set(LEARNING_CYCLES_STORAGE_KEY, next);
+      updated = true;
+    });
+
+    await this.writeQueue;
+    return updated;
+  }
+
   async resolveThreadIdForRecord(
     recordId: string,
     fromThread: PlatformThreadIdentity,

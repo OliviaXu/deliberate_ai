@@ -1,6 +1,7 @@
 import './mode-modal.tokens.css';
 import './mode-modal.css';
 import './reflection-hint.css';
+import './resurfacing-glint.css';
 import './reflection-modal.css';
 import type { PlatformDefinition } from '../platforms';
 import { resolvePlatformFromUrl } from '../platforms';

@@ -1,6 +1,7 @@
 import { LearningCycleStore } from '../shared/learning-cycle-store';
 import { ReflectionStore } from '../shared/reflection-store';
 import type { LearningCycleRecord, ReflectionRecord } from '../shared/types';
+import { JOURNAL_WINDOW_MS } from './journal-window';
 import { buildThinkingJournalEntryRecords, type ThinkingJournalEntryRecord } from './utils/entry-record';
 
 interface ThinkingJournalStoreDependencies {
@@ -8,16 +9,27 @@ interface ThinkingJournalStoreDependencies {
   reflectionStore?: Pick<ReflectionStore, 'listAll'>;
 }
 
-const JOURNAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export interface ThinkingJournalPage {
+  recentEntries: ThinkingJournalEntryRecord[];
+  featuredEntry?: ThinkingJournalEntryRecord;
+}
 
-export async function loadRecentThinkingJournalEntries(
+export async function loadThinkingJournalPage(
+  featuredEntryId: string | undefined,
   nowMs = Date.now(),
   dependencies: ThinkingJournalStoreDependencies = {}
-): Promise<ThinkingJournalEntryRecord[]> {
+): Promise<ThinkingJournalPage> {
   const { records, reflections } = await loadThinkingJournalHistoryData(dependencies);
   const cutoffMs = nowMs - JOURNAL_WINDOW_MS;
-  const recentRecords = records.filter((record) => typeof record.timestamp === 'number' && record.timestamp >= cutoffMs);
-  return buildThinkingJournalEntryRecords(recentRecords, reflections);
+  const entryRecords = buildThinkingJournalEntryRecords(records, reflections);
+  const featuredEntry = featuredEntryId
+    ? entryRecords.find((entry) => entry.id === featuredEntryId)
+    : undefined;
+
+  return {
+    recentEntries: entryRecords.filter((entry) => entry.timestamp >= cutoffMs),
+    ...(featuredEntry ? { featuredEntry } : {})
+  };
 }
 
 export async function loadThinkingJournalExportRows(

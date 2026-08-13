@@ -91,6 +91,32 @@ describe('LearningCycleStore', () => {
     ]);
   });
 
+  it('records a resurfacing presentation without replacing concurrent record changes', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({ id: 'featured', mode: 'learning', priorKnowledgeNote: 'Starting point' }));
+
+    await Promise.all([
+      store.markResurfaced('featured', 1234),
+      store.append(makeRecord({ id: 'new-record' }))
+    ]);
+
+    const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      id: 'featured',
+      mode: 'learning',
+      priorKnowledgeNote: 'Starting point',
+      resurfacing: { lastSurfacedAt: 1234 }
+    });
+    expect(records[1]?.id).toBe('new-record');
+  });
+
+  it('reports when the requested resurfacing record no longer exists', async () => {
+    const store = new LearningCycleStore();
+
+    await expect(store.markResurfaced('missing', 1234)).resolves.toBe(false);
+  });
+
   it('resolves a placeholder thread id for a specific record', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1', url: 'https://gemini.google.com/app', threadId: '/app' }));

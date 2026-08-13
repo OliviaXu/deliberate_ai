@@ -6,6 +6,7 @@ const defineBackground = vi.fn((callback: () => void) => {
 });
 const registerLearningCycleMessageHandlers = vi.fn();
 const registerReflectionMessageHandlers = vi.fn();
+const registerResurfacingMessageHandlers = vi.fn();
 const registerThinkingJournalActionHandler = vi.fn();
 
 const learningCycleStoreInstance = {
@@ -20,6 +21,8 @@ const reflectionStoreInstance = {
 
 const LearningCycleStore = vi.fn(() => learningCycleStoreInstance);
 const ReflectionStore = vi.fn(() => reflectionStoreInstance);
+const resurfacingServiceInstance = { presentNext: vi.fn() };
+const ResurfacingService = vi.fn(() => resurfacingServiceInstance);
 
 vi.mock('wxt/utils/define-background', () => ({
   defineBackground
@@ -31,6 +34,14 @@ vi.mock('../../src/background/learning-cycle-messages', () => ({
 
 vi.mock('../../src/background/reflection-messages', () => ({
   registerReflectionMessageHandlers
+}));
+
+vi.mock('../../src/background/resurfacing-messages', () => ({
+  registerResurfacingMessageHandlers
+}));
+
+vi.mock('../../src/background/resurfacing-service', () => ({
+  ResurfacingService
 }));
 
 vi.mock('../../src/background/thinking-journal-action', () => ({
@@ -59,6 +70,11 @@ describe('background entrypoint', () => {
     expect(ReflectionStore).toHaveBeenCalledOnce();
     expect(registerLearningCycleMessageHandlers).toHaveBeenCalledWith(learningCycleStoreInstance);
     expect(registerReflectionMessageHandlers).toHaveBeenCalledWith(reflectionStoreInstance);
+    expect(ResurfacingService).toHaveBeenCalledWith({
+      learningCycleStore: learningCycleStoreInstance,
+      reflectionStore: reflectionStoreInstance
+    });
+    expect(registerResurfacingMessageHandlers).toHaveBeenCalledWith(resurfacingServiceInstance);
     expect(registerThinkingJournalActionHandler).toHaveBeenCalledOnce();
   });
 });

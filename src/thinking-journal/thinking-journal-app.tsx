@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { INTERACTION_MODES, type ReflectionScore } from '../shared/types';
-import { loadRecentThinkingJournalEntries, loadThinkingJournalExportRows } from './thinking-journal-store';
+import {
+  loadThinkingJournalExportRows,
+  loadThinkingJournalPage,
+  type ThinkingJournalPage
+} from './thinking-journal-store';
 import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } from './utils/export';
 import {
   buildThinkingJournalEntryViews,
@@ -11,8 +15,8 @@ import {
 import type { ThinkingJournalEntryRecord } from './utils/entry-record';
 
 interface ThinkingJournalAppProps {
-  preloadedEntries?: ThinkingJournalEntryView[];
-  loadRecentEntries?: () => Promise<ThinkingJournalEntryRecord[]>;
+  featuredEntryId?: string;
+  loadPage?: (featuredEntryId: string | undefined) => Promise<ThinkingJournalPage>;
   loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
 }
 
@@ -44,25 +48,26 @@ const METADATA_TAG_CLASS =
   'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
 export function ThinkingJournalApp({
-  preloadedEntries,
-  loadRecentEntries = loadRecentThinkingJournalEntries,
+  featuredEntryId,
+  loadPage = loadThinkingJournalPage,
   loadExportRows = loadThinkingJournalExportRows
 }: ThinkingJournalAppProps): JSX.Element {
   const [entryRecords, setEntryRecords] = useState<ThinkingJournalEntryRecord[]>([]);
+  const [featuredEntryRecord, setFeaturedEntryRecord] = useState<ThinkingJournalEntryRecord>();
   const [filter, setFilter] = useState<ThinkingJournalEntryViewFilter>('all');
   const [withReflectionOnly, setWithReflectionOnly] = useState(false);
   const [expandedPromptIds, setExpandedPromptIds] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(preloadedEntries === undefined);
+  const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    if (preloadedEntries !== undefined) return;
     let active = true;
 
-    void loadRecentEntries()
-      .then((nextEntryRecords) => {
+    void loadPage(featuredEntryId)
+      .then((page) => {
         if (!active) return;
-        setEntryRecords(nextEntryRecords);
+        setEntryRecords(page.recentEntries);
+        setFeaturedEntryRecord(page.featuredEntry);
       })
       .finally(() => {
         if (!active) return;
@@ -72,11 +77,16 @@ export function ThinkingJournalApp({
     return () => {
       active = false;
     };
-  }, [loadRecentEntries, preloadedEntries]);
+  }, [featuredEntryId, loadPage]);
 
   const entryViews = useMemo(
-    () => preloadedEntries ?? buildThinkingJournalEntryViews(entryRecords),
-    [entryRecords, preloadedEntries]
+    () => buildThinkingJournalEntryViews(entryRecords),
+    [entryRecords]
+  );
+  const featuredEntryView = useMemo(
+    () =>
+      (featuredEntryRecord ? buildThinkingJournalEntryViews([featuredEntryRecord])[0] : undefined),
+    [featuredEntryRecord]
   );
 
   const filteredEntryViews = useMemo(
@@ -95,6 +105,27 @@ export function ThinkingJournalApp({
         <h1 className="m-0 text-[clamp(1.85rem,2.7vw,2.35rem)] font-semibold tracking-[-0.02em]">Thinking Journal</h1>
         <p className="mt-1.5 text-[0.95rem] text-[#5d6977]">A quiet view of your thinking</p>
       </header>
+
+      {featuredEntryView ? (
+        <section className="mt-6 grid gap-2.5" data-testid="thinking-journal-featured">
+          <p className="m-0 text-[0.82rem] font-semibold tracking-[0.01em] text-[#6f7b88]">A thought returned</p>
+          <ThinkingJournalCard
+            entry={featuredEntryView}
+            isExpanded={Boolean(expandedPromptIds[featuredEntryView.id])}
+            onToggleExpanded={() =>
+              setExpandedPromptIds((current) => ({
+                ...current,
+                [featuredEntryView.id]: !current[featuredEntryView.id]
+              }))
+            }
+          />
+        </section>
+      ) : null}
+
+      <section data-testid="thinking-journal-recent">
+        {featuredEntryView ? (
+          <h2 className="mb-0 mt-7 text-[1rem] font-semibold text-[#445467]">Recent thinking — Last 7 days</h2>
+        ) : null}
 
       <section className="mt-4 border-b border-[#e3e8ee] pb-2.5" aria-label="Thinking Journal filters">
         <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-filter-groups">
@@ -146,142 +177,19 @@ export function ThinkingJournalApp({
         {loading && <p className="mt-2 text-[#6a7786]">Loading entries...</p>}
         {!loading && filteredEntryViews.length === 0 && <p className="mt-2 text-[#6a7786]">No entries in the last 7 days.</p>}
         {!loading &&
-          filteredEntryViews.map((entry) => {
-            const isExpanded = Boolean(expandedPromptIds[entry.id]);
-            const supportingContent = (
-              <>
-                {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
-                  <section>
-                    <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
-                      Your Hypothesis
-                    </h2>
-                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.hypothesis}</p>
-                  </section>
-                )}
-
-                {entry.mode === INTERACTION_MODES.LEARNING && entry.initialContext && (
-                  <section>
-                    <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
-                      Starting Point
-                    </h2>
-                    <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.initialContext}</p>
-                  </section>
-                )}
-              </>
-            );
-            const hasSupportingContent =
-              entry.mode === INTERACTION_MODES.PROBLEM_SOLVING ||
-              (entry.mode === INTERACTION_MODES.LEARNING && Boolean(entry.initialContext));
-            const hasBody = hasSupportingContent || Boolean(entry.reflection);
-
-            return (
-              <article
-                key={entry.id}
-                className="rounded-[14px] border border-[#dce2e8] bg-white p-2.5"
-                data-testid="thinking-journal-card"
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-card-header">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex shrink-0 items-center gap-1.5">
-                          <p className="m-0 text-[1rem] text-[#707b88]" data-testid="thinking-journal-date-title">
-                            {entry.dateLabel}
-                          </p>
-                          {entry.url ? (
-                            <a
-                              href={entry.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="group inline-flex items-center no-underline text-[#8a98a8] transition-colors duration-100 hover:text-[#5f7182] hover:no-underline"
-                              aria-label={`Open chat from ${entry.dateLabel}`}
-                              data-testid="thinking-journal-entry-link"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="text-[0.82rem] leading-none"
-                                data-testid="thinking-journal-entry-link-icon"
-                              >
-                                ↗
-                              </span>
-                            </a>
-                          ) : null}
-                        </span>
-                        <p
-                          className={`m-0 min-w-0 whitespace-pre-wrap text-[1rem] leading-[1.45] text-[#213040] ${
-                            entry.promptIsLong && !isExpanded
-                              ? '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
-                              : ''
-                          }`}
-                          data-testid="thinking-journal-prompt-title"
-                        >
-                          {entry.prompt}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5" data-testid="thinking-journal-card-badge-group">
-                      {entry.reflection ? <ReflectionSpark level={toReflectionVisualLevel(entry.reflection.score)} /> : null}
-                      <span className={METADATA_TAG_CLASS} data-testid="thinking-journal-card-mode-badge">
-                        <span className={CHIP_CONTENT_CLASS}>
-                          <span className={CHIP_EMOJI_SELECTED_CLASS} data-testid="thinking-journal-card-mode-badge-emoji">
-                            {entry.modeEmoji}
-                          </span>
-                          <span data-testid="thinking-journal-card-mode-badge-label">{entry.modeLabel}</span>
-                        </span>
-                      </span>
-                    </span>
-                  </div>
-                  {entry.promptIsLong && (
-                    <button
-                      type="button"
-                      className="w-fit cursor-pointer border-0 bg-transparent p-0 text-[0.88rem] text-[#52657e]"
-                      onClick={() =>
-                        setExpandedPromptIds((current) => ({
-                          ...current,
-                          [entry.id]: !current[entry.id]
-                        }))
-                      }
-                    >
-                      {isExpanded ? 'Show less' : 'Show more'}
-                    </button>
-                  )}
-                </div>
-
-                {hasBody &&
-                  (entry.reflection ? (
-                  <div
-                    className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.88fr)] md:items-start"
-                    data-testid="thinking-journal-card-columns"
-                  >
-                    <div className="grid gap-2" data-testid="thinking-journal-supporting-column">
-                      {hasSupportingContent ? supportingContent : null}
-                    </div>
-                    <section
-                      className="border-t border-[#edf1f4] pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0"
-                      data-testid="thinking-journal-reflection"
-                    >
-                      <h2
-                        className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]"
-                        data-testid="thinking-journal-reflection-header"
-                      >
-                        Reflection
-                      </h2>
-                      {entry.reflection.notes && (
-                        <p
-                          className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]"
-                          data-testid="thinking-journal-reflection-notes"
-                        >
-                          {entry.reflection.notes}
-                        </p>
-                      )}
-                    </section>
-                  </div>
-                ) : (
-                  <div className="mt-2 grid gap-2">{supportingContent}</div>
-                ))}
-              </article>
-            );
-          })}
+          filteredEntryViews.map((entry) => (
+            <ThinkingJournalCard
+              key={entry.id}
+              entry={entry}
+              isExpanded={Boolean(expandedPromptIds[entry.id])}
+              onToggleExpanded={() =>
+                setExpandedPromptIds((current) => ({
+                  ...current,
+                  [entry.id]: !current[entry.id]
+                }))
+              }
+            />
+          ))}
         {showExportAction && (
           <div className="mt-3.5 flex flex-col items-center gap-2.5 pt-2.5 text-center" data-testid="thinking-journal-export-footer">
             <button
@@ -295,7 +203,136 @@ export function ThinkingJournalApp({
           </div>
         )}
       </section>
+      </section>
     </main>
+  );
+}
+
+function ThinkingJournalCard({
+  entry,
+  isExpanded,
+  onToggleExpanded
+}: {
+  entry: ThinkingJournalEntryView;
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+}): JSX.Element {
+  const supportingContent = (
+    <>
+      {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
+        <section>
+          <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
+            Your Hypothesis
+          </h2>
+          <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.hypothesis}</p>
+        </section>
+      )}
+
+      {entry.mode === INTERACTION_MODES.LEARNING && entry.initialContext && (
+        <section>
+          <h2 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]">
+            Starting Point
+          </h2>
+          <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]">{entry.initialContext}</p>
+        </section>
+      )}
+    </>
+  );
+  const hasSupportingContent =
+    entry.mode === INTERACTION_MODES.PROBLEM_SOLVING ||
+    (entry.mode === INTERACTION_MODES.LEARNING && Boolean(entry.initialContext));
+  const hasBody = hasSupportingContent || Boolean(entry.reflection);
+
+  return (
+    <article className="rounded-[14px] border border-[#dce2e8] bg-white p-2.5" data-testid="thinking-journal-card">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2.5" data-testid="thinking-journal-card-header">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-1">
+              <span className="inline-flex shrink-0 items-center gap-1.5">
+                <p className="m-0 text-[1rem] text-[#707b88]" data-testid="thinking-journal-date-title">
+                  {entry.dateLabel}
+                </p>
+                {entry.url ? (
+                  <a
+                    href={entry.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group inline-flex items-center no-underline text-[#8a98a8] transition-colors duration-100 hover:text-[#5f7182] hover:no-underline"
+                    aria-label={`Open chat from ${entry.dateLabel}`}
+                    data-testid="thinking-journal-entry-link"
+                  >
+                    <span aria-hidden="true" className="text-[0.82rem] leading-none" data-testid="thinking-journal-entry-link-icon">
+                      ↗
+                    </span>
+                  </a>
+                ) : null}
+              </span>
+              <p
+                className={`m-0 min-w-0 whitespace-pre-wrap text-[1rem] leading-[1.45] text-[#213040] ${
+                  entry.promptIsLong && !isExpanded
+                    ? '[display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
+                    : ''
+                }`}
+                data-testid="thinking-journal-prompt-title"
+              >
+                {entry.prompt}
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5" data-testid="thinking-journal-card-badge-group">
+            {entry.reflection ? <ReflectionSpark level={toReflectionVisualLevel(entry.reflection.score)} /> : null}
+            <span className={METADATA_TAG_CLASS} data-testid="thinking-journal-card-mode-badge">
+              <span className={CHIP_CONTENT_CLASS}>
+                <span className={CHIP_EMOJI_SELECTED_CLASS} data-testid="thinking-journal-card-mode-badge-emoji">
+                  {entry.modeEmoji}
+                </span>
+                <span data-testid="thinking-journal-card-mode-badge-label">{entry.modeLabel}</span>
+              </span>
+            </span>
+          </span>
+        </div>
+        {entry.promptIsLong && (
+          <button
+            type="button"
+            className="w-fit cursor-pointer border-0 bg-transparent p-0 text-[0.88rem] text-[#52657e]"
+            onClick={onToggleExpanded}
+          >
+            {isExpanded ? 'Show less' : 'Show more'}
+          </button>
+        )}
+      </div>
+
+      {hasBody &&
+        (entry.reflection ? (
+          <div
+            className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.88fr)] md:items-start"
+            data-testid="thinking-journal-card-columns"
+          >
+            <div className="grid gap-2" data-testid="thinking-journal-supporting-column">
+              {hasSupportingContent ? supportingContent : null}
+            </div>
+            <section
+              className="border-t border-[#edf1f4] pt-2 md:border-l md:border-t-0 md:pl-3 md:pt-0"
+              data-testid="thinking-journal-reflection"
+            >
+              <h2
+                className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]"
+                data-testid="thinking-journal-reflection-header"
+              >
+                Reflection
+              </h2>
+              {entry.reflection.notes && (
+                <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]" data-testid="thinking-journal-reflection-notes">
+                  {entry.reflection.notes}
+                </p>
+              )}
+            </section>
+          </div>
+        ) : (
+          <div className="mt-2 grid gap-2">{supportingContent}</div>
+        ))}
+    </article>
   );
 }
 

@@ -6,19 +6,22 @@ import type {
   LearningCycleRecord,
   ReflectionEligibleLearningCycleRecord,
   ReflectionRecord,
-  ReflectionSubmission
+  ReflectionSubmission,
+  ResurfacingPresentNextResponse
 } from '../shared/types';
 import { isReflectionEligibleMode, isReflectionEligibleRecord } from '../shared/types';
 import type { PlatformDefinition } from '../platforms';
 import { handleModeSubmission } from './learning-cycle-flow';
+import { ModeSelectionModal } from './mode-modal';
 import { ReflectionEligibilityTracker } from './reflection-eligibility';
 import { ReflectionHint } from './reflection-hint';
 import { ReflectionModal } from './reflection-modal';
-import { ModeSelectionModal } from './mode-modal';
+import { ResurfacingGlint } from './resurfacing-glint';
 import { SendInterceptor } from './send-interceptor';
 
 const DUE_AFTER_MS = 5 * 60 * 1000;
 const ACTIVE_FOLLOW_UP_THRESHOLD = 3;
+export const RESURFACING_GLINT_DELAY_MS = 2_000;
 
 interface CachedThreadState {
   learningCycleRecord?: LearningCycleRecord | null;
@@ -39,6 +42,10 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
   const modeModal = new ModeSelectionModal({ platformSkin: platform.appearance.skin });
   const reflectionModal = new ReflectionModal({ platformSkin: platform.appearance.skin });
   const reflectionHint = new ReflectionHint({ platform, onReview: (threadId) => handleReflectionReview(threadId) });
+  const resurfacingGlint = new ResurfacingGlint({
+    platform,
+    onOpen: handleResurfacingOpen
+  });
   const reflectionEligibility = new ReflectionEligibilityTracker();
   const threadStateCache = new Map<string, CachedThreadState>();
   const pendingLearningCycleRecordChecks = new Map<string, Promise<LearningCycleRecord | null>>();
@@ -54,6 +61,32 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
   setDomState(interceptionCount, false, busyDropCount);
   void refreshReflectionHintForCurrentThread();
   startReflectionHintWatcher();
+  window.setTimeout(() => {
+    void requestResurfacingGlint();
+  }, RESURFACING_GLINT_DELAY_MS);
+
+  async function requestResurfacingGlint(): Promise<void> {
+    const response = await Promise.resolve(
+      sendRuntimeMessage<ResurfacingPresentNextResponse>({ type: 'resurfacing:present-next' })
+    ).catch((error) => {
+      logger.error('resurfacing-presentation-failed', { error: String(error) });
+      return null;
+    });
+
+    const candidate = response?.candidate;
+    if (candidate) resurfacingGlint.show(candidate);
+  }
+
+  async function handleResurfacingOpen(learningCycleRecordId: string): Promise<void> {
+    await Promise.resolve(
+      sendRuntimeMessage({ type: 'resurfacing:open-journal', learningCycleRecordId })
+    ).catch((error) => {
+      logger.error('resurfacing-journal-open-failed', {
+        learningCycleRecordId,
+        error: String(error)
+      });
+    });
+  }
 
   function onInterceptedSubmit(intent: InterceptedSubmitIntent): void {
     interceptionCount += 1;
@@ -136,6 +169,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
   function startReflectionHintWatcher(): void {
     window.setInterval(() => {
       void refreshReflectionHintForCurrentThread();
+      resurfacingGlint.refreshAnchor();
     }, 1_000);
   }
 
@@ -326,8 +360,8 @@ function setDomState(count: number, isModalOpen: boolean, busyDropCount: number)
   document.documentElement.setAttribute('data-deliberate-busy-drop-count', String(busyDropCount));
 }
 
-function sendRuntimeMessage(message: BackgroundRuntimeMessage): Promise<unknown> | undefined {
-  const chromeApi = (globalThis as { chrome?: { runtime?: { sendMessage?: (payload: unknown) => Promise<unknown> | unknown } } })
+function sendRuntimeMessage<Response = unknown>(message: BackgroundRuntimeMessage): Promise<Response> | undefined {
+  const chromeApi = (globalThis as { chrome?: { runtime?: { sendMessage?: (payload: unknown) => Promise<Response> | Response } } })
     .chrome;
   const send = chromeApi?.runtime?.sendMessage;
   if (!send) return undefined;

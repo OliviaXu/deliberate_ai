@@ -4,7 +4,6 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThinkingJournalApp } from '../../src/thinking-journal/thinking-journal-app';
 import * as thinkingJournalStore from '../../src/thinking-journal/thinking-journal-store';
-import type { ThinkingJournalEntryView } from '../../src/thinking-journal/utils/entry-view';
 import type { ThinkingJournalEntryRecord } from '../../src/thinking-journal/utils/entry-record';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -13,22 +12,17 @@ function makeLongPrompt(): string {
   return 'This is a long prompt '.repeat(40).trim();
 }
 
-function makeEntries(): ThinkingJournalEntryView[] {
+function makeEntries(): ThinkingJournalEntryRecord[] {
   return [
     {
       id: 'a',
       timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
       url: 'https://gemini.google.com/app/threads/problem-a',
       mode: 'problem_solving',
-      modeLabel: 'Problem-Solving',
-      modeEmoji: '🤔',
       prompt: makeLongPrompt(),
-      promptIsLong: true,
-      hypothesis: 'I suspect query caching is stale.',
-      dateLabel: 'Mar 2',
+      startingPoint: 'I suspect query caching is stale.',
       reflection: {
         timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
-        dateLabel: 'Mar 3',
         score: 75,
         notes: 'The real issue was token expiration, not cache invalidation.'
       }
@@ -38,22 +32,14 @@ function makeEntries(): ThinkingJournalEntryView[] {
       timestamp: Date.UTC(2026, 2, 2, 12, 0, 0),
       url: 'https://gemini.google.com/app/threads/learning-b',
       mode: 'learning',
-      modeLabel: 'Learning',
-      modeEmoji: '🧑‍🎓',
       prompt: 'Explain OAuth PKCE simply.',
-      promptIsLong: false,
-      initialContext: 'I know basic OAuth terms.',
-      dateLabel: 'Mar 2'
+      startingPoint: 'I know basic OAuth terms.'
     },
     {
       id: 'c',
       timestamp: Date.UTC(2026, 2, 1, 8, 0, 0),
       mode: 'delegation',
-      modeLabel: 'Delegation',
-      modeEmoji: '😌',
       prompt: 'Draft this status update.',
-      promptIsLong: false,
-      dateLabel: 'Mar 1'
     }
   ];
 }
@@ -84,15 +70,16 @@ function makeExportRows(): ThinkingJournalEntryRecord[] {
   ];
 }
 
-function render(
-  entries: ThinkingJournalEntryView[],
+async function render(
+  entries: ThinkingJournalEntryRecord[],
   props: Partial<React.ComponentProps<typeof ThinkingJournalApp>> = {}
-): void {
+): Promise<void> {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => {
-    root?.render(<ThinkingJournalApp preloadedEntries={entries} {...props} />);
+  const loadPage = props.loadPage ?? vi.fn(async () => ({ recentEntries: entries }));
+  await act(async () => {
+    root?.render(<ThinkingJournalApp {...props} loadPage={loadPage} />);
   });
 }
 
@@ -106,8 +93,8 @@ afterEach(() => {
 });
 
 describe('ThinkingJournalApp', () => {
-  it('uses Tailwind utility classes for layout and controls', () => {
-    render(makeEntries());
+  it('uses Tailwind utility classes for layout and controls', async () => {
+    await render(makeEntries());
 
     const main = document.querySelector('main');
     expect(main).toBeTruthy();
@@ -154,8 +141,8 @@ describe('ThinkingJournalApp', () => {
     expect(firstCard?.className).toContain('p-2.5');
   });
 
-  it('renders header and mode badges with requested emojis', () => {
-    render(makeEntries());
+  it('renders header and mode badges with requested emojis', async () => {
+    await render(makeEntries());
 
     expect(document.body.textContent).toContain('Thinking Journal');
     expect(document.body.textContent).toContain('A quiet view of your thinking');
@@ -166,8 +153,50 @@ describe('ThinkingJournalApp', () => {
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('Learning'))).toBe(true);
   });
 
-  it('renders an in-card reflection section when reflection data is present', () => {
-    render(makeEntries());
+  it('features a returned thought above the recent feed without adding Another thought', async () => {
+    const featuredEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[0]!,
+      id: 'featured',
+      prompt: 'Historical featured prompt',
+      timestamp: Date.UTC(2026, 1, 1)
+    };
+    await render(makeEntries(), {
+      loadPage: async () => ({ recentEntries: makeEntries(), featuredEntry })
+    });
+
+    const featured = document.querySelector('[data-testid="thinking-journal-featured"]');
+    const recent = document.querySelector('[data-testid="thinking-journal-recent"]');
+    expect(featured?.textContent).toContain('A thought returned');
+    expect(featured?.textContent).toContain('Historical featured prompt');
+    expect(recent?.textContent).toContain('Recent thinking — Last 7 days');
+    if (!featured || !recent) throw new Error('Expected featured and recent journal sections');
+    expect(featured.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Another thought');
+  });
+
+  it('keeps the featured thought visible when recent-feed filters change', async () => {
+    const featuredEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[0]!,
+      id: 'featured',
+      prompt: 'Historical featured prompt'
+    };
+    await render(makeEntries(), {
+      loadPage: async () => ({ recentEntries: makeEntries(), featuredEntry })
+    });
+
+    const learningFilter = Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Learning')
+    );
+    act(() => learningFilter?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
+      'Historical featured prompt'
+    );
+    expect(document.querySelectorAll('[data-testid="thinking-journal-recent"] [data-testid="thinking-journal-card"]')).toHaveLength(1);
+  });
+
+  it('renders an in-card reflection section when reflection data is present', async () => {
+    await render(makeEntries());
 
     const dateTitle = document.querySelector('[data-testid="thinking-journal-date-title"]');
     expect(dateTitle).toBeTruthy();
@@ -240,8 +269,8 @@ describe('ThinkingJournalApp', () => {
     expect(document.body.textContent).not.toContain('PromptExplain OAuth PKCE simply.');
   });
 
-  it('renders the prompt as a link when an entry URL is available', () => {
-    render(makeEntries());
+  it('renders the prompt as a link when an entry URL is available', async () => {
+    await render(makeEntries());
 
     const promptLink = document.querySelector('[data-testid="thinking-journal-entry-link"]');
     expect(promptLink).toBeTruthy();
@@ -255,8 +284,8 @@ describe('ThinkingJournalApp', () => {
     expect(promptLinkIcon?.textContent).toBe('↗');
   });
 
-  it('does not show a spark in the mode badge when there is no reflection', () => {
-    render(makeEntries());
+  it('does not show a spark in the mode badge when there is no reflection', async () => {
+    await render(makeEntries());
 
     const cards = Array.from(document.querySelectorAll('[data-testid="thinking-journal-card"]'));
     const learningCard = cards.find((card) => card.textContent?.includes('Learning'));
@@ -267,8 +296,8 @@ describe('ThinkingJournalApp', () => {
     expect(learningBadge?.querySelector('[data-testid="thinking-journal-reflection-spark"]')).toBeNull();
   });
 
-  it('toggles long prompt expansion with Show more', () => {
-    render(makeEntries());
+  it('toggles long prompt expansion with Show more', async () => {
+    await render(makeEntries());
 
     const toggle = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Show more');
     expect(toggle).toBeTruthy();
@@ -279,8 +308,8 @@ describe('ThinkingJournalApp', () => {
     expect(document.body.textContent).toContain('Show less');
   });
 
-  it('filters entries by selected mode', () => {
-    render(makeEntries());
+  it('filters entries by selected mode', async () => {
+    await render(makeEntries());
 
     const learningFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Learning'));
     expect(learningFilter).toBeTruthy();
@@ -295,8 +324,8 @@ describe('ThinkingJournalApp', () => {
     expect(cards[0]?.textContent).not.toContain('😌 Delegation');
   });
 
-  it('can restrict the list to entries with reflections only', () => {
-    render(makeEntries());
+  it('can restrict the list to entries with reflections only', async () => {
+    await render(makeEntries());
 
     const reflectionOnlyFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'With reflection');
     expect(reflectionOnlyFilter).toBeTruthy();
@@ -312,8 +341,8 @@ describe('ThinkingJournalApp', () => {
     expect(cards[0]?.textContent).not.toContain('Delegation');
   });
 
-  it('applies reflection-only filtering on top of the selected mode filter', () => {
-    render(makeEntries());
+  it('applies reflection-only filtering on top of the selected mode filter', async () => {
+    await render(makeEntries());
 
     const learningFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Learning'));
     const reflectionOnlyFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'With reflection');
@@ -327,32 +356,31 @@ describe('ThinkingJournalApp', () => {
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
   });
 
-  it('does not show loading when preloaded entries are provided as an empty list', async () => {
-    const loadRecentEntries = vi.fn(async () => []);
+  it('loads an empty page through loadPage', async () => {
+    const loadPage = vi.fn(async () => ({ recentEntries: [] }));
     const loadExportRows = vi.fn(async () => []);
-    render([], { loadRecentEntries, loadExportRows });
+    await render([], { loadPage, loadExportRows });
 
-    await act(async () => {});
     expect(document.body.textContent).not.toContain('Loading entries...');
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
-    expect(loadRecentEntries).not.toHaveBeenCalled();
+    expect(loadPage).toHaveBeenCalledWith(undefined);
     expect(loadExportRows).not.toHaveBeenCalled();
   });
 
-  it('renders the end-of-list CSV export action in the default non-empty feed', () => {
-    render(makeEntries());
+  it('renders the end-of-list CSV export action in the default non-empty feed', async () => {
+    await render(makeEntries());
 
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
   });
 
   it('renders the CSV export action when only historical entries exist outside the 7-day feed', async () => {
-    render([], { loadExportRows: async () => makeExportRows() });
+    await render([], { loadExportRows: async () => makeExportRows() });
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
   });
 
-  it('uses only the recent-entry load on mount and defers export history until click', async () => {
-    const loadRecentEntriesSpy = vi.spyOn(thinkingJournalStore, 'loadRecentThinkingJournalEntries').mockResolvedValue([]);
+  it('loads the page on mount and defers export history until click', async () => {
+    const loadPageSpy = vi.spyOn(thinkingJournalStore, 'loadThinkingJournalPage').mockResolvedValue({ recentEntries: [] });
     const loadExportRowsSpy = vi.spyOn(thinkingJournalStore, 'loadThinkingJournalExportRows').mockResolvedValue(makeExportRows());
 
     container = document.createElement('div');
@@ -363,14 +391,14 @@ describe('ThinkingJournalApp', () => {
       root?.render(<ThinkingJournalApp />);
     });
 
-    expect(loadRecentEntriesSpy).toHaveBeenCalledOnce();
+    expect(loadPageSpy).toHaveBeenCalledWith(undefined);
     expect(loadExportRowsSpy).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('No entries in the last 7 days.');
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Download full history as CSV')).toBe(true);
   });
 
-  it('hides the end-of-list CSV export action outside the default feed state', () => {
-    render(makeEntries());
+  it('hides the end-of-list CSV export action outside the default feed state', async () => {
+    await render(makeEntries());
 
     const learningFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Learning'));
     const reflectionOnlyFilter = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'With reflection');
@@ -403,7 +431,7 @@ describe('ThinkingJournalApp', () => {
     HTMLAnchorElement.prototype.click = clickSpy;
 
     try {
-      render(makeEntries(), { loadExportRows });
+      await render(makeEntries(), { loadExportRows });
 
       const downloadButton = Array.from(document.querySelectorAll('button')).find(
         (button) => button.textContent === 'Download full history as CSV'

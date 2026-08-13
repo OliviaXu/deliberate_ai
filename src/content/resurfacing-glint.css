@@ -1,0 +1,63 @@
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .deliberate-resurfacing-glint-anchor {
+    @apply relative;
+  }
+
+  .deliberate-resurfacing-glint {
+    @apply absolute right-0 inline-flex max-w-[min(34rem,72%)] cursor-pointer items-center gap-1 border-0 px-2 py-1 text-right font-deliberate;
+    top: -24px;
+    z-index: 1;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.76);
+    color: rgba(71, 85, 105, 0.82);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .deliberate-resurfacing-glint__label {
+    @apply shrink-0 whitespace-nowrap text-[13px] font-semibold leading-none;
+  }
+
+  .deliberate-resurfacing-glint__excerpt {
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-normal leading-none;
+  }
+
+  .deliberate-resurfacing-glint__arrow {
+    @apply shrink-0 text-[13px] leading-none;
+  }
+
+  .deliberate-resurfacing-glint:hover {
+    color: rgba(30, 41, 59, 0.94);
+  }
+
+  .deliberate-resurfacing-glint:focus-visible {
+    @apply rounded-[3px];
+    outline: 2px solid rgba(37, 99, 235, 0.42);
+    outline-offset: 3px;
+  }
+
+  .deliberate-resurfacing-glint[data-deliberate-platform-skin='claude'][data-deliberate-theme='light'] {
+    background: rgba(246, 239, 230, 0.78);
+    color: rgba(94, 69, 46, 0.78);
+  }
+
+  .deliberate-resurfacing-glint[data-deliberate-platform-skin='claude'][data-deliberate-theme='dark'] {
+    background: rgba(47, 43, 39, 0.76);
+    color: rgba(243, 237, 228, 0.8);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .deliberate-resurfacing-glint {
+      background: rgba(15, 23, 42, 0.68);
+      color: rgba(203, 213, 225, 0.84);
+    }
+
+    .deliberate-resurfacing-glint:hover {
+      color: rgba(241, 245, 249, 0.96);
+    }
+  }
+}

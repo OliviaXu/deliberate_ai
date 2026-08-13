@@ -8,8 +8,10 @@ if (!container) {
   throw new Error('Thinking Journal root container was not found.');
 }
 
+const featuredEntryId = new URLSearchParams(window.location.search).get('featured') || undefined;
+
 createRoot(container).render(
   <React.StrictMode>
-    <ThinkingJournalApp />
+    <ThinkingJournalApp {...(featuredEntryId ? { featuredEntryId } : {})} />
   </React.StrictMode>
 );

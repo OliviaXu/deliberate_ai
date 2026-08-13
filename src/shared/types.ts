@@ -45,6 +45,9 @@ interface LearningCycleBase extends PlatformThreadIdentity {
   timestamp: number;
   url?: string;
   prompt: string;
+  resurfacing?: {
+    lastSurfacedAt: number;
+  };
 }
 
 export interface DelegationLearningCycleRecord extends LearningCycleBase {
@@ -106,6 +109,26 @@ export interface LearningCycleThreadRecordMessage extends PlatformThreadIdentity
   type: 'learning-cycle:thread-record';
 }
 
+export interface ResurfacingCandidate {
+  learningCycleRecordId: string;
+  excerpt: string;
+}
+
+export interface ResurfacingPresentNextMessage {
+  type: 'resurfacing:present-next';
+}
+
+export interface ResurfacingPresentNextResponse {
+  candidate: ResurfacingCandidate | null;
+}
+
+export interface ResurfacingOpenJournalMessage {
+  type: 'resurfacing:open-journal';
+  learningCycleRecordId: string;
+}
+
+export type ResurfacingRuntimeMessage = ResurfacingPresentNextMessage | ResurfacingOpenJournalMessage;
+
 interface ReflectionBase {
   id: string;
   timestamp: number;
@@ -142,6 +165,6 @@ export interface ReflectionRecordHasCompletedMessage {
 
 export type ReflectionRuntimeMessage = ReflectionAppendMessage | ReflectionRecordHasCompletedMessage;
 
-export type BackgroundRuntimeMessage = LearningCycleRuntimeMessage | ReflectionRuntimeMessage;
+export type BackgroundRuntimeMessage = LearningCycleRuntimeMessage | ReflectionRuntimeMessage | ResurfacingRuntimeMessage;
 
 export type Unsubscribe = () => void;

@@ -6,8 +6,8 @@ import {
   type ThinkingJournalEntryRecordReflection
 } from './entry-record';
 import type { LearningCycleRecord, ReflectionRecord } from '../../shared/types';
+import { JOURNAL_WINDOW_MS } from '../journal-window';
 
-const JOURNAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const LONG_PROMPT_CHAR_THRESHOLD = 220;
 
 export type ThinkingJournalEntryViewFilter = 'all' | InteractionMode;
