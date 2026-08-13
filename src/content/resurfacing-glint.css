@@ -7,8 +7,9 @@
   }
 
   .deliberate-resurfacing-glint {
-    @apply absolute right-0 inline-flex max-w-[min(34rem,72%)] cursor-pointer items-center gap-1 border-0 px-2 py-1 text-right font-deliberate;
-    top: -24px;
+    @apply absolute inline-flex max-w-[min(34rem,72%)] cursor-pointer items-center gap-1 border-0 px-2 py-1 text-right font-deliberate;
+    top: -30px;
+    right: -12px;
     z-index: 1;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.76);
@@ -19,15 +20,15 @@
   }
 
   .deliberate-resurfacing-glint__label {
-    @apply shrink-0 whitespace-nowrap text-[13px] font-semibold leading-none;
+    @apply shrink-0 whitespace-nowrap text-[14px] font-semibold leading-none;
   }
 
   .deliberate-resurfacing-glint__excerpt {
-    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-normal leading-none;
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[14px] font-normal leading-none;
   }
 
   .deliberate-resurfacing-glint__arrow {
-    @apply shrink-0 text-[13px] leading-none;
+    @apply shrink-0 text-[14px] leading-none;
   }
 
   .deliberate-resurfacing-glint:hover {

@@ -153,7 +153,7 @@ describe('ThinkingJournalApp', () => {
     expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.includes('Learning'))).toBe(true);
   });
 
-  it('features a returned thought above the recent feed without adding Another thought', async () => {
+  it('features a returned thought above the recent feed with a prominent Another thought action', async () => {
     const featuredEntry: ThinkingJournalEntryRecord = {
       ...makeEntries()[0]!,
       id: 'featured',
@@ -171,7 +171,109 @@ describe('ThinkingJournalApp', () => {
     expect(recent?.textContent).toContain('Recent thinking — Last 7 days');
     if (!featured || !recent) throw new Error('Expected featured and recent journal sections');
     expect(featured.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(document.body.textContent).not.toContain('Another thought');
+    const returnedHeading = featured.querySelector('[data-testid="thinking-journal-featured-heading"]');
+    const recentHeading = recent.querySelector('h2');
+    expect(returnedHeading?.className).toContain('text-[1rem]');
+    expect(recentHeading?.className).toContain('text-[1rem]');
+    const anotherThought = Array.from(featured.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Another thought'
+    );
+    expect(anotherThought).toBeTruthy();
+    expect(anotherThought?.className).toContain('appearance-none');
+    expect(anotherThought?.className).toContain('rounded-[14px]');
+    expect(anotherThought?.className).toContain('border-[#e1e3e6]');
+    expect(anotherThought?.className).toContain('bg-white');
+    expect(anotherThought?.className).toContain('font-semibold');
+    expect(anotherThought?.className).toContain('shadow-none');
+    expect(anotherThought?.className).toContain('text-[#30343b]');
+    expect(anotherThought?.className).toContain('order-2');
+    expect(anotherThought?.parentElement?.className).toContain('justify-end');
+  });
+
+  it('replaces the featured card and URL with another presented thought', async () => {
+    const firstFeaturedEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[0]!,
+      id: 'featured-first',
+      prompt: 'First returned thought'
+    };
+    const nextFeaturedEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[1]!,
+      id: 'featured-next',
+      prompt: 'Next returned thought'
+    };
+    const loadPage = vi
+      .fn<(featuredEntryId: string | undefined) => Promise<thinkingJournalStore.ThinkingJournalPage>>()
+      .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: firstFeaturedEntry })
+      .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: nextFeaturedEntry });
+    const presentNext = vi.fn(async () => ({
+      learningCycleRecordId: 'featured-next',
+      excerpt: 'Next returned thought'
+    }));
+    window.history.replaceState({}, '', '/thinking-journal.html?featured=featured-first');
+
+    await render([], { featuredEntryId: 'featured-first', loadPage, presentNext });
+    const anotherThought = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Another thought'
+    );
+    await act(async () => {
+      anotherThought?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(presentNext).toHaveBeenCalledWith();
+    expect(loadPage).toHaveBeenLastCalledWith('featured-next');
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
+      'Next returned thought'
+    );
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).not.toContain(
+      'First returned thought'
+    );
+    expect(window.location.search).toBe('?featured=featured-next');
+  });
+
+  it('retains the featured card and offers retry when another thought cannot be presented', async () => {
+    const firstFeaturedEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[0]!,
+      id: 'featured-first',
+      prompt: 'Keep this returned thought'
+    };
+    const nextFeaturedEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[1]!,
+      id: 'featured-next',
+      prompt: 'Retry found this thought'
+    };
+    const loadPage = vi
+      .fn<(featuredEntryId: string | undefined) => Promise<thinkingJournalStore.ThinkingJournalPage>>()
+      .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: firstFeaturedEntry })
+      .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: nextFeaturedEntry });
+    const presentNext = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ learningCycleRecordId: 'featured-next', excerpt: 'Retry found this thought' });
+
+    await render([], { featuredEntryId: 'featured-first', loadPage, presentNext });
+    let anotherThought = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Another thought'
+    );
+    await act(async () => {
+      anotherThought?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
+      'Keep this returned thought'
+    );
+    expect(document.querySelector('[data-testid="thinking-journal-another-error"]')?.textContent).toContain('Try again');
+
+    anotherThought = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Another thought'
+    );
+    await act(async () => {
+      anotherThought?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
+      'Retry found this thought'
+    );
+    expect(document.querySelector('[data-testid="thinking-journal-another-error"]')).toBeNull();
   });
 
   it('keeps the featured thought visible when recent-feed filters change', async () => {

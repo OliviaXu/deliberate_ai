@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { INTERACTION_MODES, type ReflectionScore } from '../shared/types';
+import {
+  INTERACTION_MODES,
+  type ReflectionScore,
+  type ResurfacingCandidate,
+  type ResurfacingPresentNextResponse
+} from '../shared/types';
 import {
   loadThinkingJournalExportRows,
   loadThinkingJournalPage,
@@ -18,6 +23,7 @@ interface ThinkingJournalAppProps {
   featuredEntryId?: string;
   loadPage?: (featuredEntryId: string | undefined) => Promise<ThinkingJournalPage>;
   loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
+  presentNext?: () => Promise<ResurfacingCandidate | null>;
 }
 
 const FILTERS: Array<{ value: ThinkingJournalEntryViewFilter; label: string; emoji?: string }> = [
@@ -50,7 +56,8 @@ const METADATA_TAG_CLASS =
 export function ThinkingJournalApp({
   featuredEntryId,
   loadPage = loadThinkingJournalPage,
-  loadExportRows = loadThinkingJournalExportRows
+  loadExportRows = loadThinkingJournalExportRows,
+  presentNext = presentNextResurfacingCandidate
 }: ThinkingJournalAppProps): JSX.Element {
   const [entryRecords, setEntryRecords] = useState<ThinkingJournalEntryRecord[]>([]);
   const [featuredEntryRecord, setFeaturedEntryRecord] = useState<ThinkingJournalEntryRecord>();
@@ -59,6 +66,8 @@ export function ThinkingJournalApp({
   const [expandedPromptIds, setExpandedPromptIds] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPresentingAnotherThought, setIsPresentingAnotherThought] = useState(false);
+  const [anotherThoughtFailed, setAnotherThoughtFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -99,6 +108,34 @@ export function ThinkingJournalApp({
   );
   const showExportAction = !loading && filter === 'all' && !withReflectionOnly;
 
+  async function handleAnotherThought(): Promise<void> {
+    setIsPresentingAnotherThought(true);
+    setAnotherThoughtFailed(false);
+
+    try {
+      const candidate = await presentNext();
+      if (!candidate) {
+        setAnotherThoughtFailed(true);
+        return;
+      }
+
+      const page = await loadPage(candidate.learningCycleRecordId);
+      if (!page.featuredEntry) {
+        setAnotherThoughtFailed(true);
+        return;
+      }
+
+      setFeaturedEntryRecord(page.featuredEntry);
+      const url = new URL(window.location.href);
+      url.searchParams.set('featured', candidate.learningCycleRecordId);
+      window.history.replaceState({}, '', url);
+    } catch {
+      setAnotherThoughtFailed(true);
+    } finally {
+      setIsPresentingAnotherThought(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
       <header>
@@ -108,7 +145,12 @@ export function ThinkingJournalApp({
 
       {featuredEntryView ? (
         <section className="mt-6 grid gap-2.5" data-testid="thinking-journal-featured">
-          <p className="m-0 text-[0.82rem] font-semibold tracking-[0.01em] text-[#6f7b88]">A thought returned</p>
+          <p
+            className="m-0 text-[1rem] font-semibold text-[#445467]"
+            data-testid="thinking-journal-featured-heading"
+          >
+            A thought returned
+          </p>
           <ThinkingJournalCard
             entry={featuredEntryView}
             isExpanded={Boolean(expandedPromptIds[featuredEntryView.id])}
@@ -119,6 +161,25 @@ export function ThinkingJournalApp({
               }))
             }
           />
+          <div className="flex min-h-5 items-center justify-end gap-2">
+            <button
+              type="button"
+              className="order-2 appearance-none cursor-pointer rounded-[14px] border border-[#e1e3e6] bg-white px-2.5 py-1.5 text-[0.88rem] font-semibold text-[#30343b] shadow-none transition-colors duration-100 hover:bg-[#fafafa] disabled:cursor-default disabled:text-[#a7afb8]"
+              disabled={isPresentingAnotherThought}
+              onClick={() => void handleAnotherThought()}
+            >
+              {isPresentingAnotherThought ? 'Finding another thought…' : 'Another thought'}
+            </button>
+            {anotherThoughtFailed ? (
+              <span
+                className="text-[0.8rem] text-[#9aa4af]"
+                data-testid="thinking-journal-another-error"
+                role="status"
+              >
+                Couldn’t find another thought. Try again.
+              </span>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
@@ -206,6 +267,20 @@ export function ThinkingJournalApp({
       </section>
     </main>
   );
+}
+
+async function presentNextResurfacingCandidate(): Promise<ResurfacingCandidate | null> {
+  const chromeApi = (globalThis as unknown as {
+    chrome: {
+      runtime: {
+        sendMessage(
+          message: { type: 'resurfacing:present-next' }
+        ): Promise<ResurfacingPresentNextResponse> | ResurfacingPresentNextResponse;
+      };
+    };
+  }).chrome;
+  const response = await Promise.resolve(chromeApi.runtime.sendMessage({ type: 'resurfacing:present-next' }));
+  return response.candidate;
 }
 
 function ThinkingJournalCard({

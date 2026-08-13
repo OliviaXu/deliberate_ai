@@ -642,7 +642,7 @@ test('thinking journal renders seeded entries and supports mode filters', async 
   }
 });
 
-test('resurfacing glint opens its historical thought as a featured journal card', async ({}, testInfo) => {
+test('resurfacing glint opens a featured journal card and rotates to another thought', async ({}, testInfo) => {
   test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
 
   const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-resurfacing-${testInfo.workerIndex}-${Date.now()}`);
@@ -660,6 +660,16 @@ test('resurfacing glint opens its historical thought as a featured journal card'
         mode: 'learning',
         prompt: 'Explain why rollout experiments reveal organizational resistance',
         priorKnowledgeNote: '  My original starting point  '
+      },
+      {
+        id: 'returned-problem',
+        timestamp: now - 12 * dayMs,
+        platform: 'gemini',
+        threadId: '/app/threads/returned-problem',
+        mode: 'problem_solving',
+        prompt: 'Diagnose why a rollout stalled',
+        prediction: 'The rollout exposed an unclear decision owner.',
+        resurfacing: { lastSurfacedAt: now - 20 * dayMs }
       },
       {
         id: 'recent-learning',
@@ -718,7 +728,62 @@ test('resurfacing glint opens its historical thought as a featured journal card'
     await expect(featured.getByText('Explain why rollout experiments reveal organizational resistance')).toBeVisible();
     await expect(recent.getByText('Recent thinking — Last 7 days')).toBeVisible();
     await expect(recent.getByText('Explain a recent topic')).toBeVisible();
-    await expect(journalPage.getByText('Another thought')).toHaveCount(0);
+
+    await journalPage.getByRole('button', { name: 'Another thought' }).click();
+    await expect(journalPage).toHaveURL(/thinking-journal\.html\?featured=returned-problem$/);
+    await expect(featured.getByText('Diagnose why a rollout stalled')).toBeVisible();
+    await expect(featured.getByText('Explain why rollout experiments reveal organizational resistance')).toHaveCount(0);
+    await expect(recent.getByText('Explain a recent topic')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const records = await readRecords(context) as Array<{ id?: string; resurfacing?: { lastSurfacedAt?: number } }>;
+        return records.find((record) => record.id === 'returned-problem')?.resurfacing?.lastSurfacedAt;
+      })
+      .toBeGreaterThan(now - 20 * dayMs);
+  } finally {
+    await context.close();
+  }
+});
+
+test('another thought may present the same entry again when it is the only candidate', async ({}, testInfo) => {
+  test.skip(!fs.existsSync(path.join(extensionPath, 'manifest.json')), 'Run `npm run build` first to create .output/chrome-mv3.');
+
+  const userDataDir = path.resolve(process.cwd(), `.tmp/playwright-resurfacing-singleton-${testInfo.workerIndex}-${Date.now()}`);
+  const context = await launchExtensionContext(userDataDir);
+  try {
+    await clearRecords(context);
+    const now = Date.now();
+    await writeRecords(context, [
+      {
+        id: 'only-thought',
+        timestamp: now - 10 * 24 * 60 * 60 * 1000,
+        platform: 'gemini',
+        threadId: '/app/threads/only-thought',
+        mode: 'learning',
+        prompt: 'Understand the only historical thought',
+        priorKnowledgeNote: 'This is the only eligible starting point.',
+        resurfacing: { lastSurfacedAt: now - 1_000 }
+      }
+    ]);
+
+    const extensionId = await getExtensionId(context);
+    const journalPage = await context.newPage();
+    await journalPage.goto(
+      `chrome-extension://${extensionId}/thinking-journal.html?featured=only-thought`,
+      { waitUntil: 'domcontentloaded' }
+    );
+
+    const featured = journalPage.locator('[data-testid="thinking-journal-featured"]');
+    await expect(featured.getByText('Understand the only historical thought')).toBeVisible();
+    await journalPage.getByRole('button', { name: 'Another thought' }).click();
+    await expect(journalPage).toHaveURL(/thinking-journal\.html\?featured=only-thought$/);
+    await expect(featured.getByText('Understand the only historical thought')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const records = await readRecords(context) as Array<{ resurfacing?: { lastSurfacedAt?: number } }>;
+        return records[0]?.resurfacing?.lastSurfacedAt;
+      })
+      .toBeGreaterThan(now - 1_000);
   } finally {
     await context.close();
   }

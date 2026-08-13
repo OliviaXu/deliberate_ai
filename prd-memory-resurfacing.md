@@ -34,7 +34,7 @@ If Deliberate AI quietly resurfaces meaningful past thinking during an activity 
 - Add an **A thought returned** label above the featured existing card.
 - Keep the card's current prompt, prediction or prior knowledge, reflection, mode, date, and original-chat link presentation.
 - Place **Recent thinking — Last 7 days** below it unchanged.
-- Add a low-emphasis **Another thought** action so dogfooding can sample another candidate without waiting for another chat visit.
+- Add a clear secondary **Another thought** action so dogfooding can sample another candidate without waiting for another chat visit.
 
 ## What gets shown
 
@@ -64,7 +64,7 @@ Review the surface, content quality, and journal transition before adding in-jou
 
 ## Phase 1B — Sample another thought
 
-- Add the low-emphasis **Another thought** action to the featured journal entry.
+- Add the secondary **Another thought** action to the featured journal entry.
 - Reuse the same selection policy and record the newly presented entry.
 - Allow the same entry to return when it is the only eligible candidate.
 
