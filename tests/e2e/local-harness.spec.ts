@@ -697,7 +697,7 @@ test('thinking journal exports full history as csv', async ({}, testInfo) => {
     const csv = downloadPath ? fs.readFileSync(downloadPath, 'utf8') : '';
 
     expect(await download.suggestedFilename()).toMatch(/^thinking-journal-history-\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(csv).toContain('entry_timestamp_iso,mode,prompt,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes');
+    expect(csv).toContain('entry_timestamp_iso,mode,prompt,url,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes');
     expect(csv).toContain('Explain OAuth PKCE simply');
     expect(csv).toContain('Diagnose the auth outage');
     expect(csv).toContain('Tokens might be expired');
