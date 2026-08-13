@@ -69,7 +69,7 @@ describe('reflection-modal styles', () => {
     const modeCss = readFileSync(resolve(process.cwd(), 'src/content/mode-modal.css'), 'utf8');
 
     expect(modeCss).toContain('.deliberate-input-shell:focus-within {');
-    expect(modeCss).toContain('border-color: var(--deliberate-action-bg);');
+    expect(modeCss).toContain('border-color: var(--deliberate-input-border);');
     expect(modeCss).toContain('box-shadow: none;');
     expect(modeCss).toContain('.deliberate-input:focus,');
     expect(modeCss).toContain('.deliberate-input:focus-visible {');

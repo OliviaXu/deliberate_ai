@@ -26,6 +26,7 @@ let reviewHandler: ((threadId: string) => Promise<void> | void) | null = null;
 const runtimeSendMessage = vi.fn<(message: unknown) => Promise<unknown>>(async () => ({ record: null }));
 const mockPlatform = {
   id: 'gemini' as const,
+  appearance: { skin: 'default' as const },
   resolveThreadId: (url: string) => {
     try {
       return new URL(url).pathname || 'unknown';

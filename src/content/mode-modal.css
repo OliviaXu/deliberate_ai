@@ -117,8 +117,10 @@
     color: var(--deliberate-placeholder);
   }
 
+  .deliberate-input:focus,
   .deliberate-input:focus-visible {
-    @apply outline-none;
+    outline: none;
+    box-shadow: none;
   }
 
   .deliberate-count {
