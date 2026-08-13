@@ -22,13 +22,8 @@ interface ChromeApi {
 
 function isResurfacingMessage(message: unknown): message is ResurfacingRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
-  const candidate = message as { type?: unknown; learningCycleRecordId?: unknown };
-  if (candidate.type === 'resurfacing:present-next') return true;
-  return (
-    candidate.type === 'resurfacing:open-journal' &&
-    typeof candidate.learningCycleRecordId === 'string' &&
-    Boolean(candidate.learningCycleRecordId.trim())
-  );
+  const type = (message as { type?: unknown }).type;
+  return type === 'resurfacing:present-next' || type === 'resurfacing:open-journal';
 }
 
 export function registerResurfacingMessageHandlers(

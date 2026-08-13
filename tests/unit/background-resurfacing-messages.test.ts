@@ -49,11 +49,4 @@ describe('registerResurfacingMessageHandlers', () => {
     const { listener } = setup();
     expect(listener({ type: 'learning-cycle:append' }, {}, vi.fn())).toBeUndefined();
   });
-
-  it('rejects malformed journal-open ids', () => {
-    const { listener, create } = setup();
-    const sendResponse = vi.fn();
-    expect(listener({ type: 'resurfacing:open-journal', learningCycleRecordId: '   ' }, {}, sendResponse)).toBeUndefined();
-    expect(create).not.toHaveBeenCalled();
-  });
 });

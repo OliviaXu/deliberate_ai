@@ -24,3 +24,8 @@
 
 ## Gemini E2E Rule
 - Before running Gemini E2E tests, run `npm run gemini:reload-extension` unless you are absolutely sure there have been no code changes since the last Gemini E2E run and the loaded extension still matches the current build.
+
+## Runtime Boundary Validation
+- Trust extension-internal data shared through common static types; do not duplicate those contracts with runtime validation.
+- Validate genuinely untrusted boundaries: persisted storage, external input or messages, and external API responses.
+- If an internal channel becomes externally reachable, validate where it crosses that boundary.
