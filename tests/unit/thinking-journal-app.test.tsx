@@ -181,6 +181,7 @@ describe('ThinkingJournalApp', () => {
     expect(anotherThought).toBeTruthy();
     expect(anotherThought?.className).toContain('appearance-none');
     expect(anotherThought?.className).toContain('rounded-[14px]');
+    expect(anotherThought?.className).toContain('border-solid');
     expect(anotherThought?.className).toContain('border-[#e1e3e6]');
     expect(anotherThought?.className).toContain('bg-white');
     expect(anotherThought?.className).toContain('font-semibold');
@@ -188,6 +189,62 @@ describe('ThinkingJournalApp', () => {
     expect(anotherThought?.className).toContain('text-[#30343b]');
     expect(anotherThought?.className).toContain('order-2');
     expect(anotherThought?.parentElement?.className).toContain('justify-end');
+  });
+
+  it('optimistically toggles suppression only on the featured card without replacing it or its URL', async () => {
+    const featuredEntry: ThinkingJournalEntryRecord = {
+      ...makeEntries()[0]!,
+      id: 'featured',
+      prompt: 'Keep this thought visible'
+    };
+    const setSuppressed = vi.fn(async () => undefined);
+    window.history.replaceState({}, '', '/thinking-journal.html?featured=featured');
+    await render(makeEntries(), {
+      loadPage: async () => ({ recentEntries: makeEntries(), featuredEntry }),
+      setSuppressed
+    });
+
+    expect(document.querySelector('[data-testid="thinking-journal-recent"]')?.textContent).not.toContain('Don’t resurface this');
+    const action = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Don’t resurface this'));
+    const anotherThought = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Another thought');
+    expect(action?.closest('[data-testid="thinking-journal-card"]')).toBeNull();
+    expect(action?.closest('[data-testid="thinking-journal-featured"]')).toBeTruthy();
+    expect(action?.parentElement).toBe(anotherThought?.parentElement);
+    expect(action?.nextElementSibling).toBe(anotherThought);
+    expect(action?.className).toContain('border-[#e1e3e6]');
+    expect(action?.className).toContain('font-semibold');
+    expect(action?.className).toContain('text-[#30343b]');
+    expect(action?.className).toContain('shadow-none');
+    expect(action?.textContent).toBe('Don’t resurface this');
+    await act(async () => action?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(setSuppressed).toHaveBeenCalledWith('featured', true);
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain('Keep this thought visible');
+    expect(document.body.textContent).toContain('Allow resurfacing');
+    expect(window.location.search).toBe('?featured=featured');
+
+    const allowAction = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Allow resurfacing'));
+    await act(async () => allowAction?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(setSuppressed).toHaveBeenLastCalledWith('featured', false);
+    expect(document.body.textContent).toContain('Don’t resurface this');
+  });
+
+  it('logs suppression failures without showing recovery UI', async () => {
+    const error = new Error('storage failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await render([], {
+      loadPage: async () => ({ recentEntries: [], featuredEntry: { ...makeEntries()[0]!, id: 'featured' } }),
+      setSuppressed: vi.fn(async () => { throw error; })
+    });
+
+    const action = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Don’t resurface this'));
+    await act(async () => action?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(consoleError).toHaveBeenCalledWith('Failed to update resurfacing suppression.', error);
+    expect(document.body.textContent).toContain('Don’t resurface this');
+    expect(document.body.textContent).not.toContain('Allow resurfacing');
+    expect(document.body.textContent).not.toContain('Try again');
+    consoleError.mockRestore();
   });
 
   it('replaces the featured card and URL with another presented thought', async () => {

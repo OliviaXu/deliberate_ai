@@ -4,7 +4,7 @@ import { buildResurfacingCandidate, selectResurfacingLearningCycle } from './res
 import type { ResurfacingCandidate } from '../shared/types';
 
 interface ResurfacingServiceDependencies {
-  learningCycleStore: Pick<LearningCycleStore, 'listAll' | 'markResurfaced'>;
+  learningCycleStore: Pick<LearningCycleStore, 'listAll' | 'markResurfaced' | 'setResurfacingSuppressed'>;
   reflectionStore: Pick<ReflectionStore, 'listAll'>;
   now?: () => number;
   random?: () => number;
@@ -33,5 +33,9 @@ export class ResurfacingService {
       presentedAt
     );
     return updated ? candidate : null;
+  }
+
+  async setSuppressed(recordId: string, suppressed: boolean): Promise<void> {
+    await this.dependencies.learningCycleStore.setResurfacingSuppressed(recordId, suppressed, this.now());
   }
 }

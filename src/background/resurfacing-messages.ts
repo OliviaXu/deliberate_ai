@@ -23,11 +23,16 @@ interface ChromeApi {
 function isResurfacingMessage(message: unknown): message is ResurfacingRuntimeMessage {
   if (!message || typeof message !== 'object') return false;
   const type = (message as { type?: unknown }).type;
-  return type === 'resurfacing:present-next' || type === 'resurfacing:open-journal';
+  if (type === 'resurfacing:present-next' || type === 'resurfacing:open-journal') return true;
+  if (type !== 'resurfacing:set-suppressed') return false;
+  const suppressionMessage = message as { learningCycleRecordId?: unknown; suppressed?: unknown };
+  return typeof suppressionMessage.learningCycleRecordId === 'string'
+    && suppressionMessage.learningCycleRecordId.length > 0
+    && typeof suppressionMessage.suppressed === 'boolean';
 }
 
 export function registerResurfacingMessageHandlers(
-  service: Pick<ResurfacingService, 'presentNext'>,
+  service: Pick<ResurfacingService, 'presentNext' | 'setSuppressed'>,
   chromeApi: ChromeApi = (globalThis as unknown as { chrome: ChromeApi }).chrome
 ): () => void {
   const listener = (
@@ -44,6 +49,14 @@ export function registerResurfacingMessageHandlers(
           const response: ResurfacingPresentNextResponse = { candidate };
           sendResponse(response);
         })
+        .catch((error) => sendResponse({ error: String(error) }));
+      return true;
+    }
+
+    if (message.type === 'resurfacing:set-suppressed') {
+      void service
+        .setSuppressed(message.learningCycleRecordId, message.suppressed)
+        .then(() => sendResponse({ ok: true }))
         .catch((error) => sendResponse({ error: String(error) }));
       return true;
     }

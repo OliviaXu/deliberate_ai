@@ -16,10 +16,11 @@ export function selectResurfacingLearningCycle(
   const candidates = records.filter(
     (record): record is ReflectionEligibleLearningCycleRecord =>
       isReflectionEligibleRecord(record) && record.timestamp < cutoffMs && hasStartingMaterial(record)
+      && record.resurfacing?.suppressedAt === undefined
   );
   if (candidates.length === 0) return null;
 
-  const unseen = candidates.filter((record) => record.resurfacing === undefined);
+  const unseen = candidates.filter((record) => record.resurfacing?.lastSurfacedAt === undefined);
   if (unseen.length > 0) return chooseRandom(unseen, random);
 
   const oldestPresentation = Math.min(

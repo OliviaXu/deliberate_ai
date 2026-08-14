@@ -46,7 +46,8 @@ interface LearningCycleBase extends PlatformThreadIdentity {
   url?: string;
   prompt: string;
   resurfacing?: {
-    lastSurfacedAt: number;
+    lastSurfacedAt?: number;
+    suppressedAt?: number;
   };
 }
 
@@ -127,7 +128,16 @@ export interface ResurfacingOpenJournalMessage {
   learningCycleRecordId: string;
 }
 
-export type ResurfacingRuntimeMessage = ResurfacingPresentNextMessage | ResurfacingOpenJournalMessage;
+export interface ResurfacingSetSuppressedMessage {
+  type: 'resurfacing:set-suppressed';
+  learningCycleRecordId: string;
+  suppressed: boolean;
+}
+
+export type ResurfacingRuntimeMessage =
+  | ResurfacingPresentNextMessage
+  | ResurfacingOpenJournalMessage
+  | ResurfacingSetSuppressedMessage;
 
 interface ReflectionBase {
   id: string;

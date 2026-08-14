@@ -17,6 +17,7 @@ export interface ThinkingJournalEntryRecord {
   prompt: string;
   startingPoint?: string;
   reflection?: ThinkingJournalEntryRecordReflection;
+  resurfacingSuppressed?: boolean;
 }
 
 export function buildThinkingJournalEntryRecords(
@@ -67,6 +68,7 @@ function toThinkingJournalEntryRecord(
     mode: record.mode,
     ...(url ? { url } : {}),
     prompt: record.prompt,
+    ...(record.resurfacing?.suppressedAt !== undefined ? { resurfacingSuppressed: true } : {}),
     ...toStartingPoint(record),
     ...(reflection ? { reflection: toThinkingJournalEntryRecordReflection(reflection) } : {})
   };

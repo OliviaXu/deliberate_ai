@@ -118,4 +118,13 @@ describe('selectResurfacingCandidate', () => {
       excerpt: 'Original starting point'
     });
   });
+
+  it('excludes suppressed entries before applying recency selection', () => {
+    const records = [
+      learningRecord({ id: 'suppressed-unseen', resurfacing: { lastSurfacedAt: 0, suppressedAt: NOW - 1 } }),
+      learningRecord({ id: 'available', resurfacing: { lastSurfacedAt: 10 } })
+    ];
+
+    expect(selectResurfacingLearningCycle(records, NOW, () => 0)?.id).toBe('available');
+  });
 });

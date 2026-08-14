@@ -729,6 +729,17 @@ test('resurfacing glint opens a featured journal card and rotates to another tho
     await expect(recent.getByText('Recent thinking — Last 7 days')).toBeVisible();
     await expect(recent.getByText('Explain a recent topic')).toBeVisible();
 
+    await journalPage.getByRole('button', { name: 'Don’t resurface this' }).click();
+    await expect(journalPage).toHaveURL(/thinking-journal\.html\?featured=returned-learning$/);
+    await expect(featured.getByText('Explain why rollout experiments reveal organizational resistance')).toBeVisible();
+    await expect(journalPage.getByRole('button', { name: 'Allow resurfacing' })).toBeVisible();
+    await expect
+      .poll(async () => {
+        const records = await readRecords(context) as Array<{ id?: string; resurfacing?: { suppressedAt?: number } }>;
+        return records.find((record) => record.id === 'returned-learning')?.resurfacing?.suppressedAt;
+      })
+      .toEqual(expect.any(Number));
+
     await journalPage.getByRole('button', { name: 'Another thought' }).click();
     await expect(journalPage).toHaveURL(/thinking-journal\.html\?featured=returned-problem$/);
     await expect(featured.getByText('Diagnose why a rollout stalled')).toBeVisible();

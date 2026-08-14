@@ -19,6 +19,22 @@ function eligibleRecord(overrides: Partial<LearningCycleRecord> = {}): LearningC
 }
 
 describe('ResurfacingService', () => {
+  it('timestamps suppression changes through the learning-cycle store', async () => {
+    const setResurfacingSuppressed = vi.fn(async () => true);
+    const service = new ResurfacingService({
+      learningCycleStore: {
+        listAll: async () => [],
+        markResurfaced: vi.fn(async () => false),
+        setResurfacingSuppressed
+      },
+      reflectionStore: { listAll: async () => [] },
+      now: () => NOW
+    });
+
+    await service.setSuppressed('record-1', true);
+    expect(setResurfacingSuppressed).toHaveBeenCalledWith('record-1', true, NOW);
+  });
+
   it('persists presentation before returning the selected candidate', async () => {
     const calls: string[] = [];
     const markResurfaced = vi.fn(async () => {
@@ -26,7 +42,11 @@ describe('ResurfacingService', () => {
       return true;
     });
     const service = new ResurfacingService({
-      learningCycleStore: { listAll: async () => [eligibleRecord()], markResurfaced },
+      learningCycleStore: {
+        listAll: async () => [eligibleRecord()],
+        markResurfaced,
+        setResurfacingSuppressed: vi.fn(async () => true)
+      },
       reflectionStore: { listAll: async () => [] },
       now: () => NOW,
       random: () => 0
@@ -43,7 +63,11 @@ describe('ResurfacingService', () => {
   it('does not load reflections when no learning-cycle candidate exists', async () => {
     const listReflections = vi.fn(async () => []);
     const noCandidate = new ResurfacingService({
-      learningCycleStore: { listAll: async () => [], markResurfaced: vi.fn(async () => false) },
+      learningCycleStore: {
+        listAll: async () => [],
+        markResurfaced: vi.fn(async () => false),
+        setResurfacingSuppressed: vi.fn(async () => false)
+      },
       reflectionStore: { listAll: listReflections },
       now: () => NOW
     });
@@ -53,7 +77,11 @@ describe('ResurfacingService', () => {
 
   it('returns null when the selected record cannot be updated', async () => {
     const missingRecord = new ResurfacingService({
-      learningCycleStore: { listAll: async () => [eligibleRecord()], markResurfaced: vi.fn(async () => false) },
+      learningCycleStore: {
+        listAll: async () => [eligibleRecord()],
+        markResurfaced: vi.fn(async () => false),
+        setResurfacingSuppressed: vi.fn(async () => false)
+      },
       reflectionStore: { listAll: async () => [] },
       now: () => NOW
     });
@@ -71,7 +99,11 @@ describe('ResurfacingService', () => {
       return true;
     });
     const service = new ResurfacingService({
-      learningCycleStore: { listAll: async () => [eligibleRecord()], markResurfaced },
+      learningCycleStore: {
+        listAll: async () => [eligibleRecord()],
+        markResurfaced,
+        setResurfacingSuppressed: vi.fn(async () => true)
+      },
       reflectionStore: { listAll: async () => [] },
       now: () => NOW
     });

@@ -117,6 +117,34 @@ describe('LearningCycleStore', () => {
     await expect(store.markResurfaced('missing', 1234)).resolves.toBe(false);
   });
 
+  it('sets and clears suppression without losing presentation state or concurrent writes', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({
+      id: 'featured',
+      mode: 'learning',
+      priorKnowledgeNote: 'Starting point',
+      resurfacing: { lastSurfacedAt: 1234 }
+    }));
+
+    await Promise.all([
+      store.setResurfacingSuppressed('featured', true, 5678),
+      store.append(makeRecord({ id: 'new-record' }))
+    ]);
+
+    let records = storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[];
+    expect(records[0]?.resurfacing).toEqual({ lastSurfacedAt: 1234, suppressedAt: 5678 });
+    expect(records[1]?.id).toBe('new-record');
+
+    await expect(store.setResurfacingSuppressed('featured', false, 9999)).resolves.toBe(true);
+    records = storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[];
+    expect(records[0]?.resurfacing).toEqual({ lastSurfacedAt: 1234 });
+  });
+
+  it('reports when a suppression target no longer exists', async () => {
+    const store = new LearningCycleStore();
+    await expect(store.setResurfacingSuppressed('missing', true, 5678)).resolves.toBe(false);
+  });
+
   it('resolves a placeholder thread id for a specific record', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1', url: 'https://gemini.google.com/app', threadId: '/app' }));

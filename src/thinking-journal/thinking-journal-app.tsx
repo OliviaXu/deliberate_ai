@@ -24,6 +24,7 @@ interface ThinkingJournalAppProps {
   loadPage?: (featuredEntryId: string | undefined) => Promise<ThinkingJournalPage>;
   loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
   presentNext?: () => Promise<ResurfacingCandidate | null>;
+  setSuppressed?: (learningCycleRecordId: string, suppressed: boolean) => Promise<void>;
 }
 
 const FILTERS: Array<{ value: ThinkingJournalEntryViewFilter; label: string; emoji?: string }> = [
@@ -53,11 +54,15 @@ const CHIP_EMOJI_SELECTED_CLASS = 'text-[0.88rem] leading-none opacity-100 [filt
 const METADATA_TAG_CLASS =
   'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
+const FEATURED_ACTION_CLASS =
+  'appearance-none cursor-pointer rounded-[14px] border border-solid border-[#e1e3e6] bg-white px-2.5 py-1.5 text-[0.88rem] font-semibold text-[#30343b] shadow-none transition-colors duration-100 hover:bg-[#fafafa] disabled:cursor-default disabled:text-[#a7afb8]';
+
 export function ThinkingJournalApp({
   featuredEntryId,
   loadPage = loadThinkingJournalPage,
   loadExportRows = loadThinkingJournalExportRows,
-  presentNext = presentNextResurfacingCandidate
+  presentNext = presentNextResurfacingCandidate,
+  setSuppressed = setResurfacingSuppressed
 }: ThinkingJournalAppProps): JSX.Element {
   const [entryRecords, setEntryRecords] = useState<ThinkingJournalEntryRecord[]>([]);
   const [featuredEntryRecord, setFeaturedEntryRecord] = useState<ThinkingJournalEntryRecord>();
@@ -136,6 +141,21 @@ export function ThinkingJournalApp({
     }
   }
 
+  async function handleSuppressionToggle(): Promise<void> {
+    if (!featuredEntryRecord) return;
+    const suppressed = !featuredEntryRecord.resurfacingSuppressed;
+    setFeaturedEntryRecord({ ...featuredEntryRecord, resurfacingSuppressed: suppressed });
+    try {
+      await setSuppressed(featuredEntryRecord.id, suppressed);
+    } catch (error) {
+      setFeaturedEntryRecord((current) => {
+        if (current?.id !== featuredEntryRecord.id || current.resurfacingSuppressed !== suppressed) return current;
+        return { ...current, resurfacingSuppressed: !suppressed };
+      });
+      console.error('Failed to update resurfacing suppression.', error);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
       <header>
@@ -164,7 +184,14 @@ export function ThinkingJournalApp({
           <div className="flex min-h-5 items-center justify-end gap-2">
             <button
               type="button"
-              className="order-2 appearance-none cursor-pointer rounded-[14px] border border-[#e1e3e6] bg-white px-2.5 py-1.5 text-[0.88rem] font-semibold text-[#30343b] shadow-none transition-colors duration-100 hover:bg-[#fafafa] disabled:cursor-default disabled:text-[#a7afb8]"
+              className={FEATURED_ACTION_CLASS}
+              onClick={() => void handleSuppressionToggle()}
+            >
+              {featuredEntryView.resurfacingSuppressed ? 'Allow resurfacing' : 'Don’t resurface this'}
+            </button>
+            <button
+              type="button"
+              className={`order-2 ${FEATURED_ACTION_CLASS}`}
               disabled={isPresentingAnotherThought}
               onClick={() => void handleAnotherThought()}
             >
@@ -281,6 +308,29 @@ async function presentNextResurfacingCandidate(): Promise<ResurfacingCandidate |
   }).chrome;
   const response = await Promise.resolve(chromeApi.runtime.sendMessage({ type: 'resurfacing:present-next' }));
   return response.candidate;
+}
+
+async function setResurfacingSuppressed(
+  learningCycleRecordId: string,
+  suppressed: boolean
+): Promise<void> {
+  const chromeApi = (globalThis as unknown as {
+    chrome: {
+      runtime: {
+        sendMessage(message: {
+          type: 'resurfacing:set-suppressed';
+          learningCycleRecordId: string;
+          suppressed: boolean;
+        }): Promise<{ ok?: boolean; error?: string }> | { ok?: boolean; error?: string };
+      };
+    };
+  }).chrome;
+  const response = await Promise.resolve(chromeApi.runtime.sendMessage({
+    type: 'resurfacing:set-suppressed',
+    learningCycleRecordId,
+    suppressed
+  }));
+  if (response.error) throw new Error(response.error);
 }
 
 function ThinkingJournalCard({

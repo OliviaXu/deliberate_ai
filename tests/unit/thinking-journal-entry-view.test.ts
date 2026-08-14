@@ -77,6 +77,13 @@ describe('buildThinkingJournalEntryViews', () => {
     expect(entries[0]?.initialContext).toBe('I know OAuth basics');
   });
 
+  it('carries resurfacing suppression into the journal view', () => {
+    const entries = buildThinkingJournalEntryViews(buildThinkingJournalEntryRecords([
+      makeRecord({ resurfacing: { lastSurfacedAt: 1234, suppressedAt: 5678 } })
+    ], []));
+    expect(entries[0]?.resurfacingSuppressed).toBe(true);
+  });
+
   it('carries through the original thread URL when present', () => {
     const entries = buildThinkingJournalEntryViews(
       buildThinkingJournalEntryRecords(

@@ -28,10 +28,37 @@ export class LearningCycleStore {
       const index = current.findIndex((record) => record.id === recordId);
       if (index < 0) return;
 
+      const record = current[index]!;
       const next = [...current];
       next[index] = {
-        ...next[index],
-        resurfacing: { lastSurfacedAt }
+        ...record,
+        resurfacing: { ...record.resurfacing, lastSurfacedAt }
+      } as LearningCycleRecord;
+      await this.storage.set(LEARNING_CYCLES_STORAGE_KEY, next);
+      updated = true;
+    });
+
+    await this.writeQueue;
+    return updated;
+  }
+
+  async setResurfacingSuppressed(recordId: string, suppressed: boolean, changedAt: number): Promise<boolean> {
+    let updated = false;
+
+    this.writeQueue = this.writeQueue.then(async () => {
+      const current = await this.listRaw();
+      const index = current.findIndex((record) => record.id === recordId);
+      if (index < 0) return;
+
+      const record = current[index]!;
+      const resurfacing = { ...record.resurfacing };
+      if (suppressed) resurfacing.suppressedAt = changedAt;
+      else delete resurfacing.suppressedAt;
+
+      const next = [...current];
+      next[index] = {
+        ...record,
+        ...(Object.keys(resurfacing).length > 0 ? { resurfacing } : {})
       } as LearningCycleRecord;
       await this.storage.set(LEARNING_CYCLES_STORAGE_KEY, next);
       updated = true;

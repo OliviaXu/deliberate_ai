@@ -36,6 +36,7 @@ export interface ThinkingJournalEntryView {
   hypothesis?: string;
   initialContext?: string;
   reflection?: ThinkingJournalEntryViewReflection;
+  resurfacingSuppressed?: boolean;
 }
 
 export function buildThinkingJournalEntryViews(
@@ -85,6 +86,7 @@ function toThinkingJournalEntryView(entryRecord: ThinkingJournalEntryRecord): Th
     ...(entryRecord.url ? { url: entryRecord.url } : {}),
     prompt: entryRecord.prompt,
     promptIsLong: entryRecord.prompt.length > LONG_PROMPT_CHAR_THRESHOLD,
+    ...(entryRecord.resurfacingSuppressed ? { resurfacingSuppressed: true } : {}),
     ...(entryRecord.reflection ? { reflection: toThinkingJournalEntryViewReflection(entryRecord.reflection) } : {})
   };
 
