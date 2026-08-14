@@ -84,7 +84,7 @@ For dogfooding, do not add a day-level cadence yet. Show at most one glint per e
 - Append a new timestamped reflection linked to the same learning-cycle entry by `learningCycleRecordId`. That identifier is the sole canonical association; reflections do not duplicate the entry's thread ID.
 - Preserve and display all earlier reflections oldest-to-newest on every journal card rather than overwriting them. Only a featured returned thought offers the action to add another reflection.
 - Build the revisit interaction inside the Thinking Journal and reuse the existing reflection score and spark language without moving the current in-chat modal into the journal.
-- Update full-history CSV export in a separately tested and reviewed pass after the main Phase 2 experience is committed.
+- Complete full-history CSV export in a separate follow-up pass after the main Phase 2 experience is committed. Emit one row per reflection with repeated entry fields, retain one row with empty reflection fields for entries without reflections, and preserve newest-first entry order with each reflection history oldest-to-newest.
 
 ## Outside the MVP
 

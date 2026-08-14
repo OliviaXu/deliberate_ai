@@ -39,6 +39,43 @@ describe('buildThinkingJournalExportCsv', () => {
     expect(csv).toContain('"Line one\nLine ""two"", with comma"');
     expect(csv).toContain('2026-03-02T16:42:00.000Z,delegation,Draft a short update,,,,,');
   });
+
+  it('exports one row per reflection with newest entries first and each reflection history oldest first', () => {
+    const csv = buildThinkingJournalExportCsv([
+      {
+        id: 'older-entry',
+        timestamp: Date.UTC(2026, 2, 1, 8, 0, 0),
+        mode: 'delegation',
+        prompt: 'Older entry',
+        reflections: []
+      },
+      {
+        id: 'newest-entry',
+        timestamp: Date.UTC(2026, 2, 5, 8, 0, 0),
+        mode: 'learning',
+        prompt: 'Newest entry',
+        reflections: [
+          {
+            timestamp: Date.UTC(2026, 2, 7, 9, 0, 0),
+            score: 100,
+            notes: 'Second reflection'
+          },
+          {
+            timestamp: Date.UTC(2026, 2, 6, 9, 0, 0),
+            score: 25,
+            notes: 'First reflection'
+          }
+        ]
+      }
+    ]);
+
+    expect(csv.split('\n')).toEqual([
+      'entry_timestamp_iso,mode,prompt,url,starting_point,reflection_timestamp_iso,surprise_score,reflection_notes',
+      '2026-03-05T08:00:00.000Z,learning,Newest entry,,,2026-03-06T09:00:00.000Z,25,First reflection',
+      '2026-03-05T08:00:00.000Z,learning,Newest entry,,,2026-03-07T09:00:00.000Z,100,Second reflection',
+      '2026-03-01T08:00:00.000Z,delegation,Older entry,,,,,'
+    ]);
+  });
 });
 
 describe('buildThinkingJournalExportFilename', () => {

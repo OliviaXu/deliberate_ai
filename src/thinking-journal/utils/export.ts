@@ -12,11 +12,15 @@ const CSV_HEADER = [
 ];
 
 export function buildThinkingJournalExportCsv(rows: ThinkingJournalEntryRecord[]): string {
-  const lines = [
-    CSV_HEADER.join(','),
-    ...rows.map((row) => {
-      const reflection = row.reflections.at(-1);
-      return [
+  const lines = [CSV_HEADER.join(',')];
+
+  for (const row of [...rows].sort((a, b) => b.timestamp - a.timestamp)) {
+    const reflections = row.reflections.length > 0
+      ? [...row.reflections].sort((a, b) => a.timestamp - b.timestamp)
+      : [undefined];
+
+    for (const reflection of reflections) {
+      lines.push([
         toIso(row.timestamp),
         row.mode,
         row.prompt,
@@ -27,9 +31,9 @@ export function buildThinkingJournalExportCsv(rows: ThinkingJournalEntryRecord[]
         reflection?.notes ?? ''
       ]
         .map(escapeCsvValue)
-        .join(',');
-    })
-  ];
+        .join(','));
+    }
+  }
 
   return lines.join('\n');
 }

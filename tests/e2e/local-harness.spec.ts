@@ -877,9 +877,16 @@ test('thinking journal exports full history as csv', async ({}, testInfo) => {
         storageKey: REFLECTIONS_STORAGE_KEY,
         nextRecords: [
           {
+            id: 'reflection-2',
+            timestamp: now - dayMs / 3,
+            learningCycleRecordId: 'old-problem',
+            status: 'completed',
+            score: 100,
+            notes: 'The refresh path also needed correction.'
+          },
+          {
             id: 'reflection-1',
             timestamp: now - dayMs / 2,
-            threadId: '/app/threads/old-thread',
             learningCycleRecordId: 'old-problem',
             status: 'completed',
             score: 75,
@@ -907,6 +914,12 @@ test('thinking journal exports full history as csv', async ({}, testInfo) => {
     expect(csv).toContain('Diagnose the auth outage');
     expect(csv).toContain('Tokens might be expired');
     expect(csv).toContain('It was token expiry.');
+    expect(csv).toContain('The refresh path also needed correction.');
+    expect(csv.trim().split('\n')).toHaveLength(4);
+    expect(csv.split('Explain OAuth PKCE simply')).toHaveLength(2);
+    expect(csv.split('Diagnose the auth outage')).toHaveLength(3);
+    expect(csv.indexOf('Explain OAuth PKCE simply')).toBeLessThan(csv.indexOf('Diagnose the auth outage'));
+    expect(csv.indexOf('It was token expiry.')).toBeLessThan(csv.indexOf('The refresh path also needed correction.'));
   } finally {
     await context.close();
   }
