@@ -3,13 +3,14 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export function getChromeArgs({ cdpPort, extensionPath, userDataDir }) {
+export function getChromeArgs({ cdpPort, extensionPath, userDataDir, headless = false }) {
   return [
     `--remote-debugging-port=${cdpPort}`,
     `--user-data-dir=${userDataDir}`,
     `--load-extension=${extensionPath}`,
     '--no-first-run',
     '--no-default-browser-check',
+    ...(headless ? ['--headless=new'] : []),
     'https://gemini.google.com'
   ];
 }
@@ -19,6 +20,7 @@ export function main() {
   const userDataDir = path.resolve(projectRoot, process.env.GEMINI_USER_DATA_DIR || '.pw-profiles/gemini');
   const extensionPath = path.resolve(projectRoot, '.output/chrome-mv3');
   const cdpPort = process.env.GEMINI_CDP_PORT || '9222';
+  const headless = process.env.GEMINI_HEADLESS === '1';
 
   if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
     console.error(`Extension build not found at ${extensionPath}. Run "npm run build" first.`);
@@ -33,7 +35,8 @@ export function main() {
   const chromeArgs = getChromeArgs({
     cdpPort,
     extensionPath,
-    userDataDir
+    userDataDir,
+    headless
   });
 
   if (!fs.existsSync(chromeBinary)) {
@@ -52,9 +55,9 @@ export function main() {
     }
   });
 
-  console.log(`Opened Google Chrome with profile ${userDataDir}.`);
+  console.log(`Opened ${headless ? 'headless ' : ''}Google Chrome with profile ${userDataDir}.`);
   console.log(`CDP endpoint: http://127.0.0.1:${cdpPort}`);
-  console.log('Sign into Gemini in that Chrome window, then keep it open while tests run.');
+  console.log(headless ? 'Reused the existing Gemini session without opening a window.' : 'Sign into Gemini in that Chrome window, then keep it open while tests run.');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

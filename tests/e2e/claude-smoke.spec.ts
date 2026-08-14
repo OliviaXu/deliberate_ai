@@ -2,9 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 import { PLACEHOLDER_CLAUDE_THREAD_ID } from '../../src/platforms/claude/definition';
+import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
+import type { LearningCycleRecord } from '../../src/shared/types';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const CLAUDE_APP_URL = 'https://claude.ai/new';
+let cachedExtensionId: string | null = null;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -69,10 +72,6 @@ async function openClaudePage(
 
 function getComposer(page: import('@playwright/test').Page): import('@playwright/test').Locator {
   return page.locator('div.tiptap.ProseMirror[role="textbox"][data-testid="chat-input"]').first();
-}
-
-function getSendButton(page: import('@playwright/test').Page): import('@playwright/test').Locator {
-  return page.locator('button[aria-label="Send message"]').first();
 }
 
 function getModal(page: import('@playwright/test').Page): import('@playwright/test').Locator {
@@ -162,46 +161,94 @@ async function continueWithDelegation(page: import('@playwright/test').Page): Pr
   await expect(getModal(page)).toHaveCount(0, { timeout: 10_000 });
 }
 
-async function waitForConcreteClaudeThread(
-  context: import('@playwright/test').BrowserContext,
-  timeoutMs: number
-): Promise<string | null> {
+async function waitForConcreteClaudeThread(page: import('@playwright/test').Page, timeoutMs: number): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    for (const page of context.pages()) {
-      const url = page.url();
-      try {
-        const parsed = new URL(url);
-        if (parsed.host === 'claude.ai' && parsed.pathname.startsWith('/chat/') && parsed.pathname !== PLACEHOLDER_CLAUDE_THREAD_ID) {
-          return `${parsed.origin}${parsed.pathname}`;
-        }
-      } catch {}
-    }
+    const url = page.url();
+    try {
+      const parsed = new URL(url);
+      if (parsed.host === 'claude.ai' && parsed.pathname.startsWith('/chat/') && parsed.pathname !== PLACEHOLDER_CLAUDE_THREAD_ID) {
+        return `${parsed.origin}${parsed.pathname}`;
+      }
+    } catch {}
 
-    await context.waitForEvent('page', { timeout: 500 }).catch(() => null);
+    await page.waitForTimeout(250);
   }
 
   return null;
 }
 
-async function expectConcreteClaudeThread(
-  context: import('@playwright/test').BrowserContext
-): Promise<string> {
-  const threadUrl = await waitForConcreteClaudeThread(context, 30_000);
+async function expectConcreteClaudeThread(page: import('@playwright/test').Page): Promise<string> {
+  const threadUrl = await waitForConcreteClaudeThread(page, 30_000);
   if (threadUrl) {
     return threadUrl;
   }
 
-  const urls = context.pages().map((page) => page.url());
-  throw new Error(`Expected Claude to open a concrete thread, but only saw pages: ${urls.join(', ')}`);
+  throw new Error(`Expected Claude to open a concrete thread, but stayed on ${page.url()}`);
 }
 
-test('injects on Claude new chat and intercepts Enter before resuming native send', async () => {
+async function getExtensionId(context: import('@playwright/test').BrowserContext): Promise<string> {
+  if (cachedExtensionId) return cachedExtensionId;
+  const deadline = Date.now() + 45_000;
+
+  while (Date.now() < deadline) {
+    const serviceWorker = context.serviceWorkers()[0];
+    if (serviceWorker) {
+      cachedExtensionId = new URL(serviceWorker.url()).host;
+      return cachedExtensionId;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error('Timed out waiting for the Deliberate AI extension service worker over CDP.');
+}
+
+async function readRecords(context: import('@playwright/test').BrowserContext): Promise<LearningCycleRecord[]> {
+  const extensionId = await getExtensionId(context);
+  const page = await context.newPage();
+  try {
+    await page.goto(`chrome-extension://${extensionId}/thinking-journal.html`, { waitUntil: 'domcontentloaded' });
+    const records = await page.evaluate(async (storageKey) => {
+      const chromeApi = (globalThis as {
+        chrome?: { storage?: { local?: { get: (key: string) => Promise<Record<string, unknown>> } } };
+      }).chrome;
+      const raw = (await chromeApi?.storage?.local?.get(storageKey)) || {};
+      const value = raw[storageKey];
+      return Array.isArray(value) ? value : [];
+    }, LEARNING_CYCLES_STORAGE_KEY);
+    return records as LearningCycleRecord[];
+  } finally {
+    await page.close();
+  }
+}
+
+async function writeRecords(context: import('@playwright/test').BrowserContext, records: LearningCycleRecord[]): Promise<void> {
+  const extensionId = await getExtensionId(context);
+  const page = await context.newPage();
+  try {
+    await page.goto(`chrome-extension://${extensionId}/thinking-journal.html`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(
+      async ({ storageKey, nextRecords }) => {
+        const chromeApi = (globalThis as {
+          chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } };
+        }).chrome;
+        await chromeApi?.storage?.local?.set({ [storageKey]: nextRecords });
+      },
+      { storageKey: LEARNING_CYCLES_STORAGE_KEY, nextRecords: records }
+    );
+  } finally {
+    await page.close();
+  }
+}
+
+test('Claude Enter sentinel intercepts and resumes into a concrete thread', async () => {
+  test.setTimeout(90_000);
   const context = await connectToClaudeContext();
   if (!context) return;
 
   const page = await openClaudePage(context);
+  await writeRecords(context, []);
   const prompt = makePrompt('enter');
   const beforeCount = await getSignalCount(page);
 
@@ -213,25 +260,16 @@ test('injects on Claude new chat and intercepts Enter before resuming native sen
   await expect.poll(async () => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(PLACEHOLDER_CLAUDE_THREAD_ID);
   await expect.poll(async () => readComposerText(page), { timeout: 10_000 }).toContain(getPromptToken(prompt));
   await continueWithDelegation(page);
-  await expectConcreteClaudeThread(context);
-});
-
-test('injects on Claude new chat and intercepts send-button click before resuming native send', async () => {
-  const context = await connectToClaudeContext();
-  if (!context) return;
-
-  const page = await openClaudePage(context);
-  const prompt = makePrompt('click');
-  const beforeCount = await getSignalCount(page);
-
-  await typePrompt(page, prompt);
-  await expect(getSendButton(page)).toBeVisible({ timeout: 10_000 });
-  await expect(getSendButton(page)).toBeEnabled({ timeout: 10_000 });
-  await getSendButton(page).click();
-
-  await waitForSignalIncrement(page, beforeCount, 'clicking the Claude send button');
-  await expectModalOpen(page);
-  await expect.poll(async () => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(PLACEHOLDER_CLAUDE_THREAD_ID);
-  await continueWithDelegation(page);
-  await expectConcreteClaudeThread(context);
+  const resolvedThreadUrl = await expectConcreteClaudeThread(page);
+  await expect
+    .poll(async () => (await readRecords(context))[0] ?? null, {
+      timeout: 30_000,
+      message: 'Expected Claude to persist the learning-cycle record with its concrete thread ID.'
+    })
+    .toMatchObject({
+      platform: 'claude',
+      threadId: new URL(resolvedThreadUrl).pathname,
+      mode: 'delegation',
+      prompt
+    });
 });

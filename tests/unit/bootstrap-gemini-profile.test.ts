@@ -14,4 +14,15 @@ describe('bootstrap-gemini-profile', () => {
     expect(args).toContain('--load-extension=/tmp/chrome-mv3');
     expect(args).not.toContain('--disable-extensions-except=/tmp/chrome-mv3');
   });
+
+  it('can launch the dedicated profile in Chrome\'s extension-compatible headless mode', () => {
+    const args = getChromeArgs({
+      cdpPort: '9222',
+      extensionPath: '/tmp/chrome-mv3',
+      userDataDir: '/tmp/gemini-profile',
+      headless: true
+    });
+
+    expect(args).toContain('--headless=new');
+  });
 });

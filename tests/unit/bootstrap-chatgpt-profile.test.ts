@@ -17,4 +17,15 @@ describe('bootstrap-chatgpt-profile', () => {
     expect(args).toContain('https://chatgpt.com');
     expect(args).not.toContain('--disable-extensions-except=/tmp/chrome-mv3');
   });
+
+  it('can launch the dedicated profile in Chrome\'s extension-compatible headless mode', () => {
+    const args = getChromeArgs({
+      cdpPort: '9223',
+      extensionPath: '/tmp/chrome-mv3',
+      userDataDir: '/tmp/chatgpt-profile',
+      headless: true
+    });
+
+    expect(args).toContain('--headless=new');
+  });
 });
