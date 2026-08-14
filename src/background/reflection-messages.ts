@@ -42,7 +42,7 @@ export function registerReflectionMessageHandlers(
         return true;
       case 'reflection:record-has-completed':
         void store
-          .hasCompletedReflectionForRecord(message.learningCycleRecordId)
+          .hasCompletedReflectionForRecord(message.learningCycleId)
           .then((hasCompletedReflection) => sendResponse({ hasCompletedReflection }))
           .catch((error) => sendResponse({ error: String(error) }));
         return true;

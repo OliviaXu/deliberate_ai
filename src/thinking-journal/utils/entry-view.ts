@@ -17,7 +17,7 @@ export interface ThinkingJournalEntryViewFilters {
 }
 
 export interface ThinkingJournalEntryViewReflection {
-  timestamp: number;
+  occurredAt: number;
   dateLabel: string;
   score: ReflectionScore;
   notes?: string;
@@ -25,7 +25,7 @@ export interface ThinkingJournalEntryViewReflection {
 
 export interface ThinkingJournalEntryView {
   id: string;
-  timestamp: number;
+  occurredAt: number;
   dateLabel: string;
   mode: InteractionMode;
   modeLabel: string;
@@ -52,7 +52,7 @@ export function buildRecentThinkingJournalEntryViews(
 ): ThinkingJournalEntryView[] {
   const cutoffMs = nowMs - JOURNAL_WINDOW_MS;
   return buildThinkingJournalEntryViews(
-    buildThinkingJournalEntryRecords(records, reflections).filter((entryRecord) => entryRecord.timestamp >= cutoffMs)
+    buildThinkingJournalEntryRecords(records, reflections).filter((entryRecord) => entryRecord.occurredAt >= cutoffMs)
   );
 }
 
@@ -65,29 +65,29 @@ export function filterThinkingJournalEntryViews(
   return modeFiltered.filter((entryView) => entryView.reflections.length > 0);
 }
 
-export function formatJournalTimestamp(timestamp: number, locale = 'en-US', timeZone?: string): string {
+export function formatJournalTimestamp(occurredAt: number, locale = 'en-US', timeZone?: string): string {
   const dateFormatter = new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     ...(timeZone ? { timeZone } : {})
   });
 
-  return dateFormatter.format(timestamp);
+  return dateFormatter.format(occurredAt);
 }
 
-export function formatJournalReflectionTimestamp(timestamp: number, locale = 'en-US', timeZone?: string): string {
+export function formatJournalReflectionTimestamp(occurredAt: number, locale = 'en-US', timeZone?: string): string {
   return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
     ...(timeZone ? { timeZone } : {})
-  }).format(timestamp);
+  }).format(occurredAt);
 }
 
 function toThinkingJournalEntryView(entryRecord: ThinkingJournalEntryRecord): ThinkingJournalEntryView {
   const base: ThinkingJournalEntryView = {
     id: entryRecord.id,
-    timestamp: entryRecord.timestamp,
-    dateLabel: formatJournalTimestamp(entryRecord.timestamp),
+    occurredAt: entryRecord.occurredAt,
+    dateLabel: formatJournalTimestamp(entryRecord.occurredAt),
     mode: entryRecord.mode,
     modeLabel: modeLabel(entryRecord.mode),
     modeEmoji: modeEmoji(entryRecord.mode),
@@ -119,8 +119,8 @@ function toThinkingJournalEntryViewReflection(
   reflection: ThinkingJournalEntryRecordReflection
 ): ThinkingJournalEntryViewReflection {
   return {
-    timestamp: reflection.timestamp,
-    dateLabel: formatJournalReflectionTimestamp(reflection.timestamp),
+    occurredAt: reflection.occurredAt,
+    dateLabel: formatJournalReflectionTimestamp(reflection.occurredAt),
     score: reflection.score,
     ...(reflection.notes ? { notes: reflection.notes } : {})
   };

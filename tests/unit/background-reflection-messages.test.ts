@@ -5,9 +5,8 @@ import { registerReflectionMessageHandlers } from '../../src/background/reflecti
 function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
   return {
     id: 'reflection-1',
-    timestamp: Date.now(),
-    learningCycleRecordId: 'record-1',
-    status: 'completed',
+    occurredAt: Date.now(),
+    learningCycleId: 'record-1',
     score: 50,
     ...overrides
   };
@@ -22,7 +21,7 @@ describe('registerReflectionMessageHandlers', () => {
     const append = vi.fn(async () => undefined);
     const hasCompletedReflectionForRecord = vi.fn(async () => false);
     const onMessage = vi.fn();
-    const reflection = makeReflection({ timestamp: 123 });
+    const reflection = makeReflection({ occurredAt: 123 });
 
     registerReflectionMessageHandlers(
       { append, hasCompletedReflectionForRecord },
@@ -69,7 +68,7 @@ describe('registerReflectionMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) => {
-        listener({ type: 'reflection:record-has-completed', learningCycleRecordId: 'record-1' }, {}, resolve);
+        listener({ type: 'reflection:record-has-completed', learningCycleId: 'record-1' }, {}, resolve);
       })
     ).resolves.toEqual({ hasCompletedReflection: true });
 

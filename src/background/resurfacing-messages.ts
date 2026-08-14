@@ -25,9 +25,9 @@ function isResurfacingMessage(message: unknown): message is ResurfacingRuntimeMe
   const type = (message as { type?: unknown }).type;
   if (type === 'resurfacing:present-next' || type === 'resurfacing:open-journal') return true;
   if (type !== 'resurfacing:set-suppressed') return false;
-  const suppressionMessage = message as { learningCycleRecordId?: unknown; suppressed?: unknown };
-  return typeof suppressionMessage.learningCycleRecordId === 'string'
-    && suppressionMessage.learningCycleRecordId.length > 0
+  const suppressionMessage = message as { learningCycleId?: unknown; suppressed?: unknown };
+  return typeof suppressionMessage.learningCycleId === 'string'
+    && suppressionMessage.learningCycleId.length > 0
     && typeof suppressionMessage.suppressed === 'boolean';
 }
 
@@ -55,13 +55,13 @@ export function registerResurfacingMessageHandlers(
 
     if (message.type === 'resurfacing:set-suppressed') {
       void service
-        .setSuppressed(message.learningCycleRecordId, message.suppressed)
+        .setSuppressed(message.learningCycleId, message.suppressed)
         .then(() => sendResponse({ ok: true }))
         .catch((error) => sendResponse({ error: String(error) }));
       return true;
     }
 
-    const path = `thinking-journal.html?featured=${encodeURIComponent(message.learningCycleRecordId)}`;
+    const path = `thinking-journal.html?featured=${encodeURIComponent(message.learningCycleId)}`;
     const url = chromeApi.runtime.getURL(path);
     void Promise.resolve(chromeApi.tabs.create({ url }))
       .then(() => sendResponse({ ok: true }))

@@ -14,19 +14,19 @@ const CSV_HEADER = [
 export function buildThinkingJournalExportCsv(rows: ThinkingJournalEntryRecord[]): string {
   const lines = [CSV_HEADER.join(',')];
 
-  for (const row of [...rows].sort((a, b) => b.timestamp - a.timestamp)) {
+  for (const row of [...rows].sort((a, b) => b.occurredAt - a.occurredAt)) {
     const reflections = row.reflections.length > 0
-      ? [...row.reflections].sort((a, b) => a.timestamp - b.timestamp)
+      ? [...row.reflections].sort((a, b) => a.occurredAt - b.occurredAt)
       : [undefined];
 
     for (const reflection of reflections) {
       lines.push([
-        toIso(row.timestamp),
+        toIso(row.occurredAt),
         row.mode,
         row.prompt,
         row.url ?? '',
         row.startingPoint ?? '',
-        reflection ? toIso(reflection.timestamp) : '',
+        reflection ? toIso(reflection.occurredAt) : '',
         reflection ? String(reflection.score) : '',
         reflection?.notes ?? ''
       ]
@@ -45,8 +45,8 @@ export function buildThinkingJournalExportFilename(now = new Date()): string {
   return `thinking-journal-history-${year}-${month}-${day}.csv`;
 }
 
-function toIso(timestamp: number): string {
-  return new Date(timestamp).toISOString();
+function toIso(occurredAt: number): string {
+  return new Date(occurredAt).toISOString();
 }
 
 function escapeCsvValue(value: string): string {

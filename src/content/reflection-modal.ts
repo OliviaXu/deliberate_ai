@@ -132,7 +132,7 @@ export class ReflectionModal {
       }
       contextSection.appendChild(
         this.makeMetaRow({
-          label: `Prompt (${this.formatTimestamp(record.timestamp)})`,
+          label: `Prompt (${this.formatTimestamp(record.occurredAt)})`,
           value: record.prompt,
           labelTestId: 'deliberate-reflection-prompt-label',
           valueTestId: 'deliberate-reflection-prompt-value',
@@ -246,7 +246,7 @@ export class ReflectionModal {
 
   private getContextValue(record: ReflectionEligibleLearningCycleRecord): string | null {
     return record.mode === INTERACTION_MODES.PROBLEM_SOLVING
-      ? this.normalizeOptionalText(record.prediction)
+      ? this.normalizeOptionalText(record.startingPoint)
       : null;
   }
 
@@ -255,11 +255,11 @@ export class ReflectionModal {
     return trimmed ? trimmed : null;
   }
 
-  private formatTimestamp(timestamp: number): string {
+  private formatTimestamp(occurredAt: number): string {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: 'medium',
       timeStyle: 'short'
-    }).format(timestamp);
+    }).format(occurredAt);
   }
 
   private finish(

@@ -12,7 +12,7 @@ const handleModeSubmission = vi.fn(async () => ({
   appendSucceeded: true,
   record: {
     id: 'record-1',
-    timestamp: 123,
+    occurredAt: 123,
     platform: 'gemini' as const,
     threadId: '/app',
     prompt: 'First prompt',
@@ -142,7 +142,7 @@ describe('content reflection hint refresh', () => {
       appendSucceeded: true,
       record: {
         id: 'record-1',
-        timestamp: 123,
+        occurredAt: 123,
         platform: 'gemini' as const,
         threadId: '/app',
         prompt: 'First prompt',
@@ -177,7 +177,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 123,
+      occurredAt: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
       prompt: 'First prompt'
@@ -192,9 +192,9 @@ describe('content reflection hint refresh', () => {
     expect(updateVisibilityForThread).toHaveBeenNthCalledWith(2, '/app', false);
   });
 
-  it('starts active tracking on the first bypassed concrete-thread submit using the persisted thread record timestamp', async () => {
+  it('starts active tracking on the first bypassed concrete-thread submit using the persisted thread record occurredAt', async () => {
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; platform?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; platform?: string; threadId?: string; learningCycleId?: string };
       if (
         payload.type === 'learning-cycle:thread-record' &&
         payload.platform === 'gemini' &&
@@ -203,7 +203,7 @@ describe('content reflection hint refresh', () => {
         return {
           record: {
             id: 'record-1',
-            timestamp: 999,
+            occurredAt: 999,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'First prompt',
@@ -218,7 +218,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 123,
+      occurredAt: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
       prompt: 'First prompt'
@@ -230,7 +230,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 2_000,
+      occurredAt: 2_000,
       url: 'https://gemini.google.com/app/threads/thread-a',
       platform: 'gemini',
       prompt: 'Second turn'
@@ -261,7 +261,7 @@ describe('content reflection hint refresh', () => {
         return {
           record: {
             id: 'record-1',
-            timestamp: 999,
+            occurredAt: 999,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'First prompt',
@@ -276,7 +276,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 123,
+      occurredAt: 123,
       url: 'https://gemini.google.com/app',
       platform: 'gemini',
       prompt: 'First prompt'
@@ -297,7 +297,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 2_000,
+      occurredAt: 2_000,
       url: 'https://gemini.google.com/app/threads/thread-a',
       platform: 'gemini',
       prompt: 'Second turn'
@@ -322,7 +322,7 @@ describe('content reflection hint refresh', () => {
         return {
           record: {
             id: 'record-1',
-            timestamp: 999,
+            occurredAt: 999,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'First prompt',
@@ -340,7 +340,7 @@ describe('content reflection hint refresh', () => {
 
     interceptHandler?.({
       source: 'enter_key',
-      timestamp: 2_000,
+      occurredAt: 2_000,
       url: 'https://gemini.google.com/app/threads/thread-a',
       platform: 'gemini',
       prompt: 'Second turn'
@@ -360,7 +360,7 @@ describe('content reflection hint refresh', () => {
         return {
           record: {
             id: 'record-1',
-            timestamp: 999,
+            occurredAt: 999,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'First prompt',
@@ -383,25 +383,26 @@ describe('content reflection hint refresh', () => {
   });
 
   it('opens the reflection modal for a due thread and hides the cue after completion persists', async () => {
+    const randomUuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('22222222-2222-4222-8222-222222222222');
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -435,8 +436,8 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          learningCycleRecordId: 'record-1',
-          status: 'completed',
+          id: '22222222-2222-4222-8222-222222222222',
+          learningCycleId: 'record-1',
           score: 75,
           notes: 'I should anchor the comparison around rollback criteria sooner.'
         })
@@ -448,6 +449,7 @@ describe('content reflection hint refresh', () => {
         record: expect.objectContaining({ threadId: expect.any(String) })
       })
     );
+    randomUuid.mockRestore();
     expect(runtimeSendMessage).not.toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'reflection:append',
@@ -463,22 +465,22 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -502,8 +504,7 @@ describe('content reflection hint refresh', () => {
     expect(runtimeSendMessage).toHaveBeenCalledWith({
       type: 'reflection:append',
       record: expect.objectContaining({
-        learningCycleRecordId: 'record-1',
-        status: 'completed',
+        learningCycleId: 'record-1',
         score: 75
       })
     });
@@ -522,22 +523,22 @@ describe('content reflection hint refresh', () => {
     window.history.replaceState({}, '', '/app/threads/thread-a');
     let completionStatusChecks = 0;
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         completionStatusChecks += 1;
         return { hasCompletedReflection: completionStatusChecks > 1 };
       }
@@ -565,8 +566,7 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          learningCycleRecordId: 'record-1',
-          status: 'completed',
+          learningCycleId: 'record-1',
           score: 75
         })
       })
@@ -577,22 +577,22 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -620,8 +620,7 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          learningCycleRecordId: 'record-1',
-          status: 'completed',
+          learningCycleId: 'record-1',
           score: 75
         })
       })
@@ -632,22 +631,22 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 
@@ -673,22 +672,22 @@ describe('content reflection hint refresh', () => {
     document.documentElement.setAttribute('data-deliberate-now-ms', String(2_000_000));
     window.history.replaceState({}, '', '/app/threads/thread-a');
     runtimeSendMessage.mockImplementation(async (message: unknown) => {
-      const payload = message as { type?: string; threadId?: string; learningCycleRecordId?: string };
+      const payload = message as { type?: string; threadId?: string; learningCycleId?: string };
       if (payload.type === 'learning-cycle:thread-record' && payload.threadId === '/app/threads/thread-a') {
         return {
           record: {
             id: 'record-1',
-            timestamp: 0,
+            occurredAt: 0,
             platform: 'gemini',
             threadId: '/app/threads/thread-a',
             prompt: 'Teach me staged rollout tradeoffs',
             mode: 'learning',
-            priorKnowledgeNote: 'I know feature flags already.'
+            startingPoint: 'I know feature flags already.'
           }
         };
       }
 
-      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleRecordId === 'record-1') {
+      if (payload.type === 'reflection:record-has-completed' && payload.learningCycleId === 'record-1') {
         return { hasCompletedReflection: false };
       }
 

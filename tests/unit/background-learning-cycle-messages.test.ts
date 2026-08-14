@@ -7,7 +7,7 @@ import { registerLearningCycleMessageHandlers } from '../../src/background/learn
 function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
     id: 'id-1',
-    timestamp: Date.now(),
+    occurredAt: Date.now(),
     platform: 'gemini',
     threadId: '/app/thread',
     mode: 'delegation',

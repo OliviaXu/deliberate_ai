@@ -19,7 +19,7 @@ export type ReflectionScore = 0 | 25 | 50 | 75 | 100;
 
 export interface SubmitSignal {
   source: SubmitSource;
-  timestamp: number;
+  occurredAt: number;
   url: string;
   platform: PlatformId;
 }
@@ -42,7 +42,7 @@ export interface DebugConfig {
 
 interface LearningCycleBase extends PlatformThreadIdentity {
   id: string;
-  timestamp: number;
+  occurredAt: number;
   url?: string;
   prompt: string;
   resurfacing?: {
@@ -57,12 +57,12 @@ export interface DelegationLearningCycleRecord extends LearningCycleBase {
 
 export interface ProblemSolvingLearningCycleRecord extends LearningCycleBase {
   mode: typeof INTERACTION_MODES.PROBLEM_SOLVING;
-  prediction: string;
+  startingPoint: string;
 }
 
 export interface LearningLearningCycleRecord extends LearningCycleBase {
   mode: typeof INTERACTION_MODES.LEARNING;
-  priorKnowledgeNote?: string;
+  startingPoint?: string;
 }
 
 export type LearningCycleRecord =
@@ -88,12 +88,12 @@ export interface DelegationLearningCycleSubmission {
 
 export interface ProblemSolvingLearningCycleSubmission {
   mode: typeof INTERACTION_MODES.PROBLEM_SOLVING;
-  prediction: string;
+  startingPoint: string;
 }
 
 export interface LearningLearningCycleSubmission {
   mode: typeof INTERACTION_MODES.LEARNING;
-  priorKnowledgeNote?: string;
+  startingPoint?: string;
 }
 
 export type LearningCycleSubmission =
@@ -111,7 +111,7 @@ export interface LearningCycleThreadRecordMessage extends PlatformThreadIdentity
 }
 
 export interface ResurfacingCandidate {
-  learningCycleRecordId: string;
+  learningCycleId: string;
   excerpt: string;
 }
 
@@ -125,12 +125,12 @@ export interface ResurfacingPresentNextResponse {
 
 export interface ResurfacingOpenJournalMessage {
   type: 'resurfacing:open-journal';
-  learningCycleRecordId: string;
+  learningCycleId: string;
 }
 
 export interface ResurfacingSetSuppressedMessage {
   type: 'resurfacing:set-suppressed';
-  learningCycleRecordId: string;
+  learningCycleId: string;
   suppressed: boolean;
 }
 
@@ -141,12 +141,11 @@ export type ResurfacingRuntimeMessage =
 
 interface ReflectionBase {
   id: string;
-  timestamp: number;
-  learningCycleRecordId: string;
+  occurredAt: number;
+  learningCycleId: string;
 }
 
 export interface CompletedReflectionRecord extends ReflectionBase {
-  status: 'completed';
   score: ReflectionScore;
   notes?: string;
 }
@@ -169,7 +168,7 @@ export interface ReflectionAppendMessage {
 
 export interface ReflectionRecordHasCompletedMessage {
   type: 'reflection:record-has-completed';
-  learningCycleRecordId: string;
+  learningCycleId: string;
 }
 
 export type ReflectionRuntimeMessage = ReflectionAppendMessage | ReflectionRecordHasCompletedMessage;

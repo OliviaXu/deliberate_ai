@@ -7,12 +7,12 @@ function makeLearningCycleRecord(
 ): ReflectionEligibleLearningCycleRecord {
   return {
     id: 'record-1',
-    timestamp: Date.UTC(2026, 2, 12, 14, 30, 0),
+    occurredAt: Date.UTC(2026, 2, 12, 14, 30, 0),
     platform: 'gemini',
     threadId: '/app/threads/thread-a',
     prompt: 'Teach me when staged rollouts backfire.',
     mode: 'learning',
-    priorKnowledgeNote: 'I know the basics of feature flags already.',
+    startingPoint: 'I know the basics of feature flags already.',
     ...overrides
   } as ReflectionEligibleLearningCycleRecord;
 }
@@ -104,14 +104,14 @@ describe('ReflectionModal', () => {
     document.body.style.backgroundColor = '';
   });
 
-  it('renders prompt and prediction as multiline text blocks instead of textareas', async () => {
+  it('renders prompt and startingPoint as multiline text blocks instead of textareas', async () => {
     document.body.innerHTML = '';
     const modal = new ReflectionModal();
     const pending = modal.open(
       makeLearningCycleRecord({
         mode: 'problem_solving',
         prompt: 'Line one of the prompt.\nLine two of the prompt.',
-        prediction: 'Context line one.\nContext line two.'
+        startingPoint: 'Context line one.\nContext line two.'
       })
     );
 
@@ -138,7 +138,7 @@ describe('ReflectionModal', () => {
     const modal = new ReflectionModal();
     const pending = modal.open(
       makeLearningCycleRecord({
-        priorKnowledgeNote: 'I already know roughly how feature flags work.'
+        startingPoint: 'I already know roughly how feature flags work.'
       })
     );
 
@@ -159,7 +159,7 @@ describe('ReflectionModal', () => {
   it('closes without resolving the reflection when cancel is used', async () => {
     document.body.innerHTML = '';
     const modal = new ReflectionModal();
-    const pending = modal.open(makeLearningCycleRecord({ mode: 'problem_solving', prediction: 'Start with a canary cohort first.' }));
+    const pending = modal.open(makeLearningCycleRecord({ mode: 'problem_solving', startingPoint: 'Start with a canary cohort first.' }));
 
     (document.querySelector('[data-testid="deliberate-reflection-cancel"]') as HTMLButtonElement).click();
 

@@ -15,7 +15,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
     id: '1',
-    timestamp: NOW_MS,
+    occurredAt: NOW_MS,
     platform: 'gemini',
     url: 'https://gemini.google.com/app/threads/default',
     threadId: '/app/threads/default',
@@ -28,9 +28,8 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
 function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
   return {
     id: 'reflection-1',
-    timestamp: NOW_MS,
-    learningCycleRecordId: '1',
-    status: 'completed',
+    occurredAt: NOW_MS,
+    learningCycleId: '1',
     score: 75,
     ...overrides
   };
@@ -39,20 +38,20 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
 describe('buildThinkingJournalEntryViews', () => {
   it('keeps only entries from the last 7 days and sorts newest first', () => {
     const records: LearningCycleRecord[] = [
-      makeRecord({ id: 'newest', timestamp: NOW_MS - DAY_MS }),
+      makeRecord({ id: 'newest', occurredAt: NOW_MS - DAY_MS }),
       makeRecord({
         id: 'problem',
-        timestamp: NOW_MS - 2 * DAY_MS,
+        occurredAt: NOW_MS - 2 * DAY_MS,
         mode: 'problem_solving',
-        prediction: 'Root cause is a race condition'
+        startingPoint: 'Root cause is a race condition'
       }),
       makeRecord({
         id: 'learning',
-        timestamp: NOW_MS - 3 * DAY_MS,
+        occurredAt: NOW_MS - 3 * DAY_MS,
         mode: 'learning',
-        priorKnowledgeNote: 'I understand the basics'
+        startingPoint: 'I understand the basics'
       }),
-      makeRecord({ id: 'old', timestamp: NOW_MS - 9 * DAY_MS })
+      makeRecord({ id: 'old', occurredAt: NOW_MS - 9 * DAY_MS })
     ];
 
     const entries = buildRecentThinkingJournalEntryViews(records, [], NOW_MS);
@@ -66,8 +65,8 @@ describe('buildThinkingJournalEntryViews', () => {
         makeRecord({
           id: 'learning',
           mode: 'learning',
-          timestamp: NOW_MS,
-          priorKnowledgeNote: 'I know OAuth basics'
+          occurredAt: NOW_MS,
+          startingPoint: 'I know OAuth basics'
         })
       ],
       []
@@ -92,7 +91,7 @@ describe('buildThinkingJournalEntryViews', () => {
             id: 'learning',
             mode: 'learning',
             url: 'https://gemini.google.com/app/threads/thread-123',
-            timestamp: NOW_MS
+            occurredAt: NOW_MS
           })
         ],
         []
@@ -102,14 +101,14 @@ describe('buildThinkingJournalEntryViews', () => {
     expect(entries[0]?.url).toBe('https://gemini.google.com/app/threads/thread-123');
   });
 
-  it('uses fallback hypothesis when problem-solving prediction is missing', () => {
+  it('uses fallback hypothesis when problem-solving startingPoint is missing', () => {
     const record = makeRecord({
-      id: 'problem-missing-prediction',
+      id: 'problem-missing-startingPoint',
       mode: 'problem_solving',
-      timestamp: NOW_MS
+      occurredAt: NOW_MS
     }) as unknown as LearningCycleRecord;
 
-    delete (record as { prediction?: string }).prediction;
+    delete (record as { startingPoint?: string }).startingPoint;
 
     const entries = buildThinkingJournalEntryViews(buildThinkingJournalEntryRecords([record], []));
     expect(entries).toHaveLength(1);
@@ -125,15 +124,15 @@ describe('buildThinkingJournalEntryViews', () => {
           id: 'problem-1',
           threadId: '/app/threads/thread-a',
           mode: 'problem_solving',
-          timestamp: NOW_MS - 2 * DAY_MS,
-          prediction: 'Likely a stale cache key.'
+          occurredAt: NOW_MS - 2 * DAY_MS,
+          startingPoint: 'Likely a stale cache key.'
         })
       ],
       [
         makeReflection({
           id: 'reflection-a',
-          learningCycleRecordId: 'problem-1',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'problem-1',
+          occurredAt: NOW_MS - DAY_MS,
           score: 50,
           notes: 'The issue was actually an expired token.'
         })
@@ -142,7 +141,7 @@ describe('buildThinkingJournalEntryViews', () => {
     );
 
     expect(entries[0]?.reflections[0]).toMatchObject({
-      timestamp: NOW_MS - DAY_MS,
+      occurredAt: NOW_MS - DAY_MS,
       dateLabel: formatJournalReflectionTimestamp(NOW_MS - DAY_MS),
       score: 50,
       notes: 'The issue was actually an expired token.'
@@ -157,22 +156,22 @@ describe('buildThinkingJournalEntryViews', () => {
           id: 'problem-older',
           threadId: '/app/threads/thread-a',
           mode: 'problem_solving',
-          timestamp: NOW_MS - 3 * DAY_MS,
-          prediction: 'Maybe stale cache.'
+          occurredAt: NOW_MS - 3 * DAY_MS,
+          startingPoint: 'Maybe stale cache.'
         }),
         makeRecord({
           id: 'learning-newer',
           threadId: '/app/threads/thread-a',
           mode: 'learning',
-          timestamp: NOW_MS - DAY_MS,
-          priorKnowledgeNote: 'I know the rollout basics.'
+          occurredAt: NOW_MS - DAY_MS,
+          startingPoint: 'I know the rollout basics.'
         })
       ],
       [
         makeReflection({
           id: 'reflection-direct',
-          learningCycleRecordId: 'problem-older',
-          timestamp: NOW_MS - 1000,
+          learningCycleId: 'problem-older',
+          occurredAt: NOW_MS - 1000,
           score: 100,
           notes: 'The cache was fine. The auth token was stale.'
         })
@@ -187,7 +186,7 @@ describe('buildThinkingJournalEntryViews', () => {
     expect(entries.find((entry) => entry.id === 'learning-newer')?.reflections).toEqual([]);
   });
 
-  it('keeps the learning-cycle timestamp as the sort anchor even when a matched reflection is newer', () => {
+  it('keeps the learning-cycle occurredAt as the sort anchor even when a matched reflection is newer', () => {
     const entries = buildThinkingJournalEntryViews(
       buildThinkingJournalEntryRecords(
       [
@@ -195,22 +194,22 @@ describe('buildThinkingJournalEntryViews', () => {
           id: 'newer-learning',
           threadId: '/app/threads/thread-b',
           mode: 'learning',
-          timestamp: NOW_MS - DAY_MS,
-          priorKnowledgeNote: 'I know the basics.'
+          occurredAt: NOW_MS - DAY_MS,
+          startingPoint: 'I know the basics.'
         }),
         makeRecord({
           id: 'older-problem',
           threadId: '/app/threads/thread-a',
           mode: 'problem_solving',
-          timestamp: NOW_MS - 3 * DAY_MS,
-          prediction: 'Likely an indexing issue.'
+          occurredAt: NOW_MS - 3 * DAY_MS,
+          startingPoint: 'Likely an indexing issue.'
         })
       ],
       [
         makeReflection({
           id: 'reflection-a',
-          learningCycleRecordId: 'older-problem',
-          timestamp: NOW_MS - 1000,
+          learningCycleId: 'older-problem',
+          occurredAt: NOW_MS - 1000,
           score: 100
         })
       ]
@@ -228,53 +227,53 @@ describe('buildThinkingJournalEntryViews', () => {
           id: 'delegation-1',
           threadId: '/app/threads/thread-delegation',
           mode: 'delegation',
-          timestamp: NOW_MS - 2 * DAY_MS
+          occurredAt: NOW_MS - 2 * DAY_MS
         }),
         makeRecord({
           id: 'problem-1',
           threadId: '/app/threads/thread-problem',
           mode: 'problem_solving',
-          timestamp: NOW_MS - 3 * DAY_MS,
-          prediction: 'Maybe the queue is backed up.'
+          occurredAt: NOW_MS - 3 * DAY_MS,
+          startingPoint: 'Maybe the queue is backed up.'
         }),
         makeRecord({
           id: 'old-learning',
           threadId: '/app/threads/thread-old',
           mode: 'learning',
-          timestamp: NOW_MS - 9 * DAY_MS,
-          priorKnowledgeNote: 'I remember the general flow.'
+          occurredAt: NOW_MS - 9 * DAY_MS,
+          startingPoint: 'I remember the general flow.'
         })
       ],
       [
         makeReflection({
           id: 'reflection-delegation',
-          learningCycleRecordId: 'delegation-1',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'delegation-1',
+          occurredAt: NOW_MS - DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-1',
-          learningCycleRecordId: 'problem-1',
-          timestamp: NOW_MS - 2 * DAY_MS,
+          learningCycleId: 'problem-1',
+          occurredAt: NOW_MS - 2 * DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-2',
-          learningCycleRecordId: 'problem-1',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'problem-1',
+          occurredAt: NOW_MS - DAY_MS,
           score: 75,
           notes: 'The bottleneck was downstream, not the queue.'
         }),
         makeReflection({
           id: 'reflection-out-of-window',
-          learningCycleRecordId: 'old-learning',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'old-learning',
+          occurredAt: NOW_MS - DAY_MS,
           score: 50
         }),
         makeReflection({
           id: 'reflection-unmatched',
-          learningCycleRecordId: 'missing-record',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'missing-record',
+          occurredAt: NOW_MS - DAY_MS,
           score: 100
         })
       ],
@@ -297,20 +296,20 @@ describe('filterThinkingJournalEntries', () => {
   const entries = buildThinkingJournalEntryViews(
     buildThinkingJournalEntryRecords(
     [
-      makeRecord({ id: 'delegation', timestamp: NOW_MS, mode: 'delegation' }),
+      makeRecord({ id: 'delegation', occurredAt: NOW_MS, mode: 'delegation' }),
       makeRecord({
         id: 'problem',
-        timestamp: NOW_MS - DAY_MS,
+        occurredAt: NOW_MS - DAY_MS,
         mode: 'problem_solving',
-        prediction: 'Likely a caching bug'
+        startingPoint: 'Likely a caching bug'
       }),
-      makeRecord({ id: 'learning', timestamp: NOW_MS - 2 * DAY_MS, mode: 'learning' })
+      makeRecord({ id: 'learning', occurredAt: NOW_MS - 2 * DAY_MS, mode: 'learning' })
     ],
     [
       makeReflection({
         id: 'reflection-problem',
-        learningCycleRecordId: 'problem',
-        timestamp: NOW_MS - DAY_MS / 2,
+        learningCycleId: 'problem',
+        occurredAt: NOW_MS - DAY_MS / 2,
         score: 25
       })
     ],

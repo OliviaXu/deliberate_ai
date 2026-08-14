@@ -29,7 +29,7 @@ export class ResurfacingService {
     const candidate = buildResurfacingCandidate(record, reflections);
 
     const updated = await this.dependencies.learningCycleStore.markResurfaced(
-      candidate.learningCycleRecordId,
+      candidate.learningCycleId,
       presentedAt
     );
     return updated ? candidate : null;

@@ -8,7 +8,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
     id: '1',
-    timestamp: NOW_MS,
+    occurredAt: NOW_MS,
     platform: 'gemini',
     threadId: '/app/threads/default',
     mode: 'delegation',
@@ -20,9 +20,8 @@ function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycle
 function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
   return {
     id: 'reflection-1',
-    timestamp: NOW_MS,
-    learningCycleRecordId: '1',
-    status: 'completed',
+    occurredAt: NOW_MS,
+    learningCycleId: '1',
     score: 75,
     ...overrides
   };
@@ -32,8 +31,8 @@ describe('buildThinkingJournalEntryRecords', () => {
   it('includes stored history outside the journal window and sorts newest first', () => {
     const rows = buildThinkingJournalEntryRecords(
       [
-        makeRecord({ id: 'recent', timestamp: NOW_MS - DAY_MS }),
-        makeRecord({ id: 'historical', timestamp: NOW_MS - 10 * DAY_MS, mode: 'learning', priorKnowledgeNote: 'Old context' })
+        makeRecord({ id: 'recent', occurredAt: NOW_MS - DAY_MS }),
+        makeRecord({ id: 'historical', occurredAt: NOW_MS - 10 * DAY_MS, mode: 'learning', startingPoint: 'Old context' })
       ],
       []
     );
@@ -49,19 +48,19 @@ describe('buildThinkingJournalEntryRecords', () => {
     const problem = makeRecord({
       id: 'problem',
       mode: 'problem_solving',
-      prediction: 'Check auth first.'
+      startingPoint: 'Check auth first.'
     });
     const learning = makeRecord({
       id: 'learning',
       mode: 'learning',
-      priorKnowledgeNote: 'I know OAuth basics.'
+      startingPoint: 'I know OAuth basics.'
     });
     const missingProblemPrediction = makeRecord({
       id: 'problem-fallback',
       mode: 'problem_solving'
     }) as LearningCycleRecord;
 
-    delete (missingProblemPrediction as { prediction?: string }).prediction;
+    delete (missingProblemPrediction as { startingPoint?: string }).startingPoint;
 
     const rows = buildThinkingJournalEntryRecords([problem, learning, missingProblemPrediction], []);
 
@@ -76,39 +75,39 @@ describe('buildThinkingJournalEntryRecords', () => {
         makeRecord({
           id: 'problem',
           mode: 'problem_solving',
-          timestamp: NOW_MS - 2 * DAY_MS,
-          prediction: 'Maybe stale cache.'
+          occurredAt: NOW_MS - 2 * DAY_MS,
+          startingPoint: 'Maybe stale cache.'
         }),
         makeRecord({
           id: 'delegation',
           mode: 'delegation',
-          timestamp: NOW_MS - DAY_MS
+          occurredAt: NOW_MS - DAY_MS
         })
       ],
       [
         makeReflection({
           id: 'older-reflection',
-          learningCycleRecordId: 'problem',
-          timestamp: NOW_MS - DAY_MS,
+          learningCycleId: 'problem',
+          occurredAt: NOW_MS - DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'newer-reflection',
-          learningCycleRecordId: 'problem',
-          timestamp: NOW_MS - DAY_MS / 2,
+          learningCycleId: 'problem',
+          occurredAt: NOW_MS - DAY_MS / 2,
           score: 100,
           notes: 'The auth token was stale.'
         }),
         makeReflection({
           id: 'delegation-reflection',
-          learningCycleRecordId: 'delegation',
-          timestamp: NOW_MS - DAY_MS / 3,
+          learningCycleId: 'delegation',
+          occurredAt: NOW_MS - DAY_MS / 3,
           score: 50
         }),
         makeReflection({
           id: 'missing-record-reflection',
-          learningCycleRecordId: 'missing',
-          timestamp: NOW_MS - DAY_MS / 4,
+          learningCycleId: 'missing',
+          occurredAt: NOW_MS - DAY_MS / 4,
           score: 75
         })
       ]

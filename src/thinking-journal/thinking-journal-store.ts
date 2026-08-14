@@ -27,7 +27,7 @@ export async function loadThinkingJournalPage(
     : undefined;
 
   return {
-    recentEntries: entryRecords.filter((entry) => entry.timestamp >= cutoffMs),
+    recentEntries: entryRecords.filter((entry) => entry.occurredAt >= cutoffMs),
     ...(featuredEntry ? { featuredEntry } : {})
   };
 }

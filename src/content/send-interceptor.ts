@@ -124,7 +124,7 @@ export class SendInterceptor {
     const prompt = composer ? this.platform.readPrompt(composer) : '';
     return {
       source,
-      timestamp: this.now(),
+      occurredAt: this.now(),
       url: window.location.href,
       platform: this.platform.id,
       prompt,
@@ -136,7 +136,7 @@ export class SendInterceptor {
   private emitIntent(intent: InternalSubmitIntent): void {
     const emittedIntent: InterceptedSubmitIntent = {
       source: intent.source,
-      timestamp: intent.timestamp,
+      occurredAt: intent.occurredAt,
       url: intent.url,
       platform: intent.platform,
       prompt: intent.prompt

@@ -8,6 +8,7 @@ const registerLearningCycleMessageHandlers = vi.fn();
 const registerReflectionMessageHandlers = vi.fn();
 const registerResurfacingMessageHandlers = vi.fn();
 const registerThinkingJournalActionHandler = vi.fn();
+const migrateLocalStorageToV2 = vi.fn<() => Promise<void>>(async () => undefined);
 
 const learningCycleStoreInstance = {
   append: vi.fn(),
@@ -56,16 +57,29 @@ vi.mock('../../src/shared/reflection-store', () => ({
   ReflectionStore
 }));
 
+vi.mock('../../src/shared/schema-migration-v2', () => ({
+  migrateLocalStorageToV2
+}));
+
 describe('background entrypoint', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
   });
 
-  it('passes the store instances directly into the background message handlers', async () => {
+  it('finishes migration before constructing stores and registering handlers', async () => {
+    let finishMigration!: () => void;
+    migrateLocalStorageToV2.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishMigration = resolve;
+    }));
     await import('../../entrypoints/background');
 
     expect(defineBackground).toHaveBeenCalledOnce();
+    expect(migrateLocalStorageToV2).toHaveBeenCalledOnce();
+    expect(LearningCycleStore).not.toHaveBeenCalled();
+
+    finishMigration();
+    await vi.waitFor(() => expect(LearningCycleStore).toHaveBeenCalledOnce());
     expect(LearningCycleStore).toHaveBeenCalledOnce();
     expect(ReflectionStore).toHaveBeenCalledOnce();
     expect(registerLearningCycleMessageHandlers).toHaveBeenCalledWith(learningCycleStoreInstance);

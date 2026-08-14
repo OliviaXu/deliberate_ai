@@ -4,7 +4,7 @@ import { handleModeSubmission } from '../../src/content/learning-cycle-flow';
 
 const baseIntent: InterceptedSubmitIntent = {
   source: 'enter_key',
-  timestamp: 1730000000000,
+  occurredAt: 1730000000000,
   url: 'https://gemini.google.com/app/threads/123',
   platform: 'gemini',
   prompt: 'What is the best rollout sequence?'
@@ -57,14 +57,14 @@ describe('handleModeSubmission', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('includes problem-solving prediction in append payload', async () => {
+  it('includes problem-solving startingPoint in append payload', async () => {
     const sendMessage = vi.fn<(message: unknown) => Promise<{ ok: true }>>(async () => ({ ok: true }));
     const resume = vi.fn(() => true);
     const randomUuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000000');
 
     await handleModeSubmission({
       intent: baseIntent,
-      submission: { mode: 'problem_solving', prediction: 'x'.repeat(100) },
+      submission: { mode: 'problem_solving', startingPoint: 'x'.repeat(100) },
       sendMessage,
       resume,
       logger: { info: vi.fn(), error: vi.fn() }
@@ -77,7 +77,7 @@ describe('handleModeSubmission', () => {
       record: {
         id: '00000000-0000-4000-8000-000000000000',
         mode: 'problem_solving',
-        prediction: 'x'.repeat(100),
+        startingPoint: 'x'.repeat(100),
         prompt: 'What is the best rollout sequence?',
         url: 'https://gemini.google.com/app/threads/123',
         threadId: '/app/threads/123'

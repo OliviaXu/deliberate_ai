@@ -6,7 +6,7 @@ const refreshAnchor = vi.fn();
 const loggerError = vi.fn();
 let openHandler: ((recordId: string) => Promise<void> | void) | undefined;
 const resurfacingCandidate: ResurfacingCandidate = {
-  learningCycleRecordId: 'old-1',
+  learningCycleId: 'old-1',
   excerpt: 'A past thought'
 };
 const runtimeSendMessage = vi.fn<(message: unknown) => Promise<unknown>>(async (message: unknown) => {
@@ -78,7 +78,7 @@ describe('content resurfacing glint lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(runtimeSendMessage).toHaveBeenCalledWith({ type: 'resurfacing:present-next' });
-    expect(show).toHaveBeenCalledWith({ learningCycleRecordId: 'old-1', excerpt: 'A past thought' });
+    expect(show).toHaveBeenCalledWith({ learningCycleId: 'old-1', excerpt: 'A past thought' });
     expect(show.mock.calls[0]?.[0]).toBe(resurfacingCandidate);
 
     await vi.advanceTimersByTimeAsync(10_000);
@@ -99,7 +99,7 @@ describe('content resurfacing glint lifecycle', () => {
 
     expect(runtimeSendMessage).toHaveBeenCalledWith({
       type: 'resurfacing:open-journal',
-      learningCycleRecordId: 'old / 1'
+      learningCycleId: 'old / 1'
     });
   });
 

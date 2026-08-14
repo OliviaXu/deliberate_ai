@@ -5,7 +5,7 @@ import { LEARNING_CYCLES_STORAGE_KEY, LearningCycleStore } from '../../src/share
 function makeRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
     id: '1',
-    timestamp: 1,
+    occurredAt: 1,
     platform: 'gemini',
     url: 'https://gemini.google.com/app/abc',
     threadId: '/app/abc',
@@ -37,7 +37,7 @@ describe('LearningCycleStore', () => {
   it('appends records in order', async () => {
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: '1' }));
-    await store.append(makeRecord({ id: '2', mode: 'learning', priorKnowledgeNote: 'I know basics' }));
+    await store.append(makeRecord({ id: '2', mode: 'learning', startingPoint: 'I know basics' }));
 
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(2);
@@ -45,7 +45,7 @@ describe('LearningCycleStore', () => {
     expect(records[1]?.id).toBe('2');
     expect(records[1]).toMatchObject({
       mode: 'learning',
-      priorKnowledgeNote: 'I know basics'
+      startingPoint: 'I know basics'
     });
   });
 
@@ -59,16 +59,41 @@ describe('LearningCycleStore', () => {
     expect(records.map((record) => record.id)).toEqual(['1', '2', '3']);
   });
 
+  it('makes repeated inserts with the same id idempotent', async () => {
+    const store = new LearningCycleStore();
+    await store.append(makeRecord({ id: 'same', prompt: 'first' }));
+    await store.append(makeRecord({ id: 'same', prompt: 'second' }));
+
+    expect(storageData[LEARNING_CYCLES_STORAGE_KEY]).toEqual([
+      expect.objectContaining({ id: 'same', prompt: 'first' })
+    ]);
+  });
+
   it('recovers to empty array when stored value is invalid', async () => {
     const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } })
       .chrome;
-    await chromeApi?.storage?.local?.set({ 'deliberate.learningCycles.v1': { nope: true } });
+    await chromeApi?.storage?.local?.set({ [LEARNING_CYCLES_STORAGE_KEY]: { nope: true } });
 
     const store = new LearningCycleStore();
     await store.append(makeRecord({ id: 'first' }));
     const records = (storageData[LEARNING_CYCLES_STORAGE_KEY] as LearningCycleRecord[] | undefined) || [];
     expect(records).toHaveLength(1);
     expect(records[0]?.id).toBe('first');
+  });
+
+  it('filters malformed records read from persisted v2 storage', async () => {
+    storageData[LEARNING_CYCLES_STORAGE_KEY] = [
+      makeRecord({ id: 'valid-delegation' }),
+      { ...makeRecord({ id: 'missing-starting-point' }), mode: 'problem_solving' },
+      { ...makeRecord({ id: 'wrong-platform' }), platform: 'other' },
+      { ...makeRecord({ id: 'invalid-resurfacing' }), resurfacing: { suppressedAt: 'yesterday' } },
+      makeRecord({ id: 'valid-learning', mode: 'learning', startingPoint: 'Known context' })
+    ];
+
+    await expect(new LearningCycleStore().listAll()).resolves.toEqual([
+      expect.objectContaining({ id: 'valid-delegation' }),
+      expect.objectContaining({ id: 'valid-learning', mode: 'learning', startingPoint: 'Known context' })
+    ]);
   });
 
   it('reports thread-level records', async () => {
@@ -93,7 +118,7 @@ describe('LearningCycleStore', () => {
 
   it('records a resurfacing presentation without replacing concurrent record changes', async () => {
     const store = new LearningCycleStore();
-    await store.append(makeRecord({ id: 'featured', mode: 'learning', priorKnowledgeNote: 'Starting point' }));
+    await store.append(makeRecord({ id: 'featured', mode: 'learning', startingPoint: 'Starting point' }));
 
     await Promise.all([
       store.markResurfaced('featured', 1234),
@@ -105,7 +130,7 @@ describe('LearningCycleStore', () => {
     expect(records[0]).toMatchObject({
       id: 'featured',
       mode: 'learning',
-      priorKnowledgeNote: 'Starting point',
+      startingPoint: 'Starting point',
       resurfacing: { lastSurfacedAt: 1234 }
     });
     expect(records[1]?.id).toBe('new-record');
@@ -122,7 +147,7 @@ describe('LearningCycleStore', () => {
     await store.append(makeRecord({
       id: 'featured',
       mode: 'learning',
-      priorKnowledgeNote: 'Starting point',
+      startingPoint: 'Starting point',
       resurfacing: { lastSurfacedAt: 1234 }
     }));
 
@@ -182,13 +207,13 @@ describe('LearningCycleStore', () => {
   it('returns the latest learning-cycle interaction for a thread regardless of mode', async () => {
     const store = new LearningCycleStore();
     await store.append(
-      makeRecord({ id: 'learning-1', threadId: '/app/threads/one', timestamp: 20, mode: 'learning', priorKnowledgeNote: 'I know the basics' })
+      makeRecord({ id: 'learning-1', threadId: '/app/threads/one', occurredAt: 20, mode: 'learning', startingPoint: 'I know the basics' })
     );
     await store.append(
       makeRecord({
         id: 'delegation-1',
         threadId: '/app/threads/one',
-        timestamp: 30,
+        occurredAt: 30,
         mode: 'delegation'
       })
     );
@@ -202,8 +227,8 @@ describe('LearningCycleStore', () => {
 
   it('isolates thread lookups when two platforms share the same raw thread id', async () => {
     const store = new LearningCycleStore();
-    await store.append(makeRecord({ id: 'gemini-record', platform: 'gemini', threadId: '/shared/thread', timestamp: 10 }));
-    await store.append(makeRecord({ id: 'chatgpt-record', platform: 'chatgpt', threadId: '/shared/thread', timestamp: 20 }));
+    await store.append(makeRecord({ id: 'gemini-record', platform: 'gemini', threadId: '/shared/thread', occurredAt: 10 }));
+    await store.append(makeRecord({ id: 'chatgpt-record', platform: 'chatgpt', threadId: '/shared/thread', occurredAt: 20 }));
 
     await expect(store.getLatestForThread({ platform: 'gemini', threadId: '/shared/thread' })).resolves.toMatchObject({
       id: 'gemini-record',

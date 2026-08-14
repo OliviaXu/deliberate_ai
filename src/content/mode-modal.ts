@@ -117,7 +117,7 @@ export class ModeSelectionModal {
     const submit = (): void => {
       this.finish(root, resolve, {
         mode: INTERACTION_MODES.PROBLEM_SOLVING,
-        prediction: input.value.trim()
+        startingPoint: input.value.trim()
       });
     };
     continueButton.addEventListener('click', submit);
@@ -152,12 +152,12 @@ export class ModeSelectionModal {
     const continueButton = this.makeContinueButton();
     this.setContinueButtonEnabled(continueButton, true);
     const submit = (): void => {
-      const priorKnowledgeNote = input.value.trim();
+      const startingPoint = input.value.trim();
       this.finish(
         root,
         resolve,
-        priorKnowledgeNote
-          ? { mode: INTERACTION_MODES.LEARNING, priorKnowledgeNote }
+        startingPoint
+          ? { mode: INTERACTION_MODES.LEARNING, startingPoint }
           : { mode: INTERACTION_MODES.LEARNING }
       );
     };

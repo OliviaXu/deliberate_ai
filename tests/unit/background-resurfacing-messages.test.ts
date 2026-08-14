@@ -24,7 +24,7 @@ function setup(serviceResult: ResurfacingCandidate | null = null) {
 
 describe('registerResurfacingMessageHandlers', () => {
   it('returns the next presented candidate', async () => {
-    const candidate = { learningCycleRecordId: 'record-1', excerpt: 'A past thought' };
+    const candidate = { learningCycleId: 'record-1', excerpt: 'A past thought' };
     const { listener, presentNext } = setup(candidate);
 
     await expect(
@@ -38,7 +38,7 @@ describe('registerResurfacingMessageHandlers', () => {
 
     await expect(
       new Promise((resolve) =>
-        listener({ type: 'resurfacing:open-journal', learningCycleRecordId: 'record / one' }, {}, resolve)
+        listener({ type: 'resurfacing:open-journal', learningCycleId: 'record / one' }, {}, resolve)
       )
     ).resolves.toEqual({ ok: true });
 
@@ -57,7 +57,7 @@ describe('registerResurfacingMessageHandlers', () => {
 
     expect(listener({
       type: 'resurfacing:set-suppressed',
-      learningCycleRecordId: 'record-1',
+      learningCycleId: 'record-1',
       suppressed: true
     }, {}, sendResponse)).toBe(true);
 
@@ -72,14 +72,14 @@ describe('registerResurfacingMessageHandlers', () => {
 
     await expect(new Promise((resolve) => listener({
       type: 'resurfacing:set-suppressed',
-      learningCycleRecordId: 'record-1',
+      learningCycleId: 'record-1',
       suppressed: true
     }, {}, resolve))).resolves.toEqual({ error: String(error) });
   });
 
   it('ignores malformed suppression requests', () => {
     const { listener, setSuppressed } = setup();
-    expect(listener({ type: 'resurfacing:set-suppressed', learningCycleRecordId: '', suppressed: 'yes' }, {}, vi.fn())).toBeUndefined();
+    expect(listener({ type: 'resurfacing:set-suppressed', learningCycleId: '', suppressed: 'yes' }, {}, vi.fn())).toBeUndefined();
     expect(setSuppressed).not.toHaveBeenCalled();
   });
 });

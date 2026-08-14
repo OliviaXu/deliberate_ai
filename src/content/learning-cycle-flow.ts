@@ -34,7 +34,7 @@ function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: 
   const threadId = platform?.resolveThreadId(intent.url) ?? 'unknown';
   const base = {
     id: globalThis.crypto.randomUUID(),
-    timestamp: intent.timestamp,
+    occurredAt: intent.occurredAt,
     platform: intent.platform,
     ...(platform?.isConcreteThreadId(threadId) ? { url: intent.url } : {}),
     threadId,
@@ -45,16 +45,16 @@ function createLearningCycleRecord(intent: InterceptedSubmitIntent, submission: 
     return {
       ...base,
       mode: INTERACTION_MODES.PROBLEM_SOLVING,
-      prediction: submission.prediction
+      startingPoint: submission.startingPoint
     };
   }
 
   if (submission.mode === INTERACTION_MODES.LEARNING) {
-    return submission.priorKnowledgeNote
+    return submission.startingPoint
       ? {
           ...base,
           mode: INTERACTION_MODES.LEARNING,
-          priorKnowledgeNote: submission.priorKnowledgeNote
+          startingPoint: submission.startingPoint
         }
       : {
           ...base,

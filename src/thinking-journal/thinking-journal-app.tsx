@@ -25,7 +25,7 @@ interface ThinkingJournalAppProps {
   loadPage?: (featuredEntryId: string | undefined) => Promise<ThinkingJournalPage>;
   loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
   presentNext?: () => Promise<ResurfacingCandidate | null>;
-  setSuppressed?: (learningCycleRecordId: string, suppressed: boolean) => Promise<void>;
+  setSuppressed?: (learningCycleId: string, suppressed: boolean) => Promise<void>;
   appendReflection?: (record: ReflectionRecord) => Promise<void>;
   now?: () => number;
 }
@@ -129,7 +129,7 @@ export function ThinkingJournalApp({
         return;
       }
 
-      const page = await loadPage(candidate.learningCycleRecordId);
+      const page = await loadPage(candidate.learningCycleId);
       if (!page.featuredEntry) {
         setAnotherThoughtFailed(true);
         return;
@@ -137,7 +137,7 @@ export function ThinkingJournalApp({
 
       setFeaturedEntryRecord(page.featuredEntry);
       const url = new URL(window.location.href);
-      url.searchParams.set('featured', candidate.learningCycleRecordId);
+      url.searchParams.set('featured', candidate.learningCycleId);
       window.history.replaceState({}, '', url);
     } catch {
       setAnotherThoughtFailed(true);
@@ -163,12 +163,11 @@ export function ThinkingJournalApp({
 
   async function handleReflectionAppend(score: ReflectionScore, notes: string): Promise<void> {
     if (!featuredEntryRecord) return;
-    const timestamp = now();
+    const occurredAt = now();
     const reflection: ReflectionRecord = {
-      id: `${featuredEntryRecord.id}:${timestamp}`,
-      timestamp,
-      learningCycleRecordId: featuredEntryRecord.id,
-      status: 'completed',
+      id: globalThis.crypto.randomUUID(),
+      occurredAt,
+      learningCycleId: featuredEntryRecord.id,
       score,
       notes: notes.trim()
     };
@@ -176,18 +175,18 @@ export function ThinkingJournalApp({
     await appendReflection(reflection);
 
     const journalReflection = {
-      timestamp: reflection.timestamp,
+      occurredAt: reflection.occurredAt,
       score: reflection.score,
       notes
     };
     setFeaturedEntryRecord((current) =>
-      current?.id === reflection.learningCycleRecordId
+      current?.id === reflection.learningCycleId
         ? { ...current, reflections: [...current.reflections, journalReflection] }
         : current
     );
     setEntryRecords((current) =>
       current.map((entry) =>
-        entry.id === reflection.learningCycleRecordId
+        entry.id === reflection.learningCycleId
           ? { ...entry, reflections: [...entry.reflections, journalReflection] }
           : entry
       )
@@ -345,7 +344,7 @@ async function presentNextResurfacingCandidate(): Promise<ResurfacingCandidate |
 }
 
 async function setResurfacingSuppressed(
-  learningCycleRecordId: string,
+  learningCycleId: string,
   suppressed: boolean
 ): Promise<void> {
   const chromeApi = (globalThis as unknown as {
@@ -353,7 +352,7 @@ async function setResurfacingSuppressed(
       runtime: {
         sendMessage(message: {
           type: 'resurfacing:set-suppressed';
-          learningCycleRecordId: string;
+          learningCycleId: string;
           suppressed: boolean;
         }): Promise<{ ok?: boolean; error?: string }> | { ok?: boolean; error?: string };
       };
@@ -361,7 +360,7 @@ async function setResurfacingSuppressed(
   }).chrome;
   const response = await Promise.resolve(chromeApi.runtime.sendMessage({
     type: 'resurfacing:set-suppressed',
-    learningCycleRecordId,
+    learningCycleId,
     suppressed
   }));
   if (response.error) throw new Error(response.error);
@@ -537,9 +536,9 @@ function ThinkingJournalCard({
                   <article
                     className={index === 0 ? 'grid gap-1.5' : 'grid gap-1.5 border-t border-[#edf1f4] pt-3'}
                     data-testid="thinking-journal-reflection-item"
-                    key={`${reflection.timestamp}:${index}`}
+                    key={`${reflection.occurredAt}:${index}`}
                   >
-                    <p className="m-0 text-[0.78rem] text-[#7a8795]" data-testid="thinking-journal-reflection-timestamp">
+                    <p className="m-0 text-[0.78rem] text-[#7a8795]" data-testid="thinking-journal-reflection-occurredAt">
                       {reflection.dateLabel}
                     </p>
                     {reflection.notes ? (

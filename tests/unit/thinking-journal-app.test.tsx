@@ -16,20 +16,20 @@ function makeEntries(): ThinkingJournalEntryRecord[] {
   return [
     {
       id: 'a',
-      timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+      occurredAt: Date.UTC(2026, 2, 2, 16, 42, 0),
       url: 'https://gemini.google.com/app/threads/problem-a',
       mode: 'problem_solving',
       prompt: makeLongPrompt(),
       startingPoint: 'I suspect query caching is stale.',
       reflections: [{
-        timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
+        occurredAt: Date.UTC(2026, 2, 3, 9, 15, 0),
         score: 75,
         notes: 'The real issue was token expiration, not cache invalidation.'
       }]
     },
     {
       id: 'b',
-      timestamp: Date.UTC(2026, 2, 2, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 2, 2, 12, 0, 0),
       url: 'https://gemini.google.com/app/threads/learning-b',
       mode: 'learning',
       prompt: 'Explain OAuth PKCE simply.',
@@ -38,7 +38,7 @@ function makeEntries(): ThinkingJournalEntryRecord[] {
     },
     {
       id: 'c',
-      timestamp: Date.UTC(2026, 2, 1, 8, 0, 0),
+      occurredAt: Date.UTC(2026, 2, 1, 8, 0, 0),
       mode: 'delegation',
       prompt: 'Draft this status update.',
       reflections: []
@@ -53,19 +53,19 @@ function makeExportRows(): ThinkingJournalEntryRecord[] {
   return [
     {
       id: 'history-a',
-      timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+      occurredAt: Date.UTC(2026, 2, 2, 16, 42, 0),
       mode: 'problem_solving',
       prompt: 'Investigate the auth outage',
       startingPoint: 'Tokens might be expired.',
       reflections: [{
-        timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
+        occurredAt: Date.UTC(2026, 2, 3, 9, 15, 0),
         score: 75,
         notes: 'It was token expiry.'
       }]
     },
     {
       id: 'history-b',
-      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'delegation',
       prompt: 'Draft this status update.',
       reflections: []
@@ -162,7 +162,7 @@ describe('ThinkingJournalApp', () => {
       ...makeEntries()[0]!,
       id: 'featured',
       prompt: 'Historical featured prompt',
-      timestamp: Date.UTC(2026, 1, 1)
+      occurredAt: Date.UTC(2026, 1, 1)
     };
     await render(makeEntries(), {
       loadPage: async () => ({ recentEntries: makeEntries(), featuredEntry })
@@ -274,7 +274,7 @@ describe('ThinkingJournalApp', () => {
       .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: firstFeaturedEntry })
       .mockResolvedValueOnce({ recentEntries: makeEntries(), featuredEntry: nextFeaturedEntry });
     const presentNext = vi.fn(async () => ({
-      learningCycleRecordId: 'featured-next',
+      learningCycleId: 'featured-next',
       excerpt: 'Next returned thought'
     }));
     window.history.replaceState({}, '', '/thinking-journal.html?featured=featured-first');
@@ -316,7 +316,7 @@ describe('ThinkingJournalApp', () => {
     const presentNext = vi
       .fn()
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ learningCycleRecordId: 'featured-next', excerpt: 'Retry found this thought' });
+      .mockResolvedValueOnce({ learningCycleId: 'featured-next', excerpt: 'Retry found this thought' });
 
     await render([], { featuredEntryId: 'featured-first', loadPage, presentNext });
     let anotherThought = Array.from(document.querySelectorAll('button')).find(
@@ -630,22 +630,22 @@ describe('ThinkingJournalApp', () => {
   it('renders complete reflection history on every card and offers Reflect again only for the featured card', async () => {
     const recentEntry = {
       id: 'recent-reflected',
-      timestamp: Date.UTC(2026, 2, 4, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 2, 4, 12, 0, 0),
       mode: 'learning',
       prompt: 'Recent learning prompt',
       reflections: [
-        { timestamp: Date.UTC(2026, 2, 4, 13, 0, 0), score: 25, notes: 'Recent reflection' }
+        { occurredAt: Date.UTC(2026, 2, 4, 13, 0, 0), score: 25, notes: 'Recent reflection' }
       ]
     } as unknown as ThinkingJournalEntryRecord;
     const featuredEntry = {
       id: 'featured-reflected',
-      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'problem_solving',
       prompt: 'Historical problem',
       startingPoint: 'The cache is stale.',
       reflections: [
-        { timestamp: Date.UTC(2026, 1, 21, 9, 0, 0), score: 25, notes: 'First reflection' },
-        { timestamp: Date.UTC(2026, 2, 1, 15, 30, 0), score: 100, notes: 'Second reflection' }
+        { occurredAt: Date.UTC(2026, 1, 21, 9, 0, 0), score: 25, notes: 'First reflection' },
+        { occurredAt: Date.UTC(2026, 2, 1, 15, 30, 0), score: 100, notes: 'Second reflection' }
       ]
     } as unknown as ThinkingJournalEntryRecord;
 
@@ -676,9 +676,10 @@ describe('ThinkingJournalApp', () => {
   });
 
   it('requires written thoughts and appends a canonical reflection from the inline form', async () => {
+    const randomUuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('33333333-3333-4333-8333-333333333333');
     const featuredEntry = {
       id: 'featured-reflected',
-      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'learning',
       prompt: 'Historical learning prompt',
       reflections: []
@@ -745,10 +746,9 @@ describe('ThinkingJournalApp', () => {
     });
 
     expect(appendReflection).toHaveBeenCalledWith({
-      id: `featured-reflected:${Date.UTC(2026, 2, 5, 10, 45, 0)}`,
-      timestamp: Date.UTC(2026, 2, 5, 10, 45, 0),
-      learningCycleRecordId: 'featured-reflected',
-      status: 'completed',
+      id: '33333333-3333-4333-8333-333333333333',
+      occurredAt: Date.UTC(2026, 2, 5, 10, 45, 0),
+      learningCycleId: 'featured-reflected',
       score: 100,
       notes: 'I now think incentives mattered more than process.'
     });
@@ -756,12 +756,13 @@ describe('ThinkingJournalApp', () => {
     expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
       'I now think incentives mattered more than process.'
     );
+    randomUuid.mockRestore();
   });
 
   it('retains the inline reflection draft after a failed save and discards it when another thought loads', async () => {
     const firstFeatured = {
       id: 'featured-first',
-      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'learning',
       prompt: 'First thought',
       reflections: []
@@ -783,7 +784,7 @@ describe('ThinkingJournalApp', () => {
       featuredEntryId: firstFeatured.id,
       loadPage,
       appendReflection,
-      presentNext: async () => ({ learningCycleRecordId: nextFeatured.id, excerpt: 'Next thought' })
+      presentNext: async () => ({ learningCycleId: nextFeatured.id, excerpt: 'Next thought' })
     });
 
     act(() => {
@@ -818,7 +819,7 @@ describe('ThinkingJournalApp', () => {
   it('discards an inline reflection draft when Reflect again collapses the editor and disables the form while saving', async () => {
     const featuredEntry = {
       id: 'featured-controls',
-      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      occurredAt: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'learning',
       prompt: 'Historical learning prompt',
       reflections: []

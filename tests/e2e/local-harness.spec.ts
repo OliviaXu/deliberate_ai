@@ -4,6 +4,7 @@ import path from 'node:path';
 import { HARNESS_NOW_ATTRIBUTE } from '../../src/content/harness-clock';
 import { LEARNING_CYCLES_STORAGE_KEY } from '../../src/shared/learning-cycle-store';
 import { REFLECTIONS_STORAGE_KEY } from '../../src/shared/reflection-store';
+import { SCHEMA_MIGRATION_STORAGE_KEY } from '../../src/shared/schema-migration-v2';
 
 const extensionPath = path.resolve(process.cwd(), '.output/chrome-mv3');
 const harnessPath = path.resolve(process.cwd(), 'tests/harness/index.html');
@@ -67,7 +68,21 @@ async function getExtensionId(context: import('@playwright/test').BrowserContext
   return new URL(sw.url()).host;
 }
 
+async function waitForMigration(context: import('@playwright/test').BrowserContext): Promise<void> {
+  await expect.poll(async () => {
+    const sw = await getServiceWorker(context);
+    return sw.evaluate(async (key) => {
+      const chromeApi = (globalThis as {
+        chrome?: { storage?: { local?: { get: (key: string) => Promise<Record<string, unknown>> } } };
+      }).chrome;
+      const stored = await chromeApi?.storage?.local?.get(key);
+      return (stored?.[key] as { completed?: unknown } | undefined)?.completed === true;
+    }, SCHEMA_MIGRATION_STORAGE_KEY);
+  }, { timeout: 15_000 }).toBe(true);
+}
+
 async function clearRecords(context: import('@playwright/test').BrowserContext): Promise<void> {
+  await waitForMigration(context);
   const sw = await getServiceWorker(context);
   await sw.evaluate(async ({ learningCyclesStorageKey, reflectionsStorageKey }) => {
     const chromeApi = (globalThis as { chrome?: { storage?: { local?: { set: (items: Record<string, unknown>) => Promise<void> } } } }).chrome;
@@ -92,6 +107,7 @@ async function readRecords(context: import('@playwright/test').BrowserContext): 
 }
 
 async function writeRecords(context: import('@playwright/test').BrowserContext, records: unknown[]): Promise<void> {
+  await waitForMigration(context);
   const sw = await getServiceWorker(context);
   await sw.evaluate(
     async ({ storageKey, nextRecords }) => {
@@ -103,6 +119,7 @@ async function writeRecords(context: import('@playwright/test').BrowserContext, 
 }
 
 async function writeReflectionRecords(context: import('@playwright/test').BrowserContext, records: unknown[]): Promise<void> {
+  await waitForMigration(context);
   const sw = await getServiceWorker(context);
   await sw.evaluate(
     async ({ storageKey, nextRecords }) => {
@@ -187,13 +204,13 @@ async function resetNativeSendState(page: import('@playwright/test').Page): Prom
   await expect(page.locator('#native-send-state')).toHaveText('idle');
 }
 
-async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, prompt: string, prediction: string): Promise<void> {
+async function sendProblemSolvingPrompt(page: import('@playwright/test').Page, prompt: string, startingPoint: string): Promise<void> {
   const composer = page.getByRole('textbox', { name: /enter a prompt for gemini/i });
   await composer.fill(prompt);
   await page.getByRole('button', { name: /send message/i }).click();
   await expectModal(page);
   await page.locator('[data-testid="deliberate-mode-option-problem_solving"]').click();
-  await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(prediction);
+  await page.locator('[data-testid="deliberate-mode-detail-input"]').fill(startingPoint);
   await page.locator('[data-testid="deliberate-mode-continue"]').click();
   await expect(page.locator('#native-send-state')).toHaveText('sent');
 }
@@ -388,16 +405,16 @@ test('local harness shows historical due hint without persisted turn counters an
     await writeRecords(context, [
       {
         id: 'historical-learning',
-        timestamp: nowMs - 6 * 60 * 1000,
+        occurredAt: nowMs - 6 * 60 * 1000,
         platform: 'gemini',
         threadId: '/app/threads/test-thread',
         mode: 'learning',
         prompt: 'Explain when staged rollouts are counterproductive',
-        priorKnowledgeNote: 'I know the basics of feature flags already.'
+        startingPoint: 'I know the basics of feature flags already.'
       },
       {
         id: 'historical-delegation',
-        timestamp: nowMs - 6 * 60 * 1000,
+        occurredAt: nowMs - 6 * 60 * 1000,
         platform: 'gemini',
         threadId: '/app/threads/another-thread',
         mode: 'delegation',
@@ -466,8 +483,7 @@ test('local harness submits a due reflection and persists completion for an acti
       })
       .toEqual([
         expect.objectContaining({
-          learningCycleRecordId: expect.any(String),
-          status: 'completed',
+          learningCycleId: expect.any(String),
           score: 75,
           notes: 'I should make rollback signals explicit before I compare rollout shapes.'
         })
@@ -496,12 +512,12 @@ test('local harness submits a due reflection and persists completion for a histo
     await writeRecords(context, [
       {
         id: 'historical-learning',
-        timestamp: nowMs - 6 * 60 * 1000,
+        occurredAt: nowMs - 6 * 60 * 1000,
         platform: 'gemini',
         threadId: '/app/threads/test-thread',
         mode: 'learning',
         prompt: 'Explain when staged rollouts are counterproductive',
-        priorKnowledgeNote: 'I know the basics of feature flags already.'
+        startingPoint: 'I know the basics of feature flags already.'
       }
     ]);
 
@@ -520,8 +536,7 @@ test('local harness submits a due reflection and persists completion for a histo
       })
       .toEqual([
         expect.objectContaining({
-          learningCycleRecordId: 'historical-learning',
-          status: 'completed',
+          learningCycleId: 'historical-learning',
           score: 50
         })
       ]);
@@ -591,24 +606,25 @@ test('thinking journal renders seeded entries and supports mode filters', async 
     await writeRecords(context, [
       {
         id: 'problem-1',
-        timestamp: now - dayMs,
+        occurredAt: now - dayMs,
         platform: 'gemini',
         threadId: '/app/threads/test-thread',
         mode: 'problem_solving',
-        prompt: 'Diagnose this production incident quickly'
+        prompt: 'Diagnose this production incident quickly',
+        startingPoint: 'The deployment likely introduced a stale cache key.'
       },
       {
         id: 'learning-1',
-        timestamp: now - 2 * dayMs,
+        occurredAt: now - 2 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/test-thread',
         mode: 'learning',
         prompt: 'Explain OAuth PKCE simply',
-        priorKnowledgeNote: 'I already know OAuth basics'
+        startingPoint: 'I already know OAuth basics'
       },
       {
         id: 'old-entry',
-        timestamp: now - 10 * dayMs,
+        occurredAt: now - 10 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/old',
         mode: 'delegation',
@@ -625,7 +641,7 @@ test('thinking journal renders seeded entries and supports mode filters', async 
 
     await expect(page.getByText('This should not render because it is out of range')).toHaveCount(0);
     await expect(page.getByText('Your Hypothesis')).toBeVisible();
-    await expect(page.getByText('No hypothesis recorded.')).toBeVisible();
+    await expect(page.getByText('The deployment likely introduced a stale cache key.')).toBeVisible();
     await expect(page.getByText('Starting Point')).toBeVisible();
     await expect(page.getByText('I already know OAuth basics')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Download full history as CSV' })).toBeVisible();
@@ -652,49 +668,47 @@ test('resurfacing glint opens a featured journal card and rotates to another tho
     await writeRecords(context, [
       {
         id: 'returned-learning',
-        timestamp: now - 10 * dayMs,
+        occurredAt: now - 10 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/returned-learning',
         mode: 'learning',
         prompt: 'Explain why rollout experiments reveal organizational resistance',
-        priorKnowledgeNote: '  My original starting point  '
+        startingPoint: '  My original starting point  '
       },
       {
         id: 'returned-problem',
-        timestamp: now - 12 * dayMs,
+        occurredAt: now - 12 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/returned-problem',
         mode: 'problem_solving',
         prompt: 'Diagnose why a rollout stalled',
-        prediction: 'The rollout exposed an unclear decision owner.',
+        startingPoint: 'The rollout exposed an unclear decision owner.',
         resurfacing: { lastSurfacedAt: now - 20 * dayMs }
       },
       {
         id: 'recent-learning',
-        timestamp: now - dayMs,
+        occurredAt: now - dayMs,
         platform: 'gemini',
         threadId: '/app/threads/recent-learning',
         mode: 'learning',
         prompt: 'Explain a recent topic',
-        priorKnowledgeNote: 'Recent context'
+        startingPoint: 'Recent context'
       }
     ]);
     await writeReflectionRecords(context, [
       {
         id: 'written-reflection',
-        timestamp: now - 2 * dayMs,
+        occurredAt: now - 2 * dayMs,
         threadId: '/app/threads/returned-learning',
-        learningCycleRecordId: 'returned-learning',
-        status: 'completed',
+        learningCycleId: 'returned-learning',
         score: 75,
         notes: '  Experiments expose resistance sooner  '
       },
       {
         id: 'blank-newer-reflection',
-        timestamp: now - dayMs,
+        occurredAt: now - dayMs,
         threadId: '/app/threads/returned-learning',
-        learningCycleRecordId: 'returned-learning',
-        status: 'completed',
+        learningCycleId: 'returned-learning',
         score: 50,
         notes: '   '
       }
@@ -747,12 +761,12 @@ test('resurfacing glint opens a featured journal card and rotates to another tho
     await expect
       .poll(async () => {
         const reflections = await readReflectionRecords(context) as Array<{
-          learningCycleRecordId?: string;
+          learningCycleId?: string;
           notes?: string;
           threadId?: string;
         }>;
         return reflections.find((reflection) =>
-          reflection.learningCycleRecordId === 'returned-learning' &&
+          reflection.learningCycleId === 'returned-learning' &&
           reflection.notes === 'The experiments are useful only when decision owners agree on what they will change.'
         );
       })
@@ -803,12 +817,12 @@ test('another thought may present the same entry again when it is the only candi
     await writeRecords(context, [
       {
         id: 'only-thought',
-        timestamp: now - 10 * 24 * 60 * 60 * 1000,
+        occurredAt: now - 10 * 24 * 60 * 60 * 1000,
         platform: 'gemini',
         threadId: '/app/threads/only-thought',
         mode: 'learning',
         prompt: 'Understand the only historical thought',
-        priorKnowledgeNote: 'This is the only eligible starting point.',
+        startingPoint: 'This is the only eligible starting point.',
         resurfacing: { lastSurfacedAt: now - 1_000 }
       }
     ]);
@@ -849,21 +863,21 @@ test('thinking journal exports full history as csv', async ({}, testInfo) => {
     await writeRecords(context, [
       {
         id: 'recent-learning',
-        timestamp: now - dayMs,
+        occurredAt: now - dayMs,
         platform: 'gemini',
         threadId: '/app/threads/test-thread',
         mode: 'learning',
         prompt: 'Explain OAuth PKCE simply',
-        priorKnowledgeNote: 'I already know OAuth basics'
+        startingPoint: 'I already know OAuth basics'
       },
       {
         id: 'old-problem',
-        timestamp: now - 10 * dayMs,
+        occurredAt: now - 10 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/old-thread',
         mode: 'problem_solving',
         prompt: 'Diagnose the auth outage',
-        prediction: 'Tokens might be expired'
+        startingPoint: 'Tokens might be expired'
       }
     ]);
 
@@ -878,17 +892,15 @@ test('thinking journal exports full history as csv', async ({}, testInfo) => {
         nextRecords: [
           {
             id: 'reflection-2',
-            timestamp: now - dayMs / 3,
-            learningCycleRecordId: 'old-problem',
-            status: 'completed',
+            occurredAt: now - dayMs / 3,
+            learningCycleId: 'old-problem',
             score: 100,
             notes: 'The refresh path also needed correction.'
           },
           {
             id: 'reflection-1',
-            timestamp: now - dayMs / 2,
-            learningCycleRecordId: 'old-problem',
-            status: 'completed',
+            occurredAt: now - dayMs / 2,
+            learningCycleId: 'old-problem',
             score: 75,
             notes: 'It was token expiry.'
           }

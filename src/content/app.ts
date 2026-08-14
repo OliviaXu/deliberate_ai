@@ -26,7 +26,7 @@ export const RESURFACING_GLINT_DELAY_MS = 2_000;
 interface CachedThreadState {
   learningCycleRecord?: LearningCycleRecord | null;
   completedReflection?: {
-    learningCycleRecordId: string;
+    learningCycleId: string;
     hasCompleted: boolean;
   };
 }
@@ -77,12 +77,12 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     if (candidate) resurfacingGlint.show(candidate);
   }
 
-  async function handleResurfacingOpen(learningCycleRecordId: string): Promise<void> {
+  async function handleResurfacingOpen(learningCycleId: string): Promise<void> {
     await Promise.resolve(
-      sendRuntimeMessage({ type: 'resurfacing:open-journal', learningCycleRecordId })
+      sendRuntimeMessage({ type: 'resurfacing:open-journal', learningCycleId })
     ).catch((error) => {
       logger.error('resurfacing-journal-open-failed', {
-        learningCycleRecordId,
+        learningCycleId,
         error: String(error)
       });
     });
@@ -199,7 +199,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
       return true;
     }
 
-    return now() - learningCycleRecord.timestamp >= DUE_AFTER_MS;
+    return now() - learningCycleRecord.occurredAt >= DUE_AFTER_MS;
   }
 
   async function handleReflectionReview(threadId: string): Promise<void> {
@@ -235,14 +235,13 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     learningCycleRecord: ReflectionEligibleLearningCycleRecord,
     submission: ReflectionSubmission
   ): ReflectionRecord {
-    const timestamp = now();
+    const occurredAt = now();
     const notes = submission.notes?.trim();
 
     return {
-      id: `${learningCycleRecord.id}:${timestamp}`,
-      timestamp,
-      learningCycleRecordId: learningCycleRecord.id,
-      status: 'completed',
+      id: globalThis.crypto.randomUUID(),
+      occurredAt,
+      learningCycleId: learningCycleRecord.id,
       score: submission.score,
       ...(notes ? { notes } : {})
     };
@@ -253,12 +252,12 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     threadStateCache.set(threadId, { ...current, learningCycleRecord });
   }
 
-  function setCachedReflectionCompletion(learningCycleRecordId: string, threadId: string, hasCompleted: boolean): void {
+  function setCachedReflectionCompletion(learningCycleId: string, threadId: string, hasCompleted: boolean): void {
     const current = threadStateCache.get(threadId) ?? {};
     threadStateCache.set(threadId, {
       ...current,
       completedReflection: {
-        learningCycleRecordId,
+        learningCycleId,
         hasCompleted
       }
     });
@@ -312,7 +311,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     learningCycleRecord: ReflectionEligibleLearningCycleRecord
   ): Promise<boolean> {
     const cachedValue = threadStateCache.get(learningCycleRecord.threadId)?.completedReflection;
-    if (cachedValue?.learningCycleRecordId === learningCycleRecord.id) {
+    if (cachedValue?.learningCycleId === learningCycleRecord.id) {
       return cachedValue.hasCompleted;
     }
 
@@ -324,7 +323,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     const check = Promise.resolve(
       sendRuntimeMessage({
         type: 'reflection:record-has-completed',
-        learningCycleRecordId: learningCycleRecord.id
+        learningCycleId: learningCycleRecord.id
       })
     )
       .then((response) => {
@@ -337,7 +336,7 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
       })
       .catch((error) => {
         logger.error('reflection-record-status-check-failed', {
-          learningCycleRecordId: learningCycleRecord.id,
+          learningCycleId: learningCycleRecord.id,
           threadId: learningCycleRecord.threadId,
           error: String(error)
         });

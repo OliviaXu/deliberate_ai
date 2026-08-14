@@ -5,12 +5,12 @@ import { buildThinkingJournalExportCsv, buildThinkingJournalExportFilename } fro
 function makeRow(overrides: Partial<ThinkingJournalEntryRecord> = {}): ThinkingJournalEntryRecord {
   return {
     id: 'row-1',
-    timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+    occurredAt: Date.UTC(2026, 2, 2, 16, 42, 0),
     mode: 'learning',
     prompt: 'Explain OAuth PKCE simply.',
     ...(overrides.startingPoint !== undefined ? { startingPoint: overrides.startingPoint } : { startingPoint: 'I know "basic", OAuth' }),
     reflections: [{
-      timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
+      occurredAt: Date.UTC(2026, 2, 3, 9, 15, 0),
       score: 75,
       notes: 'Line one\nLine "two", with comma'
     }],
@@ -24,7 +24,7 @@ describe('buildThinkingJournalExportCsv', () => {
       makeRow({ url: 'https://gemini.google.com/app/threads/thread-123' }),
       {
         id: 'row-2',
-        timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
+        occurredAt: Date.UTC(2026, 2, 2, 16, 42, 0),
         mode: 'delegation',
         prompt: 'Draft a short update',
         reflections: []
@@ -44,24 +44,24 @@ describe('buildThinkingJournalExportCsv', () => {
     const csv = buildThinkingJournalExportCsv([
       {
         id: 'older-entry',
-        timestamp: Date.UTC(2026, 2, 1, 8, 0, 0),
+        occurredAt: Date.UTC(2026, 2, 1, 8, 0, 0),
         mode: 'delegation',
         prompt: 'Older entry',
         reflections: []
       },
       {
         id: 'newest-entry',
-        timestamp: Date.UTC(2026, 2, 5, 8, 0, 0),
+        occurredAt: Date.UTC(2026, 2, 5, 8, 0, 0),
         mode: 'learning',
         prompt: 'Newest entry',
         reflections: [
           {
-            timestamp: Date.UTC(2026, 2, 7, 9, 0, 0),
+            occurredAt: Date.UTC(2026, 2, 7, 9, 0, 0),
             score: 100,
             notes: 'Second reflection'
           },
           {
-            timestamp: Date.UTC(2026, 2, 6, 9, 0, 0),
+            occurredAt: Date.UTC(2026, 2, 6, 9, 0, 0),
             score: 25,
             notes: 'First reflection'
           }

@@ -54,7 +54,7 @@ describe('ModeSelectionModal', () => {
     continueButton.click();
     await expect(pending).resolves.toEqual({
       mode: 'problem_solving',
-      prediction: 'x'.repeat(100)
+      startingPoint: 'x'.repeat(100)
     });
   });
 
@@ -91,7 +91,7 @@ describe('ModeSelectionModal', () => {
 
     await expect(pending).resolves.toEqual({
       mode: 'learning',
-      priorKnowledgeNote: 'Existing context'
+      startingPoint: 'Existing context'
     });
   });
 

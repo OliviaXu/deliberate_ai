@@ -22,7 +22,7 @@ describe('ResurfacingGlint', () => {
     const anchor = setupComposer();
     const glint = new ResurfacingGlint({ platform: geminiPlatform, onOpen: vi.fn() });
 
-    glint.show({ learningCycleRecordId: 'record-1', excerpt: '  Keep original spacing  ' });
+    glint.show({ learningCycleId: 'record-1', excerpt: '  Keep original spacing  ' });
 
     const root = document.querySelector('[data-testid="deliberate-resurfacing-glint"]');
     expect(root?.parentElement).toBe(anchor);
@@ -40,7 +40,7 @@ describe('ResurfacingGlint', () => {
     setupComposer();
     const onOpen = vi.fn();
     const glint = new ResurfacingGlint({ platform: geminiPlatform, onOpen });
-    glint.show({ learningCycleRecordId: 'record-1', excerpt: 'Past thought' });
+    glint.show({ learningCycleId: 'record-1', excerpt: 'Past thought' });
 
     const button = document.querySelector('[data-testid="deliberate-resurfacing-glint"]');
     if (!(button instanceof HTMLButtonElement)) throw new Error('Expected glint button');
@@ -59,10 +59,10 @@ describe('ResurfacingGlint', () => {
       findComposerAnchor: geminiPlatform.findComposerAnchor
     };
     const glint = new ResurfacingGlint({ platform, onOpen: vi.fn() });
-    glint.show({ learningCycleRecordId: 'record-1', excerpt: 'Past thought' });
+    glint.show({ learningCycleId: 'record-1', excerpt: 'Past thought' });
 
     composerAvailable = false;
-    glint.show({ learningCycleRecordId: 'record-2', excerpt: 'Another thought' });
+    glint.show({ learningCycleId: 'record-2', excerpt: 'Another thought' });
 
     expect(anchor.classList.contains('deliberate-resurfacing-glint-anchor')).toBe(false);
     expect(document.querySelector('[data-testid="deliberate-resurfacing-glint"]')?.parentElement).toBe(document.body);
@@ -71,7 +71,7 @@ describe('ResurfacingGlint', () => {
   it('moves a body fallback to the composer when the anchor appears later', () => {
     document.body.innerHTML = '';
     const glint = new ResurfacingGlint({ platform: geminiPlatform, onOpen: vi.fn() });
-    glint.show({ learningCycleRecordId: 'record-1', excerpt: 'Past thought' });
+    glint.show({ learningCycleId: 'record-1', excerpt: 'Past thought' });
     expect(document.querySelector('[data-testid="deliberate-resurfacing-glint"]')?.parentElement).toBe(document.body);
 
     const anchor = setupComposer();

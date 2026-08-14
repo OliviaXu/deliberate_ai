@@ -5,9 +5,8 @@ import { REFLECTIONS_STORAGE_KEY, ReflectionStore } from '../../src/shared/refle
 function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
   return {
     id: 'reflection-1',
-    timestamp: 1,
-    learningCycleRecordId: 'record-1',
-    status: 'completed',
+    occurredAt: 1,
+    learningCycleId: 'record-1',
     score: 75,
     ...overrides
   };
@@ -47,14 +46,24 @@ describe('ReflectionStore', () => {
     });
   });
 
+  it('makes repeated inserts with the same id idempotent', async () => {
+    const store = new ReflectionStore();
+    await store.append(makeReflection({ id: 'same', score: 25 }));
+    await store.append(makeReflection({ id: 'same', score: 100 }));
+
+    expect(storageData[REFLECTIONS_STORAGE_KEY]).toEqual([
+      expect.objectContaining({ id: 'same', score: 25 })
+    ]);
+  });
+
   it('reports whether a learning-cycle record already has a completed reflection', async () => {
     const store = new ReflectionStore();
 
-    await store.append(makeReflection({ learningCycleRecordId: 'record-a' }));
+    await store.append(makeReflection({ learningCycleId: 'record-a' }));
     await store.append(
       makeReflection({
         id: 'reflection-2',
-        learningCycleRecordId: 'record-b',
+        learningCycleId: 'record-b',
         score: 25
       })
     );
@@ -67,17 +76,16 @@ describe('ReflectionStore', () => {
     storageData[REFLECTIONS_STORAGE_KEY] = [
       {
         id: 'legacy-reflection',
-        timestamp: 1,
+        occurredAt: 1,
         threadId: '/app/threads/thread-a',
-        status: 'completed',
         score: 75
       },
-      makeReflection({ id: 'current-reflection', learningCycleRecordId: 'record-a' })
+      makeReflection({ id: 'current-reflection', learningCycleId: 'record-a' })
     ];
     const store = new ReflectionStore();
 
     await expect(store.listAll()).resolves.toEqual([
-      expect.objectContaining({ id: 'current-reflection', learningCycleRecordId: 'record-a' })
+      expect.objectContaining({ id: 'current-reflection', learningCycleId: 'record-a' })
     ]);
     await expect(store.hasCompletedReflectionForRecord('record-a')).resolves.toBe(true);
   });
@@ -102,8 +110,8 @@ describe('ReflectionStore', () => {
     await store.append(makeReflection({ id: 'reflection-2', score: 25 }));
 
     await expect(store.listAll()).resolves.toEqual([
-      expect.objectContaining({ id: 'reflection-1', learningCycleRecordId: 'record-1' }),
-      expect.objectContaining({ id: 'reflection-2', learningCycleRecordId: 'record-1', score: 25 })
+      expect.objectContaining({ id: 'reflection-1', learningCycleId: 'record-1' }),
+      expect.objectContaining({ id: 'reflection-2', learningCycleId: 'record-1', score: 25 })
     ]);
   });
 });

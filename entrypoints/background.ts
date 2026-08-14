@@ -6,9 +6,11 @@ import { registerResurfacingMessageHandlers } from '../src/background/resurfacin
 import { ResurfacingService } from '../src/background/resurfacing-service';
 import { LearningCycleStore } from '../src/shared/learning-cycle-store';
 import { ReflectionStore } from '../src/shared/reflection-store';
+import { migrateLocalStorageToV2 } from '../src/shared/schema-migration-v2';
 
-export default defineBackground(() => {
+export default defineBackground(async () => {
   console.info('Deliberate AI background worker started');
+  await migrateLocalStorageToV2();
   const learningCycleStore = new LearningCycleStore();
   const reflectionStore = new ReflectionStore();
 

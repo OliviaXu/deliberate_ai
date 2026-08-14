@@ -4,14 +4,14 @@ import { resolveLearningCycleRecordUrl } from './record-url';
 const PROBLEM_SOLVING_STARTING_POINT_FALLBACK = 'No hypothesis recorded.';
 
 export interface ThinkingJournalEntryRecordReflection {
-  timestamp: number;
+  occurredAt: number;
   score: ReflectionScore;
   notes?: string;
 }
 
 export interface ThinkingJournalEntryRecord {
   id: string;
-  timestamp: number;
+  occurredAt: number;
   mode: InteractionMode;
   url?: string;
   prompt: string;
@@ -24,7 +24,7 @@ export function buildThinkingJournalEntryRecords(
   records: LearningCycleRecord[],
   reflections: ReflectionRecord[]
 ): ThinkingJournalEntryRecord[] {
-  const sortedRecords = [...records].sort((a, b) => b.timestamp - a.timestamp);
+  const sortedRecords = [...records].sort((a, b) => b.occurredAt - a.occurredAt);
   const reflectionsByRecordId = buildReflectionMap(sortedRecords, reflections);
 
   return sortedRecords.map((record) => toThinkingJournalEntryRecord(record, reflectionsByRecordId.get(record.id) ?? []));
@@ -42,7 +42,7 @@ function buildReflectionMap(
   const reflectionsByRecordId = new Map<string, ReflectionRecord[]>();
 
   for (const reflection of reflections) {
-    const normalizedRecordId = reflection.learningCycleRecordId.trim();
+    const normalizedRecordId = reflection.learningCycleId.trim();
     if (!normalizedRecordId || !eligibleRecordIds.has(normalizedRecordId)) continue;
 
     const existing = reflectionsByRecordId.get(normalizedRecordId) ?? [];
@@ -50,7 +50,7 @@ function buildReflectionMap(
   }
 
   for (const linkedReflections of reflectionsByRecordId.values()) {
-    linkedReflections.sort((a, b) => a.timestamp - b.timestamp);
+    linkedReflections.sort((a, b) => a.occurredAt - b.occurredAt);
   }
   return reflectionsByRecordId;
 }
@@ -63,7 +63,7 @@ function toThinkingJournalEntryRecord(
 
   return {
     id: record.id,
-    timestamp: record.timestamp,
+    occurredAt: record.occurredAt,
     mode: record.mode,
     ...(url ? { url } : {}),
     prompt: record.prompt,
@@ -75,12 +75,12 @@ function toThinkingJournalEntryRecord(
 
 function toStartingPoint(record: LearningCycleRecord): { startingPoint?: string } {
   if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
-    const startingPoint = record.prediction?.trim() || PROBLEM_SOLVING_STARTING_POINT_FALLBACK;
+    const startingPoint = record.startingPoint?.trim() || PROBLEM_SOLVING_STARTING_POINT_FALLBACK;
     return { startingPoint };
   }
 
   if (record.mode === INTERACTION_MODES.LEARNING) {
-    const startingPoint = record.priorKnowledgeNote?.trim();
+    const startingPoint = record.startingPoint?.trim();
     return startingPoint ? { startingPoint } : {};
   }
 
@@ -90,7 +90,7 @@ function toStartingPoint(record: LearningCycleRecord): { startingPoint?: string 
 function toThinkingJournalEntryRecordReflection(reflection: ReflectionRecord): ThinkingJournalEntryRecordReflection {
   const notes = reflection.notes?.trim();
   return {
-    timestamp: reflection.timestamp,
+    occurredAt: reflection.occurredAt,
     score: reflection.score,
     ...(notes ? { notes } : {})
   };

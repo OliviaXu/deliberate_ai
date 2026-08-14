@@ -12,7 +12,7 @@ afterEach(() => {
 function makeLearningCycleRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   const base: LearningCycleRecord = {
     id: 'record-1',
-    timestamp: Date.UTC(2026, 2, 12, 12, 0, 0),
+    occurredAt: Date.UTC(2026, 2, 12, 12, 0, 0),
     platform: 'gemini',
     threadId: '/app/threads/default',
     mode: 'delegation',
@@ -25,9 +25,8 @@ function makeLearningCycleRecord(overrides: Partial<LearningCycleRecord> = {}): 
 function makeReflectionRecord(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
   return {
     id: 'reflection-1',
-    timestamp: Date.UTC(2026, 2, 12, 12, 30, 0),
-    learningCycleRecordId: 'record-1',
-    status: 'completed',
+    occurredAt: Date.UTC(2026, 2, 12, 12, 30, 0),
+    learningCycleId: 'record-1',
     score: 75,
     ...overrides
   };
@@ -40,30 +39,29 @@ describe('loadThinkingJournalPage recent entries', () => {
     const listAll = vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
       {
         id: 'recent-learning',
-        timestamp: nowMs - dayMs,
+        occurredAt: nowMs - dayMs,
         platform: 'gemini',
         threadId: '/app/threads/recent',
         mode: 'learning',
         prompt: 'Explain token refresh.',
-        priorKnowledgeNote: 'I know access tokens expire.'
+        startingPoint: 'I know access tokens expire.'
       },
       {
         id: 'old-problem',
-        timestamp: nowMs - 10 * dayMs,
+        occurredAt: nowMs - 10 * dayMs,
         platform: 'gemini',
         threadId: '/app/threads/old',
         mode: 'problem_solving',
         prompt: 'Diagnose the auth outage',
-        prediction: 'Tokens might be expired.'
+        startingPoint: 'Tokens might be expired.'
       }
     ]);
     const listAllReflections = vi.fn<() => Promise<ReflectionRecord[]>>(async () => [
       {
         id: 'reflection-1',
-        timestamp: nowMs - dayMs / 2,
+        occurredAt: nowMs - dayMs / 2,
         threadId: '/app/threads/old',
-        learningCycleRecordId: 'old-problem',
-        status: 'completed',
+        learningCycleId: 'old-problem',
         score: 75,
         notes: 'It was token expiry.'
       }
@@ -92,19 +90,19 @@ describe('loadThinkingJournalPage recent entries', () => {
         listAll: vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
           makeLearningCycleRecord({
             id: 'recent-problem',
-            timestamp: nowMs - dayMs,
+            occurredAt: nowMs - dayMs,
             threadId: '/app/threads/recent',
             mode: 'problem_solving',
             prompt: 'Diagnose the auth outage',
-            prediction: 'Tokens might be expired.'
+            startingPoint: 'Tokens might be expired.'
           }),
           makeLearningCycleRecord({
             id: 'old-problem',
-            timestamp: nowMs - 10 * dayMs,
+            occurredAt: nowMs - 10 * dayMs,
             threadId: '/app/threads/old',
             mode: 'problem_solving',
             prompt: 'Investigate the older incident',
-            prediction: 'Maybe stale cache.'
+            startingPoint: 'Maybe stale cache.'
           })
         ])
       },
@@ -112,15 +110,15 @@ describe('loadThinkingJournalPage recent entries', () => {
         listAll: vi.fn<() => Promise<ReflectionRecord[]>>(async () => [
           makeReflectionRecord({
             id: 'reflection-recent',
-            timestamp: nowMs - dayMs / 2,
-            learningCycleRecordId: 'recent-problem',
+            occurredAt: nowMs - dayMs / 2,
+            learningCycleId: 'recent-problem',
             score: 75,
             notes: 'It was token expiry.'
           }),
           makeReflectionRecord({
             id: 'reflection-old',
-            timestamp: nowMs - dayMs / 3,
-            learningCycleRecordId: 'old-problem',
+            occurredAt: nowMs - dayMs / 3,
+            learningCycleId: 'old-problem',
             score: 50,
             notes: 'The older issue was stale cache.'
           })
@@ -150,19 +148,19 @@ describe('loadThinkingJournalExportRows', () => {
         listAll: vi.fn<() => Promise<LearningCycleRecord[]>>(async () => [
           makeLearningCycleRecord({
             id: 'recent-learning',
-            timestamp: nowMs - dayMs,
+            occurredAt: nowMs - dayMs,
             threadId: '/app/threads/recent',
             mode: 'learning',
             prompt: 'Explain token refresh.',
-            priorKnowledgeNote: 'I know access tokens expire.'
+            startingPoint: 'I know access tokens expire.'
           }),
           makeLearningCycleRecord({
             id: 'old-problem',
-            timestamp: nowMs - 10 * dayMs,
+            occurredAt: nowMs - 10 * dayMs,
             threadId: '/app/threads/old',
             mode: 'problem_solving',
             prompt: 'Diagnose the auth outage',
-            prediction: 'Tokens might be expired.'
+            startingPoint: 'Tokens might be expired.'
           })
         ])
       },
@@ -170,8 +168,8 @@ describe('loadThinkingJournalExportRows', () => {
         listAll: vi.fn<() => Promise<ReflectionRecord[]>>(async () => [
           makeReflectionRecord({
             id: 'reflection-1',
-            timestamp: nowMs - dayMs / 2,
-            learningCycleRecordId: 'old-problem',
+            occurredAt: nowMs - dayMs / 2,
+            learningCycleId: 'old-problem',
             score: 75,
             notes: 'It was token expiry.'
           })
@@ -195,17 +193,17 @@ describe('loadThinkingJournalPage', () => {
     const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
     const dayMs = 24 * 60 * 60 * 1000;
     const listAll = vi.fn(async () => [
-      makeLearningCycleRecord({ id: 'recent', timestamp: nowMs - dayMs, prompt: 'Recent prompt' }),
+      makeLearningCycleRecord({ id: 'recent', occurredAt: nowMs - dayMs, prompt: 'Recent prompt' }),
       makeLearningCycleRecord({
         id: 'featured',
-        timestamp: nowMs - 10 * dayMs,
+        occurredAt: nowMs - 10 * dayMs,
         mode: 'learning',
-        priorKnowledgeNote: 'Historical context',
+        startingPoint: 'Historical context',
         prompt: 'Historical prompt'
       })
     ]);
     const listAllReflections = vi.fn(async () => [
-      makeReflectionRecord({ learningCycleRecordId: 'featured', notes: 'Historical reflection' })
+      makeReflectionRecord({ learningCycleId: 'featured', notes: 'Historical reflection' })
     ]);
 
     const page = await loadThinkingJournalPage('featured', nowMs, {

@@ -8,12 +8,12 @@ const NOW = Date.UTC(2026, 7, 13, 12, 0, 0);
 function eligibleRecord(overrides: Partial<LearningCycleRecord> = {}): LearningCycleRecord {
   return {
     id: 'record-1',
-    timestamp: NOW - JOURNAL_WINDOW_MS - 1,
+    occurredAt: NOW - JOURNAL_WINDOW_MS - 1,
     platform: 'gemini',
     threadId: '/app/record-1',
     mode: 'learning',
     prompt: 'Explain this',
-    priorKnowledgeNote: 'Starting point',
+    startingPoint: 'Starting point',
     ...overrides
   } as LearningCycleRecord;
 }
@@ -55,7 +55,7 @@ describe('ResurfacingService', () => {
     const candidate = await service.presentNext();
     calls.push('returned');
 
-    expect(candidate).toEqual({ learningCycleRecordId: 'record-1', excerpt: 'Starting point' });
+    expect(candidate).toEqual({ learningCycleId: 'record-1', excerpt: 'Starting point' });
     expect(markResurfaced).toHaveBeenCalledWith('record-1', NOW);
     expect(calls).toEqual(['mark', 'returned']);
   });

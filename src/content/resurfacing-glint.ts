@@ -3,7 +3,7 @@ import type { ResurfacingCandidate } from '../shared/types';
 import { resolveDeliberateTheme } from './theme';
 
 interface ResurfacingGlintOptions {
-  onOpen: (learningCycleRecordId: string) => Promise<void> | void;
+  onOpen: (learningCycleId: string) => Promise<void> | void;
   platform: Pick<PlatformDefinition, 'appearance' | 'findComposer' | 'findComposerAnchor'>;
 }
 
@@ -11,14 +11,14 @@ export class ResurfacingGlint {
   private root: HTMLButtonElement | null = null;
   private anchor: HTMLElement | null = null;
   private currentRecordId = '';
-  private readonly onOpen: (learningCycleRecordId: string) => Promise<void> | void;
+  private readonly onOpen: (learningCycleId: string) => Promise<void> | void;
 
   constructor(private readonly options: ResurfacingGlintOptions) {
     this.onOpen = options.onOpen;
   }
 
   show(candidate: ResurfacingCandidate): void {
-    this.currentRecordId = candidate.learningCycleRecordId;
+    this.currentRecordId = candidate.learningCycleId;
     const root = this.getOrCreateRoot();
     root.setAttribute('data-deliberate-theme', resolveDeliberateTheme());
     const excerpt = root.querySelector('[data-testid="deliberate-resurfacing-glint-excerpt"]');

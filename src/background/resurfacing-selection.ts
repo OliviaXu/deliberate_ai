@@ -15,7 +15,7 @@ export function selectResurfacingLearningCycle(
   const cutoffMs = nowMs - JOURNAL_WINDOW_MS;
   const candidates = records.filter(
     (record): record is ReflectionEligibleLearningCycleRecord =>
-      isReflectionEligibleRecord(record) && record.timestamp < cutoffMs && hasStartingMaterial(record)
+      isReflectionEligibleRecord(record) && record.occurredAt < cutoffMs && hasStartingMaterial(record)
       && record.resurfacing?.suppressedAt === undefined
   );
   if (candidates.length === 0) return null;
@@ -39,14 +39,14 @@ export function buildResurfacingCandidate(
   let latestWrittenReflection: ReflectionRecord | undefined;
 
   for (const reflection of reflections) {
-    if (reflection.learningCycleRecordId !== record.id || !reflection.notes?.trim()) continue;
-    if (!latestWrittenReflection || reflection.timestamp > latestWrittenReflection.timestamp) {
+    if (reflection.learningCycleId !== record.id || !reflection.notes?.trim()) continue;
+    if (!latestWrittenReflection || reflection.occurredAt > latestWrittenReflection.occurredAt) {
       latestWrittenReflection = reflection;
     }
   }
 
   return {
-    learningCycleRecordId: record.id,
+    learningCycleId: record.id,
     excerpt: latestWrittenReflection?.notes ?? startingMaterial(record)
   };
 }
@@ -56,8 +56,8 @@ function hasStartingMaterial(record: ReflectionEligibleLearningCycleRecord): boo
 }
 
 function startingMaterial(record: ReflectionEligibleLearningCycleRecord): string {
-  if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) return record.prediction;
-  return record.priorKnowledgeNote ?? '';
+  if (record.mode === INTERACTION_MODES.PROBLEM_SOLVING) return record.startingPoint;
+  return record.startingPoint ?? '';
 }
 
 function chooseRandom<T>(items: T[], random: () => number): T {

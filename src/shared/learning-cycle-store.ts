@@ -1,7 +1,8 @@
 import { StorageClient } from './storage';
 import type { LearningCycleRecord, PlatformThreadIdentity } from './types';
+import { LEARNING_CYCLES_STORAGE_KEY } from './schema-migration-v2';
 
-export const LEARNING_CYCLES_STORAGE_KEY = 'deliberate.learningCycles.v1';
+export { LEARNING_CYCLES_STORAGE_KEY } from './schema-migration-v2';
 
 export class LearningCycleStore {
   private writeQueue: Promise<void> = Promise.resolve();
@@ -15,6 +16,7 @@ export class LearningCycleStore {
   async append(record: LearningCycleRecord): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.listRaw();
+      if (current.some((existing) => existing.id === record.id)) return;
       await this.storage.set(LEARNING_CYCLES_STORAGE_KEY, [...current, record]);
     });
     await this.writeQueue;
@@ -102,13 +104,42 @@ export class LearningCycleStore {
     const current = await this.listRaw();
     const matches = current
       .filter((record) => record.platform === thread.platform && record.threadId === thread.threadId)
-      .sort((a, b) => b.timestamp - a.timestamp);
+      .sort((a, b) => b.occurredAt - a.occurredAt);
 
     return matches[0] ?? null;
   }
 
   private async listRaw(): Promise<LearningCycleRecord[]> {
     const raw = await this.storage.get<unknown>(LEARNING_CYCLES_STORAGE_KEY);
-    return Array.isArray(raw) ? (raw as LearningCycleRecord[]) : [];
+    return Array.isArray(raw) ? raw.filter(isLearningCycleRecord) : [];
   }
+}
+
+function isLearningCycleRecord(value: unknown): value is LearningCycleRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.id !== 'string' || record.id.length === 0
+    || typeof record.occurredAt !== 'number' || !Number.isFinite(record.occurredAt)
+    || (record.platform !== 'chatgpt' && record.platform !== 'claude' && record.platform !== 'gemini')
+    || typeof record.threadId !== 'string' || record.threadId.length === 0
+    || typeof record.prompt !== 'string'
+    || (record.url !== undefined && typeof record.url !== 'string')
+    || !isResurfacingState(record.resurfacing)) return false;
+
+  if (record.mode === 'delegation') return record.startingPoint === undefined;
+  if (record.mode === 'problem_solving') {
+    return typeof record.startingPoint === 'string' && record.startingPoint.trim().length > 0;
+  }
+  return record.mode === 'learning'
+    && (record.startingPoint === undefined || typeof record.startingPoint === 'string');
+}
+
+function isResurfacingState(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const resurfacing = value as Record<string, unknown>;
+  return (resurfacing.lastSurfacedAt === undefined
+      || (typeof resurfacing.lastSurfacedAt === 'number' && Number.isFinite(resurfacing.lastSurfacedAt)))
+    && (resurfacing.suppressedAt === undefined
+      || (typeof resurfacing.suppressedAt === 'number' && Number.isFinite(resurfacing.suppressedAt)));
 }
