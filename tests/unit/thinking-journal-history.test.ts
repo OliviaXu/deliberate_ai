@@ -21,7 +21,6 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   return {
     id: 'reflection-1',
     timestamp: NOW_MS,
-    threadId: '/app/threads/default',
     learningCycleRecordId: '1',
     status: 'completed',
     score: 75,
@@ -71,7 +70,7 @@ describe('buildThinkingJournalEntryRecords', () => {
     expect(rows.find((row) => row.id === 'problem-fallback')?.startingPoint).toBe('No hypothesis recorded.');
   });
 
-  it('links only the latest valid reflection for eligible records', () => {
+  it('links every valid reflection for eligible records in oldest-to-newest order', () => {
     const rows = buildThinkingJournalEntryRecords(
       [
         makeRecord({
@@ -115,10 +114,13 @@ describe('buildThinkingJournalEntryRecords', () => {
       ]
     );
 
-    expect(rows.find((row) => row.id === 'problem')?.reflection).toMatchObject({
-      score: 100,
-      notes: 'The auth token was stale.'
-    });
-    expect(rows.find((row) => row.id === 'delegation')?.reflection).toBeUndefined();
+    expect(rows.find((row) => row.id === 'problem')?.reflections).toEqual([
+      expect.objectContaining({ score: 25 }),
+      expect.objectContaining({
+        score: 100,
+        notes: 'The auth token was stale.'
+      })
+    ]);
+    expect(rows.find((row) => row.id === 'delegation')?.reflections).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   INTERACTION_MODES,
+  type ReflectionRecord,
   type ReflectionScore,
   type ResurfacingCandidate,
   type ResurfacingPresentNextResponse
@@ -25,6 +26,8 @@ interface ThinkingJournalAppProps {
   loadExportRows?: () => Promise<ThinkingJournalEntryRecord[]>;
   presentNext?: () => Promise<ResurfacingCandidate | null>;
   setSuppressed?: (learningCycleRecordId: string, suppressed: boolean) => Promise<void>;
+  appendReflection?: (record: ReflectionRecord) => Promise<void>;
+  now?: () => number;
 }
 
 const FILTERS: Array<{ value: ThinkingJournalEntryViewFilter; label: string; emoji?: string }> = [
@@ -55,14 +58,16 @@ const METADATA_TAG_CLASS =
   'whitespace-nowrap rounded-[15px] bg-[#f7f9fb] px-3 py-[0.55rem] text-[0.92rem] font-medium leading-none text-[#5f7182]';
 
 const FEATURED_ACTION_CLASS =
-  'appearance-none cursor-pointer rounded-[14px] border border-solid border-[#e1e3e6] bg-white px-2.5 py-1.5 text-[0.88rem] font-semibold text-[#30343b] shadow-none transition-colors duration-100 hover:bg-[#fafafa] disabled:cursor-default disabled:text-[#a7afb8]';
+  'appearance-none cursor-pointer rounded-[14px] border border-solid border-[#e1e3e6] bg-white px-2.5 py-1.5 text-[0.88rem] font-medium text-[#52657e] shadow-none transition-colors duration-100 hover:bg-[#fafafa] disabled:cursor-default disabled:text-[#a7afb8]';
 
 export function ThinkingJournalApp({
   featuredEntryId,
   loadPage = loadThinkingJournalPage,
   loadExportRows = loadThinkingJournalExportRows,
   presentNext = presentNextResurfacingCandidate,
-  setSuppressed = setResurfacingSuppressed
+  setSuppressed = setResurfacingSuppressed,
+  appendReflection = appendThinkingJournalReflection,
+  now = Date.now
 }: ThinkingJournalAppProps): JSX.Element {
   const [entryRecords, setEntryRecords] = useState<ThinkingJournalEntryRecord[]>([]);
   const [featuredEntryRecord, setFeaturedEntryRecord] = useState<ThinkingJournalEntryRecord>();
@@ -156,6 +161,39 @@ export function ThinkingJournalApp({
     }
   }
 
+  async function handleReflectionAppend(score: ReflectionScore, notes: string): Promise<void> {
+    if (!featuredEntryRecord) return;
+    const timestamp = now();
+    const reflection: ReflectionRecord = {
+      id: `${featuredEntryRecord.id}:${timestamp}`,
+      timestamp,
+      learningCycleRecordId: featuredEntryRecord.id,
+      status: 'completed',
+      score,
+      notes: notes.trim()
+    };
+
+    await appendReflection(reflection);
+
+    const journalReflection = {
+      timestamp: reflection.timestamp,
+      score: reflection.score,
+      notes
+    };
+    setFeaturedEntryRecord((current) =>
+      current?.id === reflection.learningCycleRecordId
+        ? { ...current, reflections: [...current.reflections, journalReflection] }
+        : current
+    );
+    setEntryRecords((current) =>
+      current.map((entry) =>
+        entry.id === reflection.learningCycleRecordId
+          ? { ...entry, reflections: [...entry.reflections, journalReflection] }
+          : entry
+      )
+    );
+  }
+
   return (
     <main className="mx-auto max-w-[860px] px-5 pb-10 pt-8 font-journal sm:px-3.5 sm:pb-9 sm:pt-6">
       <header>
@@ -172,6 +210,7 @@ export function ThinkingJournalApp({
             A thought returned
           </p>
           <ThinkingJournalCard
+            key={featuredEntryView.id}
             entry={featuredEntryView}
             isExpanded={Boolean(expandedPromptIds[featuredEntryView.id])}
             onToggleExpanded={() =>
@@ -180,15 +219,10 @@ export function ThinkingJournalApp({
                 [featuredEntryView.id]: !current[featuredEntryView.id]
               }))
             }
+            onAppendReflection={handleReflectionAppend}
+            onSuppressionToggle={handleSuppressionToggle}
           />
           <div className="flex min-h-5 items-center justify-end gap-2">
-            <button
-              type="button"
-              className={FEATURED_ACTION_CLASS}
-              onClick={() => void handleSuppressionToggle()}
-            >
-              {featuredEntryView.resurfacingSuppressed ? 'Allow resurfacing' : 'Don’t resurface this'}
-            </button>
             <button
               type="button"
               className={`order-2 ${FEATURED_ACTION_CLASS}`}
@@ -333,15 +367,66 @@ async function setResurfacingSuppressed(
   if (response.error) throw new Error(response.error);
 }
 
+async function appendThinkingJournalReflection(record: ReflectionRecord): Promise<void> {
+  const chromeApi = (globalThis as unknown as {
+    chrome: {
+      runtime: {
+        sendMessage(message: {
+          type: 'reflection:append';
+          record: ReflectionRecord;
+        }): Promise<{ ok?: boolean; error?: string }> | { ok?: boolean; error?: string };
+      };
+    };
+  }).chrome;
+  const response = await Promise.resolve(chromeApi.runtime.sendMessage({
+    type: 'reflection:append',
+    record
+  }));
+  if (response.ok !== true) throw new Error(response.error || 'Reflection could not be saved.');
+}
+
 function ThinkingJournalCard({
   entry,
   isExpanded,
-  onToggleExpanded
+  onToggleExpanded,
+  onAppendReflection,
+  onSuppressionToggle
 }: {
   entry: ThinkingJournalEntryView;
   isExpanded: boolean;
   onToggleExpanded: () => void;
+  onAppendReflection?: (score: ReflectionScore, notes: string) => Promise<void>;
+  onSuppressionToggle?: () => Promise<void>;
 }): JSX.Element {
+  const [isReflecting, setIsReflecting] = useState(false);
+  const [reflectionNotes, setReflectionNotes] = useState('');
+  const [reflectionScore, setReflectionScore] = useState<ReflectionScore>(25);
+  const [isSavingReflection, setIsSavingReflection] = useState(false);
+  const [reflectionSaveFailed, setReflectionSaveFailed] = useState(false);
+
+  async function handleReflectionSave(): Promise<void> {
+    const notes = reflectionNotes.trim();
+    if (!onAppendReflection || !notes) return;
+
+    setIsSavingReflection(true);
+    setReflectionSaveFailed(false);
+    try {
+      await onAppendReflection(reflectionScore, notes);
+      collapseReflectionEditor();
+    } catch {
+      setReflectionSaveFailed(true);
+    } finally {
+      setIsSavingReflection(false);
+    }
+  }
+
+  function collapseReflectionEditor(): void {
+    setIsReflecting(false);
+    setReflectionNotes('');
+    setReflectionScore(25);
+    setReflectionSaveFailed(false);
+  }
+
   const supportingContent = (
     <>
       {entry.mode === INTERACTION_MODES.PROBLEM_SOLVING && (
@@ -366,7 +451,8 @@ function ThinkingJournalCard({
   const hasSupportingContent =
     entry.mode === INTERACTION_MODES.PROBLEM_SOLVING ||
     (entry.mode === INTERACTION_MODES.LEARNING && Boolean(entry.initialContext));
-  const hasBody = hasSupportingContent || Boolean(entry.reflection);
+  const hasReflections = entry.reflections.length > 0;
+  const hasBody = hasSupportingContent || hasReflections;
 
   return (
     <article className="rounded-[14px] border border-[#dce2e8] bg-white p-2.5" data-testid="thinking-journal-card">
@@ -406,7 +492,6 @@ function ThinkingJournalCard({
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5" data-testid="thinking-journal-card-badge-group">
-            {entry.reflection ? <ReflectionSpark level={toReflectionVisualLevel(entry.reflection.score)} /> : null}
             <span className={METADATA_TAG_CLASS} data-testid="thinking-journal-card-mode-badge">
               <span className={CHIP_CONTENT_CLASS}>
                 <span className={CHIP_EMOJI_SELECTED_CLASS} data-testid="thinking-journal-card-mode-badge-emoji">
@@ -429,7 +514,7 @@ function ThinkingJournalCard({
       </div>
 
       {hasBody &&
-        (entry.reflection ? (
+        (hasReflections ? (
           <div
             className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.88fr)] md:items-start"
             data-testid="thinking-journal-card-columns"
@@ -445,18 +530,112 @@ function ThinkingJournalCard({
                 className="mb-1 mt-0 text-[0.74rem] font-medium tracking-[0.01em] text-[#7a8795]"
                 data-testid="thinking-journal-reflection-header"
               >
-                Reflection
+                Reflections
               </h2>
-              {entry.reflection.notes && (
-                <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]" data-testid="thinking-journal-reflection-notes">
-                  {entry.reflection.notes}
-                </p>
-              )}
+              <div className="grid gap-3">
+                {entry.reflections.map((reflection, index) => (
+                  <article
+                    className={index === 0 ? 'grid gap-1.5' : 'grid gap-1.5 border-t border-[#edf1f4] pt-3'}
+                    data-testid="thinking-journal-reflection-item"
+                    key={`${reflection.timestamp}:${index}`}
+                  >
+                    <p className="m-0 text-[0.78rem] text-[#7a8795]" data-testid="thinking-journal-reflection-timestamp">
+                      {reflection.dateLabel}
+                    </p>
+                    {reflection.notes ? (
+                      <p className="m-0 whitespace-pre-wrap leading-[1.6] text-[#213040]" data-testid="thinking-journal-reflection-notes">
+                        {reflection.notes}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-1 text-[0.76rem] text-[#7a8795]">
+                      <ReflectionSpark level={toReflectionVisualLevel(reflection.score)} />
+                      <span>{reflectionScoreLabel(reflection.score)}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </section>
           </div>
         ) : (
           <div className="mt-2 grid gap-2">{supportingContent}</div>
         ))}
+
+      {onAppendReflection ? (
+        <section className="mt-3 border-t border-[#edf1f4] pt-3" data-testid="thinking-journal-reflect-again">
+          <div className="flex flex-wrap items-center gap-2" data-testid="thinking-journal-featured-card-actions">
+            <button
+              aria-expanded={isReflecting}
+              type="button"
+              className={FEATURED_ACTION_CLASS}
+              disabled={isSavingReflection}
+              onClick={() => {
+                if (isReflecting) collapseReflectionEditor();
+                else setIsReflecting(true);
+              }}
+            >
+              Reflect again
+            </button>
+            {onSuppressionToggle ? (
+              <button
+                type="button"
+                className={FEATURED_ACTION_CLASS}
+                onClick={() => void onSuppressionToggle()}
+              >
+                {entry.resurfacingSuppressed ? 'Allow resurfacing' : 'Don’t resurface this'}
+              </button>
+            ) : null}
+          </div>
+          {isReflecting ? (
+            <div className="mt-3 grid gap-3 px-2">
+              <div
+                className="flex items-center gap-3 text-[0.8rem] leading-none text-[#7a8795]"
+                data-testid="thinking-journal-reflect-score-row"
+              >
+                <span className="shrink-0">No update</span>
+                <input
+                  aria-label="Learning delta, from no update to major update"
+                  aria-valuetext={reflectionScoreLabel(reflectionScore)}
+                  className="thinking-journal-reflect-score min-w-0 max-w-[360px] flex-1"
+                  data-testid="thinking-journal-reflect-score"
+                  disabled={isSavingReflection}
+                  max="100"
+                  min="0"
+                  onInput={(event) => setReflectionScore(Number(event.currentTarget.value) as ReflectionScore)}
+                  step="25"
+                  style={{ '--thinking-journal-reflect-progress': `${reflectionScore}%` } as React.CSSProperties}
+                  type="range"
+                  value={reflectionScore}
+                />
+                <span className="shrink-0">Major update</span>
+              </div>
+              <textarea
+                aria-label="Thoughts?"
+                className="box-border min-h-28 w-full max-w-full resize-y rounded-[10px] border border-solid border-[#dce2e8] bg-[#fbfcfd] p-3 font-journal text-[0.88rem] leading-[1.5] text-[#213040] outline-none focus:border-[#9aa9ba] focus:ring-2 focus:ring-[rgba(82,101,126,0.12)] disabled:cursor-default disabled:text-[#7a8795]"
+                data-testid="thinking-journal-reflect-notes"
+                disabled={isSavingReflection}
+                onInput={(event) => setReflectionNotes(event.currentTarget.value)}
+                placeholder="Thoughts?"
+                value={reflectionNotes}
+              />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {reflectionSaveFailed ? (
+                  <span className="mr-auto text-[0.8rem] text-[#9a5b54]" data-testid="thinking-journal-reflect-error" role="status">
+                    Couldn’t save this reflection. Try again.
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  className={FEATURED_ACTION_CLASS}
+                  disabled={!reflectionNotes.trim() || isSavingReflection}
+                  onClick={() => void handleReflectionSave()}
+                >
+                  {isSavingReflection ? 'Saving…' : 'Save reflection'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </article>
   );
 }
@@ -488,6 +667,14 @@ function toReflectionVisualLevel(score: ReflectionScore): ReflectionVisualLevel 
   if (score <= 50) return 3;
   if (score <= 75) return 4;
   return 5;
+}
+
+function reflectionScoreLabel(score: ReflectionScore): string {
+  if (score <= 0) return 'No update';
+  if (score <= 25) return 'Small update';
+  if (score <= 50) return 'Moderate update';
+  if (score <= 75) return 'Significant update';
+  return 'Major update';
 }
 
 function ReflectionSpark({ level }: { level: ReflectionVisualLevel }): JSX.Element {

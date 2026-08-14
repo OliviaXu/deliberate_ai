@@ -9,11 +9,11 @@ function makeRow(overrides: Partial<ThinkingJournalEntryRecord> = {}): ThinkingJ
     mode: 'learning',
     prompt: 'Explain OAuth PKCE simply.',
     ...(overrides.startingPoint !== undefined ? { startingPoint: overrides.startingPoint } : { startingPoint: 'I know "basic", OAuth' }),
-    reflection: {
+    reflections: [{
       timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
       score: 75,
       notes: 'Line one\nLine "two", with comma'
-    },
+    }],
     ...overrides
   };
 }
@@ -26,7 +26,8 @@ describe('buildThinkingJournalExportCsv', () => {
         id: 'row-2',
         timestamp: Date.UTC(2026, 2, 2, 16, 42, 0),
         mode: 'delegation',
-        prompt: 'Draft a short update'
+        prompt: 'Draft a short update',
+        reflections: []
       }
     ]);
 

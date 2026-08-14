@@ -35,7 +35,7 @@ export interface ThinkingJournalEntryView {
   promptIsLong: boolean;
   hypothesis?: string;
   initialContext?: string;
-  reflection?: ThinkingJournalEntryViewReflection;
+  reflections: ThinkingJournalEntryViewReflection[];
   resurfacingSuppressed?: boolean;
 }
 
@@ -62,7 +62,7 @@ export function filterThinkingJournalEntryViews(
 ): ThinkingJournalEntryView[] {
   const modeFiltered = filters.mode === 'all' ? entryViews : entryViews.filter((entryView) => entryView.mode === filters.mode);
   if (!filters.withReflectionOnly) return modeFiltered;
-  return modeFiltered.filter((entryView) => entryView.reflection !== undefined);
+  return modeFiltered.filter((entryView) => entryView.reflections.length > 0);
 }
 
 export function formatJournalTimestamp(timestamp: number, locale = 'en-US', timeZone?: string): string {
@@ -73,6 +73,14 @@ export function formatJournalTimestamp(timestamp: number, locale = 'en-US', time
   });
 
   return dateFormatter.format(timestamp);
+}
+
+export function formatJournalReflectionTimestamp(timestamp: number, locale = 'en-US', timeZone?: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...(timeZone ? { timeZone } : {})
+  }).format(timestamp);
 }
 
 function toThinkingJournalEntryView(entryRecord: ThinkingJournalEntryRecord): ThinkingJournalEntryView {
@@ -86,8 +94,8 @@ function toThinkingJournalEntryView(entryRecord: ThinkingJournalEntryRecord): Th
     ...(entryRecord.url ? { url: entryRecord.url } : {}),
     prompt: entryRecord.prompt,
     promptIsLong: entryRecord.prompt.length > LONG_PROMPT_CHAR_THRESHOLD,
+    reflections: entryRecord.reflections.map(toThinkingJournalEntryViewReflection),
     ...(entryRecord.resurfacingSuppressed ? { resurfacingSuppressed: true } : {}),
-    ...(entryRecord.reflection ? { reflection: toThinkingJournalEntryViewReflection(entryRecord.reflection) } : {})
   };
 
   if (entryRecord.mode === INTERACTION_MODES.PROBLEM_SOLVING) {
@@ -112,7 +120,7 @@ function toThinkingJournalEntryViewReflection(
 ): ThinkingJournalEntryViewReflection {
   return {
     timestamp: reflection.timestamp,
-    dateLabel: formatJournalTimestamp(reflection.timestamp),
+    dateLabel: formatJournalReflectionTimestamp(reflection.timestamp),
     score: reflection.score,
     ...(reflection.notes ? { notes: reflection.notes } : {})
   };

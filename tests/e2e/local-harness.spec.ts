@@ -466,7 +466,6 @@ test('local harness submits a due reflection and persists completion for an acti
       })
       .toEqual([
         expect.objectContaining({
-          threadId: '/app/threads/turn-threshold-thread',
           learningCycleRecordId: expect.any(String),
           status: 'completed',
           score: 75,
@@ -521,7 +520,6 @@ test('local harness submits a due reflection and persists completion for a histo
       })
       .toEqual([
         expect.objectContaining({
-          threadId: '/app/threads/test-thread',
           learningCycleRecordId: 'historical-learning',
           status: 'completed',
           score: 50
@@ -726,8 +724,46 @@ test('resurfacing glint opens a featured journal card and rotates to another tho
     const recent = journalPage.locator('[data-testid="thinking-journal-recent"]');
     await expect(featured.getByText('A thought returned')).toBeVisible();
     await expect(featured.getByText('Explain why rollout experiments reveal organizational resistance')).toBeVisible();
+    await expect(featured.getByText('Experiments expose resistance sooner')).toBeVisible();
+    await expect(featured.locator('[data-testid="thinking-journal-reflection-item"]')).toHaveCount(2);
     await expect(recent.getByText('Recent thinking — Last 7 days')).toBeVisible();
     await expect(recent.getByText('Explain a recent topic')).toBeVisible();
+
+    const featuredCard = featured.locator('[data-testid="thinking-journal-card"]');
+    const featuredCardActions = featuredCard.locator('[data-testid="thinking-journal-featured-card-actions"]');
+    await featuredCardActions.getByRole('button', { name: 'Reflect again' }).click();
+    await expect(featuredCardActions.getByRole('button', { name: 'Reflect again' })).toBeVisible();
+    await expect(featuredCardActions.getByRole('button', { name: 'Don’t resurface this' })).toBeVisible();
+    await expect(featuredCard.getByRole('button', { name: 'Another thought' })).toHaveCount(0);
+    await featured.locator('[data-testid="thinking-journal-reflect-notes"]').fill(
+      'The experiments are useful only when decision owners agree on what they will change.'
+    );
+    await featured.locator('[data-testid="thinking-journal-reflect-score"]').fill('100');
+    await featured.getByRole('button', { name: 'Save reflection' }).click();
+
+    await expect(
+      featured.getByText('The experiments are useful only when decision owners agree on what they will change.')
+    ).toBeVisible();
+    await expect
+      .poll(async () => {
+        const reflections = await readReflectionRecords(context) as Array<{
+          learningCycleRecordId?: string;
+          notes?: string;
+          threadId?: string;
+        }>;
+        return reflections.find((reflection) =>
+          reflection.learningCycleRecordId === 'returned-learning' &&
+          reflection.notes === 'The experiments are useful only when decision owners agree on what they will change.'
+        );
+      })
+      .toEqual(expect.not.objectContaining({ threadId: expect.any(String) }));
+
+    await journalPage.reload({ waitUntil: 'domcontentloaded' });
+    await expect(
+      journalPage.locator('[data-testid="thinking-journal-featured"]').getByText(
+        'The experiments are useful only when decision owners agree on what they will change.'
+      )
+    ).toBeVisible();
 
     await journalPage.getByRole('button', { name: 'Don’t resurface this' }).click();
     await expect(journalPage).toHaveURL(/thinking-journal\.html\?featured=returned-learning$/);

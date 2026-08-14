@@ -21,11 +21,11 @@ function makeEntries(): ThinkingJournalEntryRecord[] {
       mode: 'problem_solving',
       prompt: makeLongPrompt(),
       startingPoint: 'I suspect query caching is stale.',
-      reflection: {
+      reflections: [{
         timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
         score: 75,
         notes: 'The real issue was token expiration, not cache invalidation.'
-      }
+      }]
     },
     {
       id: 'b',
@@ -33,13 +33,15 @@ function makeEntries(): ThinkingJournalEntryRecord[] {
       url: 'https://gemini.google.com/app/threads/learning-b',
       mode: 'learning',
       prompt: 'Explain OAuth PKCE simply.',
-      startingPoint: 'I know basic OAuth terms.'
+      startingPoint: 'I know basic OAuth terms.',
+      reflections: []
     },
     {
       id: 'c',
       timestamp: Date.UTC(2026, 2, 1, 8, 0, 0),
       mode: 'delegation',
       prompt: 'Draft this status update.',
+      reflections: []
     }
   ];
 }
@@ -55,17 +57,18 @@ function makeExportRows(): ThinkingJournalEntryRecord[] {
       mode: 'problem_solving',
       prompt: 'Investigate the auth outage',
       startingPoint: 'Tokens might be expired.',
-      reflection: {
+      reflections: [{
         timestamp: Date.UTC(2026, 2, 3, 9, 15, 0),
         score: 75,
         notes: 'It was token expiry.'
-      }
+      }]
     },
     {
       id: 'history-b',
       timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
       mode: 'delegation',
-      prompt: 'Draft this status update.'
+      prompt: 'Draft this status update.',
+      reflections: []
     }
   ];
 }
@@ -117,6 +120,7 @@ describe('ThinkingJournalApp', () => {
     expect(allFilter?.className).toContain('bg-white');
     expect(allFilter?.className).not.toContain('border-[#d6e0ea]');
     expect(allFilter?.className).toContain('text-[#2f4257]');
+    expect(allFilter?.className).toContain('font-semibold');
     expect(allFilter?.className).toContain('font-journal');
 
     const delegationFilter = Array.from(document.querySelectorAll('button')).find((button) =>
@@ -184,9 +188,10 @@ describe('ThinkingJournalApp', () => {
     expect(anotherThought?.className).toContain('border-solid');
     expect(anotherThought?.className).toContain('border-[#e1e3e6]');
     expect(anotherThought?.className).toContain('bg-white');
-    expect(anotherThought?.className).toContain('font-semibold');
+    expect(anotherThought?.className).toContain('font-medium');
+    expect(anotherThought?.className).not.toContain('font-semibold');
     expect(anotherThought?.className).toContain('shadow-none');
-    expect(anotherThought?.className).toContain('text-[#30343b]');
+    expect(anotherThought?.className).toContain('text-[#52657e]');
     expect(anotherThought?.className).toContain('order-2');
     expect(anotherThought?.parentElement?.className).toContain('justify-end');
   });
@@ -207,13 +212,19 @@ describe('ThinkingJournalApp', () => {
     expect(document.querySelector('[data-testid="thinking-journal-recent"]')?.textContent).not.toContain('Don’t resurface this');
     const action = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Don’t resurface this'));
     const anotherThought = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Another thought');
-    expect(action?.closest('[data-testid="thinking-journal-card"]')).toBeNull();
+    const featuredCard = action?.closest('[data-testid="thinking-journal-card"]');
+    const reflectAgain = Array.from(featuredCard?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Reflect again'
+    );
+    expect(featuredCard).toBeTruthy();
     expect(action?.closest('[data-testid="thinking-journal-featured"]')).toBeTruthy();
-    expect(action?.parentElement).toBe(anotherThought?.parentElement);
-    expect(action?.nextElementSibling).toBe(anotherThought);
+    expect(action?.parentElement).toBe(reflectAgain?.parentElement);
+    expect(action?.parentElement?.getAttribute('data-testid')).toBe('thinking-journal-featured-card-actions');
+    expect(action?.parentElement).not.toBe(anotherThought?.parentElement);
     expect(action?.className).toContain('border-[#e1e3e6]');
-    expect(action?.className).toContain('font-semibold');
-    expect(action?.className).toContain('text-[#30343b]');
+    expect(action?.className).toContain('font-medium');
+    expect(action?.className).not.toContain('font-semibold');
+    expect(action?.className).toContain('text-[#52657e]');
     expect(action?.className).toContain('shadow-none');
     expect(action?.textContent).toBe('Don’t resurface this');
     await act(async () => action?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
@@ -401,7 +412,7 @@ describe('ThinkingJournalApp', () => {
 
     const reflectionSection = document.querySelector('[data-testid="thinking-journal-reflection"]');
     expect(reflectionSection).toBeTruthy();
-    expect(reflectionSection?.textContent).toContain('Reflection');
+    expect(reflectionSection?.textContent).toContain('Reflections');
     expect(reflectionSection?.textContent).toContain('The real issue was token expiration, not cache invalidation.');
     expect(reflectionSection?.textContent).not.toContain('Reflected');
     expect(reflectionSection?.textContent).not.toContain('Update 75');
@@ -416,9 +427,10 @@ describe('ThinkingJournalApp', () => {
     expect(reflectionSpark).toBeTruthy();
     expect(reflectionSpark?.getAttribute('data-level')).toBe('4');
     expect(reflectionSpark?.className).toContain('h-5');
-    expect(headerBadgeGroup?.contains(reflectionSpark as Node)).toBe(true);
+    expect(headerBadgeGroup?.contains(reflectionSpark as Node)).toBe(false);
     expect(headerBadge?.contains(reflectionSpark)).toBe(false);
     expect(reflectionHeader?.contains(reflectionSpark)).toBe(false);
+    expect(reflectionSection?.contains(reflectionSpark as Node)).toBe(true);
 
     const reflectionNotes = document.querySelector('[data-testid="thinking-journal-reflection-notes"]');
     expect(reflectionNotes?.className).toContain('text-[#213040]');
@@ -496,8 +508,9 @@ describe('ThinkingJournalApp', () => {
     const cards = document.querySelectorAll('[data-testid="thinking-journal-card"]');
     expect(cards).toHaveLength(1);
     expect(cards[0]?.textContent).toContain('Problem-Solving');
-    expect(cards[0]?.textContent).not.toContain('Learning');
-    expect(cards[0]?.textContent).not.toContain('Delegation');
+    expect(cards[0]?.querySelector('[data-testid="thinking-journal-card-mode-badge-label"]')?.textContent).toBe(
+      'Problem-Solving'
+    );
   });
 
   it('applies reflection-only filtering on top of the selected mode filter', async () => {
@@ -612,5 +625,263 @@ describe('ThinkingJournalApp', () => {
       HTMLAnchorElement.prototype.click = anchorClick;
       delete (globalThis as { __lastExportBlob?: Blob }).__lastExportBlob;
     }
+  });
+
+  it('renders complete reflection history on every card and offers Reflect again only for the featured card', async () => {
+    const recentEntry = {
+      id: 'recent-reflected',
+      timestamp: Date.UTC(2026, 2, 4, 12, 0, 0),
+      mode: 'learning',
+      prompt: 'Recent learning prompt',
+      reflections: [
+        { timestamp: Date.UTC(2026, 2, 4, 13, 0, 0), score: 25, notes: 'Recent reflection' }
+      ]
+    } as unknown as ThinkingJournalEntryRecord;
+    const featuredEntry = {
+      id: 'featured-reflected',
+      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      mode: 'problem_solving',
+      prompt: 'Historical problem',
+      startingPoint: 'The cache is stale.',
+      reflections: [
+        { timestamp: Date.UTC(2026, 1, 21, 9, 0, 0), score: 25, notes: 'First reflection' },
+        { timestamp: Date.UTC(2026, 2, 1, 15, 30, 0), score: 100, notes: 'Second reflection' }
+      ]
+    } as unknown as ThinkingJournalEntryRecord;
+
+    await render([], {
+      featuredEntryId: featuredEntry.id,
+      loadPage: async () => ({ recentEntries: [recentEntry], featuredEntry })
+    });
+
+    const featured = document.querySelector('[data-testid="thinking-journal-featured"]');
+    const recent = document.querySelector('[data-testid="thinking-journal-recent"]');
+    expect(featured?.textContent).toContain('First reflection');
+    expect(featured?.textContent).toContain('Second reflection');
+    expect(featured?.textContent?.indexOf('First reflection')).toBeLessThan(
+      featured?.textContent?.indexOf('Second reflection') ?? -1
+    );
+    expect(recent?.textContent).toContain('Recent reflection');
+    expect(featured?.querySelectorAll('[data-testid="thinking-journal-reflection-spark"]')).toHaveLength(2);
+    expect(featured?.textContent).toContain('Small update');
+    expect(featured?.textContent).toContain('Major update');
+    expect(featured?.textContent).not.toContain('Learning delta');
+    expect(featured?.textContent).not.toContain('No update — Major update');
+    const reflectAgain = Array.from(featured?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Reflect again'
+    );
+    expect(reflectAgain?.className).toContain('border-[#e1e3e6]');
+    expect(reflectAgain?.className).toContain('rounded-[14px]');
+    expect(Array.from(recent?.querySelectorAll('button') ?? []).some((button) => button.textContent === 'Reflect again')).toBe(false);
+  });
+
+  it('requires written thoughts and appends a canonical reflection from the inline form', async () => {
+    const featuredEntry = {
+      id: 'featured-reflected',
+      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      mode: 'learning',
+      prompt: 'Historical learning prompt',
+      reflections: []
+    } as unknown as ThinkingJournalEntryRecord;
+    const appendReflection = vi.fn(async () => undefined);
+
+    await render([], {
+      featuredEntryId: featuredEntry.id,
+      loadPage: async () => ({ recentEntries: [], featuredEntry }),
+      appendReflection,
+      now: () => Date.UTC(2026, 2, 5, 10, 45, 0)
+    });
+
+    const reflectAgain = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Reflect again'
+    );
+    act(() => reflectAgain?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    const featuredCardActions = document.querySelector('[data-testid="thinking-journal-featured-card-actions"]');
+    const persistentReflectAgain = Array.from(featuredCardActions?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === 'Reflect again'
+    );
+    expect(persistentReflectAgain).toBeTruthy();
+    expect(persistentReflectAgain?.getAttribute('aria-expanded')).toBe('true');
+    expect(featuredCardActions?.textContent).toContain('Don’t resurface this');
+    const textarea = document.querySelector('[data-testid="thinking-journal-reflect-notes"]') as HTMLTextAreaElement;
+    const score = document.querySelector('[data-testid="thinking-journal-reflect-score"]') as HTMLInputElement;
+    const save = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Save reflection'
+    ) as HTMLButtonElement;
+    expect(textarea.placeholder).toBe('Thoughts?');
+    expect(textarea.getAttribute('aria-label')).toBe('Thoughts?');
+    expect(textarea.className).toContain('box-border');
+    expect(textarea.className).toContain('max-w-full');
+    expect(textarea.className).toContain('p-3');
+    expect(textarea.className).not.toContain('px-4');
+    expect(textarea.className).toContain('text-[0.88rem]');
+    expect(textarea.className).not.toContain('text-[0.9rem]');
+    expect(textarea.className).not.toContain('text-[0.95rem]');
+    expect(document.querySelector('#thinking-journal-reflect-heading-featured-reflected')).toBeNull();
+    const scoreRow = document.querySelector('[data-testid="thinking-journal-reflect-score-row"]');
+    expect(scoreRow?.textContent).toBe('No updateMajor update');
+    expect(scoreRow?.className).toContain('items-center');
+    expect(scoreRow?.className).toContain('leading-none');
+    expect(score.className).toContain('thinking-journal-reflect-score');
+    expect(document.body.textContent).not.toContain('How much did your thinking change?');
+    expect(document.body.textContent).toContain('No update');
+    expect(document.body.textContent).toContain('Major update');
+    expect(score.compareDocumentPosition(textarea)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const editor = textarea.parentElement;
+    expect(editor?.className).toContain('px-2');
+    expect(save.disabled).toBe(true);
+
+    await act(async () => {
+      textarea.value = '  I now think incentives mattered more than process.  ';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      score.value = '100';
+      score.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(save.disabled).toBe(false);
+
+    await act(async () => {
+      save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(appendReflection).toHaveBeenCalledWith({
+      id: `featured-reflected:${Date.UTC(2026, 2, 5, 10, 45, 0)}`,
+      timestamp: Date.UTC(2026, 2, 5, 10, 45, 0),
+      learningCycleRecordId: 'featured-reflected',
+      status: 'completed',
+      score: 100,
+      notes: 'I now think incentives mattered more than process.'
+    });
+    expect(document.querySelector('[data-testid="thinking-journal-reflect-notes"]')).toBeNull();
+    expect(document.querySelector('[data-testid="thinking-journal-featured"]')?.textContent).toContain(
+      'I now think incentives mattered more than process.'
+    );
+  });
+
+  it('retains the inline reflection draft after a failed save and discards it when another thought loads', async () => {
+    const firstFeatured = {
+      id: 'featured-first',
+      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      mode: 'learning',
+      prompt: 'First thought',
+      reflections: []
+    } as unknown as ThinkingJournalEntryRecord;
+    const nextFeatured = {
+      ...firstFeatured,
+      id: 'featured-next',
+      prompt: 'Next thought'
+    };
+    const loadPage = vi
+      .fn<(featuredEntryId: string | undefined) => Promise<thinkingJournalStore.ThinkingJournalPage>>()
+      .mockResolvedValueOnce({ recentEntries: [], featuredEntry: firstFeatured })
+      .mockResolvedValueOnce({ recentEntries: [], featuredEntry: nextFeatured });
+    const appendReflection = vi.fn(async () => {
+      throw new Error('storage failed');
+    });
+
+    await render([], {
+      featuredEntryId: firstFeatured.id,
+      loadPage,
+      appendReflection,
+      presentNext: async () => ({ learningCycleRecordId: nextFeatured.id, excerpt: 'Next thought' })
+    });
+
+    act(() => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Reflect again')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const textarea = document.querySelector('[data-testid="thinking-journal-reflect-notes"]') as HTMLTextAreaElement;
+    await act(async () => {
+      textarea.value = 'Keep this draft after failure';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Save reflection')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="thinking-journal-reflect-error"]')?.textContent).toContain('Try again');
+    expect((document.querySelector('[data-testid="thinking-journal-reflect-notes"]') as HTMLTextAreaElement).value).toBe(
+      'Keep this draft after failure'
+    );
+
+    await act(async () => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Another thought')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.body.textContent).toContain('Next thought');
+    expect(document.querySelector('[data-testid="thinking-journal-reflect-notes"]')).toBeNull();
+  });
+
+  it('discards an inline reflection draft when Reflect again collapses the editor and disables the form while saving', async () => {
+    const featuredEntry = {
+      id: 'featured-controls',
+      timestamp: Date.UTC(2026, 1, 20, 12, 0, 0),
+      mode: 'learning',
+      prompt: 'Historical learning prompt',
+      reflections: []
+    } as unknown as ThinkingJournalEntryRecord;
+    let finishAppend: (() => void) | undefined;
+    const appendReflection = vi.fn(
+      () => new Promise<void>((resolve) => {
+        finishAppend = resolve;
+      })
+    );
+
+    await render([], {
+      featuredEntryId: featuredEntry.id,
+      loadPage: async () => ({ recentEntries: [], featuredEntry }),
+      appendReflection
+    });
+
+    act(() => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Reflect again')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    let textarea = document.querySelector('[data-testid="thinking-journal-reflect-notes"]') as HTMLTextAreaElement;
+    act(() => {
+      textarea.value = 'Discard this draft';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Reflect again')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="thinking-journal-reflect-notes"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('Cancel');
+    expect(
+      Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Reflect again')
+        ?.getAttribute('aria-expanded')
+    ).toBe('false');
+
+    act(() => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Reflect again')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    textarea = document.querySelector('[data-testid="thinking-journal-reflect-notes"]') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('');
+    await act(async () => {
+      textarea.value = 'Save this thought';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Save reflection')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(textarea.disabled).toBe(true);
+    expect(Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Saving…')).toBeTruthy();
+    expect(
+      Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Reflect again')
+        ?.hasAttribute('disabled')
+    ).toBe(true);
+    expect(Array.from(document.querySelectorAll('button')).some((button) => button.textContent === 'Cancel')).toBe(false);
+
+    await act(async () => finishAppend?.());
+    expect(document.querySelector('[data-testid="thinking-journal-reflect-notes"]')).toBeNull();
   });
 });

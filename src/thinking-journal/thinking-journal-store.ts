@@ -44,8 +44,6 @@ async function loadThinkingJournalHistoryData(
 ): Promise<{ records: LearningCycleRecord[]; reflections: ReflectionRecord[] }> {
   const learningCycleStore = dependencies.learningCycleStore ?? new LearningCycleStore();
   const reflectionStore = dependencies.reflectionStore ?? new ReflectionStore();
-  const [rawRecords, rawReflections] = await Promise.all([learningCycleStore.listAll(), reflectionStore.listAll()]);
-  const records = Array.isArray(rawRecords) ? (rawRecords as LearningCycleRecord[]) : [];
-  const reflections = Array.isArray(rawReflections) ? (rawReflections as ReflectionRecord[]) : [];
+  const [records, reflections] = await Promise.all([learningCycleStore.listAll(), reflectionStore.listAll()]);
   return { records, reflections };
 }

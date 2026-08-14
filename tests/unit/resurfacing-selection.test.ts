@@ -25,7 +25,6 @@ function reflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord
   return {
     id: 'reflection-1',
     timestamp: NOW - 1_000,
-    threadId: '/app/learning-1',
     learningCycleRecordId: 'learning-1',
     status: 'completed',
     score: 75,

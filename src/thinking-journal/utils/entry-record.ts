@@ -16,7 +16,7 @@ export interface ThinkingJournalEntryRecord {
   url?: string;
   prompt: string;
   startingPoint?: string;
-  reflection?: ThinkingJournalEntryRecordReflection;
+  reflections: ThinkingJournalEntryRecordReflection[];
   resurfacingSuppressed?: boolean;
 }
 
@@ -24,12 +24,10 @@ export function buildThinkingJournalEntryRecords(
   records: LearningCycleRecord[],
   reflections: ReflectionRecord[]
 ): ThinkingJournalEntryRecord[] {
-  const sortedRecords = records
-    .filter((record) => typeof record.timestamp === 'number')
-    .sort((a, b) => b.timestamp - a.timestamp);
+  const sortedRecords = [...records].sort((a, b) => b.timestamp - a.timestamp);
   const reflectionsByRecordId = buildReflectionMap(sortedRecords, reflections);
 
-  return sortedRecords.map((record) => toThinkingJournalEntryRecord(record, reflectionsByRecordId.get(record.id)));
+  return sortedRecords.map((record) => toThinkingJournalEntryRecord(record, reflectionsByRecordId.get(record.id) ?? []));
 }
 
 export function problemSolvingStartingPointFallback(): string {
@@ -39,26 +37,27 @@ export function problemSolvingStartingPointFallback(): string {
 function buildReflectionMap(
   records: LearningCycleRecord[],
   reflections: ReflectionRecord[]
-): Map<string, ReflectionRecord> {
+): Map<string, ReflectionRecord[]> {
   const eligibleRecordIds = new Set(records.filter(isReflectionEligibleRecord).map((record) => record.id));
-  const reflectionsByRecordId = new Map<string, ReflectionRecord>();
+  const reflectionsByRecordId = new Map<string, ReflectionRecord[]>();
 
   for (const reflection of reflections) {
-    const directRecordId = reflection.learningCycleRecordId?.trim();
-    if (!directRecordId || !eligibleRecordIds.has(directRecordId)) continue;
+    const normalizedRecordId = reflection.learningCycleRecordId.trim();
+    if (!normalizedRecordId || !eligibleRecordIds.has(normalizedRecordId)) continue;
 
-    const existing = reflectionsByRecordId.get(directRecordId);
-    if (!existing || reflection.timestamp > existing.timestamp) {
-      reflectionsByRecordId.set(directRecordId, reflection);
-    }
+    const existing = reflectionsByRecordId.get(normalizedRecordId) ?? [];
+    reflectionsByRecordId.set(normalizedRecordId, [...existing, reflection]);
   }
 
+  for (const linkedReflections of reflectionsByRecordId.values()) {
+    linkedReflections.sort((a, b) => a.timestamp - b.timestamp);
+  }
   return reflectionsByRecordId;
 }
 
 function toThinkingJournalEntryRecord(
   record: LearningCycleRecord,
-  reflection?: ReflectionRecord
+  reflections: ReflectionRecord[]
 ): ThinkingJournalEntryRecord {
   const url = resolveLearningCycleRecordUrl(record);
 
@@ -68,9 +67,9 @@ function toThinkingJournalEntryRecord(
     mode: record.mode,
     ...(url ? { url } : {}),
     prompt: record.prompt,
+    reflections: reflections.map(toThinkingJournalEntryRecordReflection),
     ...(record.resurfacing?.suppressedAt !== undefined ? { resurfacingSuppressed: true } : {}),
-    ...toStartingPoint(record),
-    ...(reflection ? { reflection: toThinkingJournalEntryRecordReflection(reflection) } : {})
+    ...toStartingPoint(record)
   };
 }
 

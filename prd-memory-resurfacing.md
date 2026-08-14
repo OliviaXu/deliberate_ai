@@ -79,11 +79,12 @@ For dogfooding, do not add a day-level cadence yet. Show at most one glint per e
 
 ## Phase 2 — Reflect again
 
-- Add **What do you believe now?** to the featured journal entry.
-- Append a new timestamped reflection linked to the same learning-cycle entry.
-- Preserve and display earlier reflections as a history rather than overwriting them.
-- Build the revisit interaction inside the Thinking Journal. Reuse the existing reflection model and relevant visual language where helpful, without moving the current in-chat modal into the journal.
-- Decide during Phase 2 design whether the current learning-delta score remains useful alongside free text.
+- Keep **Reflect again** and **Don't resurface this** together in a persistent action row inside the featured journal card. **Reflect again** toggles the editor beneath that row; collapsing it discards the draft, so the editor does not need a separate Cancel action. Use **Thoughts?** as the textarea placeholder and accessible label rather than as a separate section heading. Keep **Another thought** outside the card as the action that replaces the featured entry.
+- Require a written response and keep the five-level update score as a compact **No update** to **Major update** control above the textarea. Display saved scores only as a qualitative outcome such as **Small update** or **Major update**, not with the internal “learning delta” name, repeated scale endpoints, or a raw number.
+- Append a new timestamped reflection linked to the same learning-cycle entry by `learningCycleRecordId`. That identifier is the sole canonical association; reflections do not duplicate the entry's thread ID.
+- Preserve and display all earlier reflections oldest-to-newest on every journal card rather than overwriting them. Only a featured returned thought offers the action to add another reflection.
+- Build the revisit interaction inside the Thinking Journal and reuse the existing reflection score and spark language without moving the current in-chat modal into the journal.
+- Update full-history CSV export in a separately tested and reviewed pass after the main Phase 2 experience is committed.
 
 ## Outside the MVP
 

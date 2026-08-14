@@ -4,6 +4,7 @@ import {
   buildThinkingJournalEntryViews,
   buildRecentThinkingJournalEntryViews,
   filterThinkingJournalEntryViews,
+  formatJournalReflectionTimestamp,
   formatJournalTimestamp
 } from '../../src/thinking-journal/utils/entry-view';
 import { buildThinkingJournalEntryRecords } from '../../src/thinking-journal/utils/entry-record';
@@ -28,7 +29,6 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   return {
     id: 'reflection-1',
     timestamp: NOW_MS,
-    threadId: '/app/threads/default',
     learningCycleRecordId: '1',
     status: 'completed',
     score: 75,
@@ -132,7 +132,6 @@ describe('buildThinkingJournalEntryViews', () => {
       [
         makeReflection({
           id: 'reflection-a',
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - DAY_MS,
           score: 50,
@@ -142,9 +141,9 @@ describe('buildThinkingJournalEntryViews', () => {
       )
     );
 
-    expect(entries[0]?.reflection).toMatchObject({
+    expect(entries[0]?.reflections[0]).toMatchObject({
       timestamp: NOW_MS - DAY_MS,
-      dateLabel: formatJournalTimestamp(NOW_MS - DAY_MS),
+      dateLabel: formatJournalReflectionTimestamp(NOW_MS - DAY_MS),
       score: 50,
       notes: 'The issue was actually an expired token.'
     });
@@ -172,7 +171,6 @@ describe('buildThinkingJournalEntryViews', () => {
       [
         makeReflection({
           id: 'reflection-direct',
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'problem-older',
           timestamp: NOW_MS - 1000,
           score: 100,
@@ -182,11 +180,11 @@ describe('buildThinkingJournalEntryViews', () => {
       )
     );
 
-    expect(entries.find((entry) => entry.id === 'problem-older')?.reflection).toMatchObject({
+    expect(entries.find((entry) => entry.id === 'problem-older')?.reflections[0]).toMatchObject({
       score: 100,
       notes: 'The cache was fine. The auth token was stale.'
     });
-    expect(entries.find((entry) => entry.id === 'learning-newer')?.reflection).toBeUndefined();
+    expect(entries.find((entry) => entry.id === 'learning-newer')?.reflections).toEqual([]);
   });
 
   it('keeps the learning-cycle timestamp as the sort anchor even when a matched reflection is newer', () => {
@@ -211,7 +209,6 @@ describe('buildThinkingJournalEntryViews', () => {
       [
         makeReflection({
           id: 'reflection-a',
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'older-problem',
           timestamp: NOW_MS - 1000,
           score: 100
@@ -221,10 +218,10 @@ describe('buildThinkingJournalEntryViews', () => {
     );
 
     expect(entries.map((entry) => entry.id)).toEqual(['newer-learning', 'older-problem']);
-    expect(entries[1]?.reflection?.score).toBe(100);
+    expect(entries[1]?.reflections[0]?.score).toBe(100);
   });
 
-  it('drops reflections without a direct eligible record id and prefers the latest direct reflection per record', () => {
+  it('drops unmatched reflections and preserves all direct reflections per eligible record', () => {
     const entries = buildRecentThinkingJournalEntryViews(
       [
         makeRecord({
@@ -251,21 +248,18 @@ describe('buildThinkingJournalEntryViews', () => {
       [
         makeReflection({
           id: 'reflection-delegation',
-          threadId: '/app/threads/thread-delegation',
           learningCycleRecordId: 'delegation-1',
           timestamp: NOW_MS - DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-1',
-          threadId: '/app/threads/thread-problem',
           learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - 2 * DAY_MS,
           score: 25
         }),
         makeReflection({
           id: 'reflection-old-2',
-          threadId: '/app/threads/thread-problem',
           learningCycleRecordId: 'problem-1',
           timestamp: NOW_MS - DAY_MS,
           score: 75,
@@ -273,35 +267,29 @@ describe('buildThinkingJournalEntryViews', () => {
         }),
         makeReflection({
           id: 'reflection-out-of-window',
-          threadId: '/app/threads/thread-old',
           learningCycleRecordId: 'old-learning',
           timestamp: NOW_MS - DAY_MS,
           score: 50
         }),
         makeReflection({
           id: 'reflection-unmatched',
-          threadId: '/app/threads/thread-missing',
           learningCycleRecordId: 'missing-record',
           timestamp: NOW_MS - DAY_MS,
           score: 100
-        }),
-        {
-          id: 'reflection-missing-record-id',
-          timestamp: NOW_MS - DAY_MS,
-          threadId: '/app/threads/thread-problem',
-          status: 'completed',
-          score: 100
-        }
+        })
       ],
       NOW_MS
     );
 
     expect(entries.map((entry) => entry.id)).toEqual(['delegation-1', 'problem-1']);
-    expect(entries[0]?.reflection).toBeUndefined();
-    expect(entries[1]?.reflection).toMatchObject({
-      score: 75,
-      notes: 'The bottleneck was downstream, not the queue.'
-    });
+    expect(entries[0]?.reflections).toEqual([]);
+    expect(entries[1]?.reflections).toEqual([
+      expect.objectContaining({ score: 25 }),
+      expect.objectContaining({
+        score: 75,
+        notes: 'The bottleneck was downstream, not the queue.'
+      })
+    ]);
   });
 });
 
@@ -321,7 +309,6 @@ describe('filterThinkingJournalEntries', () => {
     [
       makeReflection({
         id: 'reflection-problem',
-        threadId: '/app/threads/default',
         learningCycleRecordId: 'problem',
         timestamp: NOW_MS - DAY_MS / 2,
         score: 25

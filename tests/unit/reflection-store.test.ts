@@ -6,18 +6,11 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   return {
     id: 'reflection-1',
     timestamp: 1,
-    threadId: '/app/threads/thread-a',
     learningCycleRecordId: 'record-1',
     status: 'completed',
     score: 75,
     ...overrides
   };
-}
-
-function makeLegacyReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRecord {
-  const reflection = makeReflection(overrides);
-  delete (reflection as { learningCycleRecordId?: string }).learningCycleRecordId;
-  return reflection;
 }
 
 describe('ReflectionStore', () => {
@@ -57,12 +50,11 @@ describe('ReflectionStore', () => {
   it('reports whether a learning-cycle record already has a completed reflection', async () => {
     const store = new ReflectionStore();
 
-    await store.append(makeReflection({ learningCycleRecordId: 'record-a', threadId: '/app/threads/thread-a' }));
+    await store.append(makeReflection({ learningCycleRecordId: 'record-a' }));
     await store.append(
       makeReflection({
         id: 'reflection-2',
         learningCycleRecordId: 'record-b',
-        threadId: '/app/threads/thread-b',
         score: 25
       })
     );
@@ -71,16 +63,23 @@ describe('ReflectionStore', () => {
     await expect(store.hasCompletedReflectionForRecord('record-missing')).resolves.toBe(false);
   });
 
-  it('does not treat legacy thread-only reflections as completed for record-based lookups', async () => {
+  it('ignores persisted reflections without a learning-cycle record id', async () => {
+    storageData[REFLECTIONS_STORAGE_KEY] = [
+      {
+        id: 'legacy-reflection',
+        timestamp: 1,
+        threadId: '/app/threads/thread-a',
+        status: 'completed',
+        score: 75
+      },
+      makeReflection({ id: 'current-reflection', learningCycleRecordId: 'record-a' })
+    ];
     const store = new ReflectionStore();
 
-    await store.append(
-      makeLegacyReflection({
-        threadId: '/app/threads/thread-a'
-      })
-    );
-
-    await expect(store.hasCompletedReflectionForRecord('record-a')).resolves.toBe(false);
+    await expect(store.listAll()).resolves.toEqual([
+      expect.objectContaining({ id: 'current-reflection', learningCycleRecordId: 'record-a' })
+    ]);
+    await expect(store.hasCompletedReflectionForRecord('record-a')).resolves.toBe(true);
   });
 
   it('recovers to an empty reflection list when stored value is invalid', async () => {
@@ -99,12 +98,12 @@ describe('ReflectionStore', () => {
   it('lists all stored reflections', async () => {
     const store = new ReflectionStore();
 
-    await store.append(makeReflection({ id: 'reflection-1', threadId: '/app/threads/thread-a' }));
-    await store.append(makeReflection({ id: 'reflection-2', threadId: '/app/threads/thread-b', score: 25 }));
+    await store.append(makeReflection({ id: 'reflection-1' }));
+    await store.append(makeReflection({ id: 'reflection-2', score: 25 }));
 
     await expect(store.listAll()).resolves.toEqual([
-      expect.objectContaining({ id: 'reflection-1', threadId: '/app/threads/thread-a' }),
-      expect.objectContaining({ id: 'reflection-2', threadId: '/app/threads/thread-b', score: 25 })
+      expect.objectContaining({ id: 'reflection-1', learningCycleRecordId: 'record-1' }),
+      expect.objectContaining({ id: 'reflection-2', learningCycleRecordId: 'record-1', score: 25 })
     ]);
   });
 });

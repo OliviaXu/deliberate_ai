@@ -435,12 +435,17 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75,
           notes: 'I should anchor the comparison around rollback criteria sooner.'
         })
+      })
+    );
+    expect(runtimeSendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'reflection:append',
+        record: expect.objectContaining({ threadId: expect.any(String) })
       })
     );
     expect(runtimeSendMessage).not.toHaveBeenCalledWith(
@@ -497,7 +502,6 @@ describe('content reflection hint refresh', () => {
     expect(runtimeSendMessage).toHaveBeenCalledWith({
       type: 'reflection:append',
       record: expect.objectContaining({
-        threadId: '/app/threads/thread-a',
         learningCycleRecordId: 'record-1',
         status: 'completed',
         score: 75
@@ -561,7 +565,6 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75
@@ -617,7 +620,6 @@ describe('content reflection hint refresh', () => {
       expect.objectContaining({
         type: 'reflection:append',
         record: expect.objectContaining({
-          threadId: '/app/threads/thread-a',
           learningCycleRecordId: 'record-1',
           status: 'completed',
           score: 75

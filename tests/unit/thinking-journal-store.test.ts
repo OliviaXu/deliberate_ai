@@ -26,7 +26,6 @@ function makeReflectionRecord(overrides: Partial<ReflectionRecord> = {}): Reflec
   return {
     id: 'reflection-1',
     timestamp: Date.UTC(2026, 2, 12, 12, 30, 0),
-    threadId: '/app/threads/default',
     learningCycleRecordId: 'record-1',
     status: 'completed',
     score: 75,
@@ -114,7 +113,6 @@ describe('loadThinkingJournalPage recent entries', () => {
           makeReflectionRecord({
             id: 'reflection-recent',
             timestamp: nowMs - dayMs / 2,
-            threadId: '/app/threads/recent',
             learningCycleRecordId: 'recent-problem',
             score: 75,
             notes: 'It was token expiry.'
@@ -122,7 +120,6 @@ describe('loadThinkingJournalPage recent entries', () => {
           makeReflectionRecord({
             id: 'reflection-old',
             timestamp: nowMs - dayMs / 3,
-            threadId: '/app/threads/old',
             learningCycleRecordId: 'old-problem',
             score: 50,
             notes: 'The older issue was stale cache.'
@@ -134,22 +131,13 @@ describe('loadThinkingJournalPage recent entries', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       id: 'recent-problem',
-      reflection: {
+      reflections: [{
         score: 75,
         notes: 'It was token expiry.'
-      }
+      }]
     });
   });
 
-  it('returns an empty list when either store returns an invalid value', async () => {
-    const nowMs = Date.UTC(2026, 2, 12, 12, 0, 0);
-    const { recentEntries: entries } = await loadThinkingJournalPage(undefined, nowMs, {
-      learningCycleStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as LearningCycleRecord[])) },
-      reflectionStore: { listAll: vi.fn(async () => ({ nope: true } as unknown as ReflectionRecord[])) }
-    });
-
-    expect(entries).toEqual([]);
-  });
 });
 
 describe('loadThinkingJournalExportRows', () => {
@@ -183,7 +171,6 @@ describe('loadThinkingJournalExportRows', () => {
           makeReflectionRecord({
             id: 'reflection-1',
             timestamp: nowMs - dayMs / 2,
-            threadId: '/app/threads/old',
             learningCycleRecordId: 'old-problem',
             score: 75,
             notes: 'It was token expiry.'
@@ -195,10 +182,10 @@ describe('loadThinkingJournalExportRows', () => {
     expect(rows.map((row) => row.id)).toEqual(['recent-learning', 'old-problem']);
     expect(rows[1]).toMatchObject({
       startingPoint: 'Tokens might be expired.',
-      reflection: {
+      reflections: [{
         score: 75,
         notes: 'It was token expiry.'
-      }
+      }]
     });
   });
 });
@@ -232,7 +219,7 @@ describe('loadThinkingJournalPage', () => {
     expect(page.featuredEntry).toMatchObject({
       id: 'featured',
       prompt: 'Historical prompt',
-      reflection: { notes: 'Historical reflection' }
+      reflections: [{ notes: 'Historical reflection' }]
     });
   });
 

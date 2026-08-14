@@ -142,8 +142,7 @@ export type ResurfacingRuntimeMessage =
 interface ReflectionBase {
   id: string;
   timestamp: number;
-  threadId: string;
-  learningCycleRecordId?: string;
+  learningCycleRecordId: string;
 }
 
 export interface CompletedReflectionRecord extends ReflectionBase {

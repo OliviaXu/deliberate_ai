@@ -12,3 +12,66 @@
     @apply min-h-screen;
   }
 }
+
+@layer components {
+  .thinking-journal-reflect-score {
+    appearance: none;
+    height: 22px;
+    margin: 0;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .thinking-journal-reflect-score:disabled {
+    cursor: default;
+    opacity: 0.58;
+  }
+
+  .thinking-journal-reflect-score:focus-visible {
+    outline: 2px solid rgba(192, 141, 69, 0.3);
+    outline-offset: 2px;
+    border-radius: 999px;
+  }
+
+  .thinking-journal-reflect-score::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      #c08d45 0 var(--thinking-journal-reflect-progress),
+      #dedbd4 var(--thinking-journal-reflect-progress) 100%
+    );
+  }
+
+  .thinking-journal-reflect-score::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #c98e3b;
+    box-shadow: 0 0 0 1px rgba(170, 105, 21, 0.18);
+  }
+
+  .thinking-journal-reflect-score::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: #dedbd4;
+  }
+
+  .thinking-journal-reflect-score::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: #c08d45;
+  }
+
+  .thinking-journal-reflect-score::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #c98e3b;
+    box-shadow: 0 0 0 1px rgba(170, 105, 21, 0.18);
+  }
+}

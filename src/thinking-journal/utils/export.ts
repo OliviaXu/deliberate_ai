@@ -14,20 +14,21 @@ const CSV_HEADER = [
 export function buildThinkingJournalExportCsv(rows: ThinkingJournalEntryRecord[]): string {
   const lines = [
     CSV_HEADER.join(','),
-    ...rows.map((row) =>
-      [
+    ...rows.map((row) => {
+      const reflection = row.reflections.at(-1);
+      return [
         toIso(row.timestamp),
         row.mode,
         row.prompt,
         row.url ?? '',
         row.startingPoint ?? '',
-        row.reflection ? toIso(row.reflection.timestamp) : '',
-        row.reflection ? String(row.reflection.score) : '',
-        row.reflection?.notes ?? ''
+        reflection ? toIso(reflection.timestamp) : '',
+        reflection ? String(reflection.score) : '',
+        reflection?.notes ?? ''
       ]
         .map(escapeCsvValue)
-        .join(',')
-    )
+        .join(',');
+    })
   ];
 
   return lines.join('\n');

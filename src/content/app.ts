@@ -241,7 +241,6 @@ export async function startContentApp({ now, platform }: ContentAppDependencies)
     return {
       id: `${learningCycleRecord.id}:${timestamp}`,
       timestamp,
-      threadId: learningCycleRecord.threadId,
       learningCycleRecordId: learningCycleRecord.id,
       status: 'completed',
       score: submission.score,

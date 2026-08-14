@@ -27,6 +27,17 @@ export class ReflectionStore {
 
   private async listRaw(): Promise<ReflectionRecord[]> {
     const raw = await this.storage.get<unknown>(REFLECTIONS_STORAGE_KEY);
-    return Array.isArray(raw) ? (raw as ReflectionRecord[]) : [];
+    return Array.isArray(raw) ? raw.filter(isReflectionRecord) : [];
   }
+}
+
+function isReflectionRecord(value: unknown): value is ReflectionRecord {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<Record<keyof ReflectionRecord, unknown>>;
+  return typeof record.id === 'string'
+    && typeof record.timestamp === 'number'
+    && typeof record.learningCycleRecordId === 'string'
+    && record.status === 'completed'
+    && (record.score === 0 || record.score === 25 || record.score === 50 || record.score === 75 || record.score === 100)
+    && (record.notes === undefined || typeof record.notes === 'string');
 }

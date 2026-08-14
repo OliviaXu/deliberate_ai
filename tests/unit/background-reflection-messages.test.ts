@@ -6,7 +6,6 @@ function makeReflection(overrides: Partial<ReflectionRecord> = {}): ReflectionRe
   return {
     id: 'reflection-1',
     timestamp: Date.now(),
-    threadId: '/app/thread',
     learningCycleRecordId: 'record-1',
     status: 'completed',
     score: 50,
